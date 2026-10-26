@@ -127,4 +127,10 @@ and secret-scan steps, integration, statistical, build, bundle and e2e. The dril
 because the runner's newer `pg_dump` wrote a PostgreSQL 17 setting into the archive. The
 ops scripts now require version-matched client tools. The next run showed that
 `ubuntu-latest` is Ubuntu 26.04, which has no `postgresql-client-16`, so the integration job
-is pinned to `ubuntu-24.04`. Results of the follow-up run are in the final report.
+is pinned to `ubuntu-24.04`. On commit `19d8fe5`, CI run 40400081898 passed **all five
+jobs**, including the restore drill on `ubuntu-24.04` and `npm audit signatures`.
+
+Extended verification on GitHub (`workflow_dispatch`, run 40398789589, commit `cc61d0b`,
+seed `github-cc61d0b`, 2,000,000 rounds per scenario) passed in 8.5 min. The risk model
+gave P&L z = 0.18, the largest payout was 120,965 chips (within the cap), and the six
+reports were uploaded as `simulation-reports`. Later commits did not touch simulation code.

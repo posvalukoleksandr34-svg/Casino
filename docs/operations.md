@@ -355,7 +355,13 @@ samples and raises a CRITICAL alert.
   token write), so response times do not reveal whether an address has an account.
   Delivery failures increment `casino_mail_failed_total` and are logged without the link
   or address; a failure before sending (e.g. the database) is recorded as an error event
-  for `background:password_reset` (`/admin/health`). Reset links are single-use, expire after 30 minutes, are
+  for `background:password_reset` (`/admin/health`).
+* **Delivery guarantee: best effort, in process, at most once.** There is no durable queue.
+  If the process stops between the response and the send, or the provider rejects the
+  message, no link arrives and the player simply asks again (3 per address per hour).
+  A token is only usable from the e-mail, so a lost message never leaves a usable secret
+  anywhere. If you need guaranteed delivery, put a durable queue or the provider's API with
+  retries in place of `sendInBackground`. Reset links are single-use, expire after 30 minutes, are
   stored only as SHA-256 hashes, are throttled per address (3/hour, silently) and per IP.
 * Without a provider (`disabled`, the default) the site says so honestly: the
   forgot-password page explains that recovery is unavailable and asks players to contact
