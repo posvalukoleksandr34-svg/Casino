@@ -1,16 +1,24 @@
-# Local / single-host deployment: PostgreSQL + one-shot migrations + app.
-# Secrets come from .env (see .env.example):  docker compose up --build
+# Single-host deployment: PostgreSQL + one-shot migrations + app + reverse proxy.
+# Every secret is required — nothing falls back to a default:
+#   cp .env.example .env   # then fill in the "Docker Compose" section
+#   docker compose up --build
+# See docs/operations.md for TLS, backups and secret rotation.
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: casino
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-casino}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD in .env}
       POSTGRES_DB: casino
+      # Consumed once by deploy/postgres/init/01-roles.sh on first start.
+      CASINO_MIGRATOR_PASSWORD: ${DB_MIGRATOR_PASSWORD:?set DB_MIGRATOR_PASSWORD in .env}
+      CASINO_APP_PASSWORD: ${DB_APP_PASSWORD:?set DB_APP_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    # No published port: only the migrate and app containers can reach it.
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U casino -d casino"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d casino"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -21,13 +29,16 @@ services:
       context: .
       target: tools
     environment: &app-env
-      DATABASE_URL: postgresql://casino:${POSTGRES_PASSWORD:-casino}@db:5432/casino
-      APP_URL: ${APP_URL:-http://localhost:3000}
+      DATABASE_URL: postgresql://casino_migrator:${DB_MIGRATOR_PASSWORD:?set DB_MIGRATOR_PASSWORD in .env}@db:5432/casino
+      APP_URL: ${APP_URL:?set APP_URL in .env (https://your.domain in production)}
       SEED_ENCRYPTION_KEY: ${SEED_ENCRYPTION_KEY:?set SEED_ENCRYPTION_KEY in .env}
       SEED_ENCRYPTION_KEYS_PREVIOUS: ${SEED_ENCRYPTION_KEYS_PREVIOUS:-}
       IP_HASH_SECRET: ${IP_HASH_SECRET:?set IP_HASH_SECRET in .env}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
-      MAIL_TRANSPORT: disabled
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-disabled}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       TRUST_PROXY_HOPS: "1"
     command: ["npm", "run", "db:migrate"]
@@ -41,6 +52,8 @@ services:
       target: runner
     environment:
       <<: *app-env
+      # Least-privilege runtime role (owns nothing; see migration 0004).
+      DATABASE_URL: postgresql://casino_app:${DB_APP_PASSWORD:?set DB_APP_PASSWORD in .env}@db:5432/casino
       BACKGROUND_JOBS: "true"
     expose:
       - "3000"
@@ -50,7 +63,9 @@ services:
     restart: unless-stopped
 
   # The only published port. Overwrites X-Forwarded-For so per-IP rate limits
-  # cannot be spoofed. Put TLS termination here or in front of it.
+  # cannot be spoofed (the app trusts exactly one hop: TRUST_PROXY_HOPS=1).
+  # This proxy speaks plain HTTP: terminate TLS here (deploy/nginx-tls.conf)
+  # or at a load balancer in front of it.
   proxy:
     image: nginx:1.27-alpine
     volumes:

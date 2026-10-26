@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build && node scripts/prepare-standalone.mjs",
+    "check:bundle": "node scripts/check-client-bundle.mjs",
     "start": "node .next/standalone/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

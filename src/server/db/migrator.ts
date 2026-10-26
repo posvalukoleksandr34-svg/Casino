@@ -54,6 +54,10 @@ export async function migrate(pool: pg.Pool, dir = path.resolve(process.cwd(), '
         throw new Error(`migration ${file} failed: ${(err as Error).message}`, { cause: err });
       }
     }
+    // Keep the least-privilege runtime role's grants in step with the schema
+    // (migration 0004). No-op when the role does not exist.
+    const fn = await client.query<{ exists: boolean }>("SELECT to_regprocedure('casino_apply_app_grants()') IS NOT NULL AS exists");
+    if (fn.rows[0]?.exists) await client.query('SELECT casino_apply_app_grants()');
     return result;
   } finally {
     await client.query('SELECT pg_advisory_unlock($1)', [LOCK_ID]).catch(() => undefined);

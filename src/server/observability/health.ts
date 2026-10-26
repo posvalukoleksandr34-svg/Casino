@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { getDb, getPool } from '../db/client';
 import { pendingMigrations } from '../db/migrator';
 import { latestReconciliation } from '../jobs/reconciliation';
+import { env } from '../env';
 
 export interface HealthCheck {
   name: string;
@@ -20,8 +21,28 @@ async function timed(name: string, fn: () => Promise<string | undefined>): Promi
   }
 }
 
+/**
+ * The runtime role must not be a superuser and must not be able to act as the
+ * owner of the ledger tables (owners can disable the append-only triggers).
+ * Enforced in production; reported elsewhere.
+ */
+async function databaseRole(): Promise<string> {
+  const { rows } = await getPool().query<{ superuser: boolean; owner: boolean }>(`
+    SELECT r.rolsuper AS superuser,
+           pg_has_role(current_user, c.relowner, 'MEMBER') AS owner
+      FROM pg_roles r, pg_class c
+     WHERE r.rolname = current_user AND c.oid = 'public.ledger_entries'::regclass`);
+  const privileged = rows[0]?.superuser === true || rows[0]?.owner === true;
+  if (!privileged) return 'least privilege';
+  if (env().NODE_ENV === 'production' && !env().ALLOW_PRIVILEGED_DB_ROLE) {
+    throw new Error('the application database role is a superuser or can act as the schema owner');
+  }
+  return 'privileged (accepted outside production)';
+}
+
 export async function readiness() {
   const checks = await Promise.all([
+    timed('database_role', databaseRole),
     timed('database', async () => {
       await getDb().execute(sql`SELECT 1`);
       return undefined;

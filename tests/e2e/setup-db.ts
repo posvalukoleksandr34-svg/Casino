@@ -2,13 +2,16 @@
 import pg from 'pg';
 import { eq } from 'drizzle-orm';
 import { migrate } from '../../src/server/db/migrator';
-import { ADMIN, E2E_ENV } from './env';
+import { ensureAppRole } from '../support/app-role';
+import { ADMIN, E2E_DATABASE_URL } from './env';
 
 async function main() {
-  const name = new URL(E2E_ENV.DATABASE_URL).pathname.slice(1);
+  const name = new URL(E2E_DATABASE_URL).pathname.slice(1);
   if (!name.includes('e2e')) throw new Error(`refusing to reset database "${name}"`);
-  const pool = new pg.Pool({ connectionString: E2E_ENV.DATABASE_URL });
+  // Schema owner connection (migrations); the app under test uses casino_app.
+  const pool = new pg.Pool({ connectionString: E2E_DATABASE_URL });
   await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+  await ensureAppRole(pool, new URL(E2E_DATABASE_URL).username);
   await migrate(pool);
   await pool.end();
   const { bootstrap } = await import('../../src/server/bootstrap');

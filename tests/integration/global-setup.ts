@@ -4,6 +4,7 @@
  * name does not end in "_test".
  */
 import pg from 'pg';
+import { ensureAppRole } from '../support/app-role';
 
 export default async function setup(): Promise<void> {
   const url = process.env.DATABASE_URL_TEST ?? 'postgresql://casino:casino@localhost:5432/casino_test';
@@ -13,6 +14,8 @@ export default async function setup(): Promise<void> {
   process.env.SCRYPT_LOG_N = '10';
   const pool = new pg.Pool({ connectionString: url });
   await pool.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
+  // Least-privilege runtime role (migration 0004); the privileges test connects through it.
+  await ensureAppRole(pool, new URL(url).username);
   const { migrate } = await import('../../src/server/db/migrator');
   await migrate(pool);
   await pool.end();

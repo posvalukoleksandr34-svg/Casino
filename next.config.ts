@@ -39,6 +39,9 @@ const nextConfig: NextConfig = {
   // optimisation off, /_next/image is not served at all, removing the sharp /
   // libvips attack surface (cf. GHSA-2464-fhr4-w9xw, GHSA-cjq9-62q9-8jv4).
   images: { unoptimized: true },
+  // Evaluated at BUILD time (Next.js bakes headers into the routes manifest), so
+  // this HSTS header only appears when APP_URL is https:// during `next build`.
+  // The TLS terminator should send HSTS regardless (deploy/nginx-tls.conf).
   async headers() {
     const headers = [...securityHeaders];
     if (process.env.NODE_ENV === 'production' && process.env.APP_URL?.startsWith('https://')) {
