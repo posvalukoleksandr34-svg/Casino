@@ -36,6 +36,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test:unit
+      - run: npm run check:docs
       # Fails on any moderate-or-worse advisory in the resolved tree (prod + dev).
       - run: npm audit --audit-level=moderate
 

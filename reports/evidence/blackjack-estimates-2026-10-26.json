@@ -1,0 +1,392 @@
+{
+  "description": "Consolidated evidence for the published blackjack house-edge estimates (src/engine/games/blackjack/estimates.ts). SIMULATED: basic strategy, fresh shoe per hand, no insurance, production engine code, xoshiro128** simulation PRNG. One run per rule set on 2026-10-26; regenerate with: npm run sim:game -- blackjack --rules <key> --hands N --write",
+  "method": "basic strategy, fresh shoe per hand, no insurance",
+  "runs": [
+    {
+      "file": "blackjack-simulation-2026-10-26T141006.json",
+      "generatedAt": "2026-10-26T14:10:06.407Z",
+      "rules": [
+        "6-S17-3:2-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141101.json",
+      "generatedAt": "2026-10-26T14:11:01.921Z",
+      "rules": [
+        "6-S17-3:2-NDAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141153.json",
+      "generatedAt": "2026-10-26T14:11:53.679Z",
+      "rules": [
+        "6-S17-6:5-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141239.json",
+      "generatedAt": "2026-10-26T14:12:39.546Z",
+      "rules": [
+        "6-S17-6:5-NDAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141323.json",
+      "generatedAt": "2026-10-26T14:13:23.416Z",
+      "rules": [
+        "6-H17-3:2-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141408.json",
+      "generatedAt": "2026-10-26T14:14:08.295Z",
+      "rules": [
+        "6-H17-3:2-NDAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141456.json",
+      "generatedAt": "2026-10-26T14:14:56.283Z",
+      "rules": [
+        "6-H17-6:5-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141542.json",
+      "generatedAt": "2026-10-26T14:15:42.236Z",
+      "rules": [
+        "6-H17-6:5-NDAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141640.json",
+      "generatedAt": "2026-10-26T14:16:40.765Z",
+      "rules": [
+        "8-S17-3:2-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141735.json",
+      "generatedAt": "2026-10-26T14:17:35.296Z",
+      "rules": [
+        "8-S17-3:2-NDAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141828.json",
+      "generatedAt": "2026-10-26T14:18:28.744Z",
+      "rules": [
+        "8-S17-6:5-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T141919.json",
+      "generatedAt": "2026-10-26T14:19:19.964Z",
+      "rules": [
+        "8-S17-6:5-NDAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T142009.json",
+      "generatedAt": "2026-10-26T14:20:09.703Z",
+      "rules": [
+        "8-H17-3:2-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T142058.json",
+      "generatedAt": "2026-10-26T14:20:58.633Z",
+      "rules": [
+        "8-H17-3:2-NDAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T142153.json",
+      "generatedAt": "2026-10-26T14:21:53.376Z",
+      "rules": [
+        "8-H17-6:5-DAS"
+      ]
+    },
+    {
+      "file": "blackjack-simulation-2026-10-26T142246.json",
+      "generatedAt": "2026-10-26T14:22:46.905Z",
+      "rules": [
+        "8-H17-6:5-NDAS"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "rules": "6-H17-3:2-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.0057239375,
+      "ci95": [
+        0.004919795409614218,
+        0.006528079590385782
+      ],
+      "standardError": 0.00041027657672744,
+      "variancePerUnit": 1.346614955289496,
+      "winRate": 0.432816375,
+      "pushRate": 0.086958625,
+      "lossRate": 0.480225,
+      "blackjackRate": 0.045407875,
+      "doublesPerHand": 0.1085065,
+      "splitsPerHand": 0.02776725
+    },
+    {
+      "rules": "6-H17-3:2-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.0076984375,
+      "ci95": [
+        0.00690835596979923,
+        0.00848851903020077
+      ],
+      "standardError": 0.000403102821531005,
+      "variancePerUnit": 1.2999350778100585,
+      "winRate": 0.431947,
+      "pushRate": 0.08773575,
+      "lossRate": 0.48031725,
+      "blackjackRate": 0.045251375,
+      "doublesPerHand": 0.099598,
+      "splitsPerHand": 0.024430875
+    },
+    {
+      "rules": "6-H17-6:5-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.019149699999999884,
+      "ci95": [
+        0.018356745231476488,
+        0.01994265476852328
+      ],
+      "standardError": 0.0004045687594507118,
+      "variancePerUnit": 1.3094070489879033,
+      "winRate": 0.432911625,
+      "pushRate": 0.086996875,
+      "lossRate": 0.4800915,
+      "blackjackRate": 0.04534775,
+      "doublesPerHand": 0.10837775,
+      "splitsPerHand": 0.02793025
+    },
+    {
+      "rules": "6-H17-6:5-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.022231750000017682,
+      "ci95": [
+        0.021453004128831814,
+        0.02301049587120355
+      ],
+      "standardError": 0.0003973193220336054,
+      "variancePerUnit": 1.2629011492899507,
+      "winRate": 0.43163175,
+      "pushRate": 0.08765425,
+      "lossRate": 0.480714,
+      "blackjackRate": 0.04526,
+      "doublesPerHand": 0.099545625,
+      "splitsPerHand": 0.02439
+    },
+    {
+      "rules": "6-S17-3:2-DAS",
+      "hands": 32000000,
+      "houseEdge": 0.004191203125,
+      "ci95": [
+        0.0037913863729401327,
+        0.0045910198770598674
+      ],
+      "standardError": 0.00020398813880605478,
+      "variancePerUnit": 1.331557144753865,
+      "winRate": 0.43347528125,
+      "pushRate": 0.08779025,
+      "lossRate": 0.47873446875,
+      "blackjackRate": 0.04531871875,
+      "doublesPerHand": 0.10384934375,
+      "splitsPerHand": 0.0278306875
+    },
+    {
+      "rules": "6-S17-3:2-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.0054449375,
+      "ci95": [
+        0.004658845347385894,
+        0.006231029652614106
+      ],
+      "standardError": 0.00040106742480311544,
+      "variancePerUnit": 1.286840633905621,
+      "winRate": 0.432904375,
+      "pushRate": 0.088524375,
+      "lossRate": 0.47857125,
+      "blackjackRate": 0.045230625,
+      "doublesPerHand": 0.0953365,
+      "splitsPerHand": 0.024395125
+    },
+    {
+      "rules": "6-S17-6:5-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.017591324999987258,
+      "ci95": [
+        0.01680299362613374,
+        0.018379656373840775
+      ],
+      "standardError": 0.0004022098846191419,
+      "variancePerUnit": 1.2941823302827473,
+      "winRate": 0.433530625,
+      "pushRate": 0.087897,
+      "lossRate": 0.478572375,
+      "blackjackRate": 0.045254625,
+      "doublesPerHand": 0.103725625,
+      "splitsPerHand": 0.027784125
+    },
+    {
+      "rules": "6-S17-6:5-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.019248974999999155,
+      "ci95": [
+        0.018474264333506858,
+        0.02002368566649145
+      ],
+      "standardError": 0.00039526054412872237,
+      "variancePerUnit": 1.2498471819594694,
+      "winRate": 0.432837,
+      "pushRate": 0.088624625,
+      "lossRate": 0.478538375,
+      "blackjackRate": 0.045310125,
+      "doublesPerHand": 0.095360125,
+      "splitsPerHand": 0.02437275
+    },
+    {
+      "rules": "8-H17-3:2-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.006223625,
+      "ci95": [
+        0.0054194391880172275,
+        0.0070278108119827725
+      ],
+      "standardError": 0.00041029888366467975,
+      "variancePerUnit": 1.3467613914918592,
+      "winRate": 0.432554,
+      "pushRate": 0.08718825,
+      "lossRate": 0.48025775,
+      "blackjackRate": 0.045301,
+      "doublesPerHand": 0.10845525,
+      "splitsPerHand": 0.028130375
+    },
+    {
+      "rules": "8-H17-3:2-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.0082165625,
+      "ci95": [
+        0.007426285931525584,
+        0.009006839068474416
+      ],
+      "standardError": 0.0004032023308542939,
+      "variancePerUnit": 1.3005769568506838,
+      "winRate": 0.43175975,
+      "pushRate": 0.087851875,
+      "lossRate": 0.480388375,
+      "blackjackRate": 0.045308375,
+      "doublesPerHand": 0.099674125,
+      "splitsPerHand": 0.024609875
+    },
+    {
+      "rules": "8-H17-6:5-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.0198609500000046,
+      "ci95": [
+        0.019067621991373355,
+        0.020654278008635844
+      ],
+      "standardError": 0.0004047591880771661,
+      "variancePerUnit": 1.310640002663094,
+      "winRate": 0.4326375,
+      "pushRate": 0.08713975,
+      "lossRate": 0.48022275,
+      "blackjackRate": 0.045262125,
+      "doublesPerHand": 0.108579625,
+      "splitsPerHand": 0.02824425
+    },
+    {
+      "rules": "8-H17-6:5-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.021430875000012766,
+      "ci95": [
+        0.020651890006695182,
+        0.02220985999333035
+      ],
+      "standardError": 0.00039744132312121734,
+      "variancePerUnit": 1.263676842594751,
+      "winRate": 0.431746375,
+      "pushRate": 0.087969125,
+      "lossRate": 0.4802845,
+      "blackjackRate": 0.045225,
+      "doublesPerHand": 0.0996895,
+      "splitsPerHand": 0.02472875
+    },
+    {
+      "rules": "8-S17-3:2-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.004272625,
+      "ci95": [
+        0.003472595311281683,
+        0.005072654688718318
+      ],
+      "standardError": 0.00040817841261138634,
+      "variancePerUnit": 1.3328769321756093,
+      "winRate": 0.433398125,
+      "pushRate": 0.08786125,
+      "lossRate": 0.478740625,
+      "blackjackRate": 0.04526975,
+      "doublesPerHand": 0.10384175,
+      "splitsPerHand": 0.0282555
+    },
+    {
+      "rules": "8-S17-3:2-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.0066621875,
+      "ci95": [
+        0.005876061211924728,
+        0.0074483137880752715
+      ],
+      "standardError": 0.00040108484085473036,
+      "variancePerUnit": 1.286952396507715,
+      "winRate": 0.43234575,
+      "pushRate": 0.088729625,
+      "lossRate": 0.478924625,
+      "blackjackRate": 0.045159625,
+      "doublesPerHand": 0.095167375,
+      "splitsPerHand": 0.02468075
+    },
+    {
+      "rules": "8-S17-6:5-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.017863099999989397,
+      "ci95": [
+        0.0170741971574904,
+        0.018652002842488396
+      ],
+      "standardError": 0.00040250145025459087,
+      "variancePerUnit": 1.296059339656391,
+      "winRate": 0.433462,
+      "pushRate": 0.087871875,
+      "lossRate": 0.478666125,
+      "blackjackRate": 0.045256375,
+      "doublesPerHand": 0.10395775,
+      "splitsPerHand": 0.028322
+    },
+    {
+      "rules": "8-S17-6:5-NDAS",
+      "hands": 8000000,
+      "houseEdge": 0.019000474999998147,
+      "ci95": [
+        0.018225519547625347,
+        0.019775430452370946
+      ],
+      "standardError": 0.000395385434884081,
+      "variancePerUnit": 1.2506371369477909,
+      "winRate": 0.432811375,
+      "pushRate": 0.0886225,
+      "lossRate": 0.478566125,
+      "blackjackRate": 0.0453745,
+      "doublesPerHand": 0.09548975,
+      "splitsPerHand": 0.024573125
+    }
+  ]
+}

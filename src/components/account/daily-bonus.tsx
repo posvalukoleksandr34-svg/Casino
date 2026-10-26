@@ -7,12 +7,24 @@ import { useSession } from '../layout/session-provider';
 import { Button } from '../ui/button';
 import { useToast } from '../ui/toast';
 
-export function DailyBonus({ amount, claimedToday, nextAvailableAt, maxBalance }: { amount: number; claimedToday: boolean; nextAvailableAt: string; maxBalance: number }) {
+export function DailyBonus({
+  amount,
+  claimedToday,
+  nextAvailableAt,
+  maxBalance,
+  blockedReason,
+}: {
+  amount: number;
+  claimedToday: boolean;
+  nextAvailableAt: string;
+  maxBalance: number;
+  blockedReason: string | null;
+}) {
   const { balance, setBalance } = useSession();
   const toast = useToast();
   const [claimed, setClaimed] = useState(claimedToday);
   const [busy, setBusy] = useState(false);
-  const eligible = !claimed && balance < maxBalance && amount > 0;
+  const eligible = !blockedReason && !claimed && balance < maxBalance && amount > 0;
   async function claim() {
     setBusy(true);
     try {
@@ -29,7 +41,9 @@ export function DailyBonus({ amount, claimedToday, nextAvailableAt, maxBalance }
   return (
     <div className="flex flex-wrap items-center justify-between gap-4">
       <div className="text-sm text-ink-300">
-        {claimed ? (
+        {blockedReason ? (
+          <>{blockedReason}</>
+        ) : claimed ? (
           <>Claimed today. Next claim from {new Date(nextAvailableAt).toUTCString().slice(0, 22)} UTC.</>
         ) : balance >= maxBalance ? (
           <>Daily chips are available while your balance is below {formatChips(maxBalance)}.</>

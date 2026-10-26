@@ -1,0 +1,290 @@
+{
+  "generatedAt": "2026-10-26T16:43:38.480Z",
+  "simulated": true,
+  "parameters": {
+    "days": 30,
+    "paths": 1000,
+    "roundsPerDay": 10000,
+    "stakeMedian": 1000,
+    "stakeSigma": 1.2,
+    "mix": {
+      "roulette": 0.3,
+      "dice": 0.25,
+      "mines": 0.15,
+      "crash": 0.15,
+      "blackjack": 0.15
+    },
+    "limits": {
+      "roulette": {
+        "minStake": 10,
+        "maxStake": 1000000,
+        "maxPayoutPerRound": 36000000,
+        "maxGameExposure": 5000000000
+      },
+      "dice": {
+        "minStake": 10,
+        "maxStake": 1000000,
+        "maxPayoutPerRound": 10000000,
+        "maxGameExposure": 5000000000
+      },
+      "mines": {
+        "minStake": 10,
+        "maxStake": 100000,
+        "maxPayoutPerRound": 100000000,
+        "maxGameExposure": 5000000000
+      },
+      "crash": {
+        "minStake": 10,
+        "maxStake": 100000,
+        "maxPayoutPerRound": 100000000,
+        "maxGameExposure": 5000000000
+      },
+      "blackjack": {
+        "minStake": 100,
+        "maxStake": 500000,
+        "maxPayoutPerRound": 10000000,
+        "maxGameExposure": 5000000000
+      }
+    },
+    "seed": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "stakeMedianChips": 10,
+    "roundsPerPath": 300000
+  },
+  "scenarios": [
+    {
+      "game": "roulette",
+      "name": "red",
+      "weight": 0.45,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "roulette",
+      "name": "dozen",
+      "weight": 0.25,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "roulette",
+      "name": "straight",
+      "weight": 0.3,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "dice",
+      "name": "win chance 49.5%",
+      "weight": 0.5,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "dice",
+      "name": "win chance 90%",
+      "weight": 0.2,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "dice",
+      "name": "win chance 10%",
+      "weight": 0.2,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "dice",
+      "name": "win chance 1%",
+      "weight": 0.1,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "mines",
+      "name": "3 mines, 3 picks",
+      "weight": 0.5,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "mines",
+      "name": "1 mines, 5 picks",
+      "weight": 0.2,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "mines",
+      "name": "5 mines, 4 picks",
+      "weight": 0.2,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "mines",
+      "name": "24 mines, 1 picks",
+      "weight": 0.1,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "crash",
+      "name": "auto 1.5×",
+      "weight": 0.3,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "crash",
+      "name": "auto 2×",
+      "weight": 0.4,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "crash",
+      "name": "auto 10×",
+      "weight": 0.2,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "crash",
+      "name": "auto 100×",
+      "weight": 0.1,
+      "source": "exact",
+      "outcomes": 2
+    },
+    {
+      "game": "blackjack",
+      "name": "basic strategy",
+      "weight": 1,
+      "source": "empirical (200,000 hands)",
+      "outcomes": 43
+    }
+  ],
+  "results": {
+    "theoreticalHousePnl": 8464781.015096614,
+    "simulatedHousePnl": {
+      "mean": 8660804.926,
+      "ci95": [
+        8242269.525969432,
+        9079340.32603057
+      ]
+    },
+    "handleMean": 628235491.064,
+    "realisedHoldPct": 1.3785921122239975,
+    "pnlQuantiles": {
+      "p0_1": {
+        "value": -15506960.195,
+        "ci95": [
+          -19094564,
+          -11538093
+        ],
+        "reliable": false
+      },
+      "p1": {
+        "value": -8536472.22,
+        "ci95": [
+          -11538093,
+          -7289973
+        ],
+        "reliable": true
+      },
+      "p5": {
+        "value": -2785398.3,
+        "ci95": [
+          -4075604,
+          -2000565
+        ],
+        "reliable": true
+      },
+      "p50": {
+        "value": 9109079,
+        "ci95": [
+          8506437,
+          9589481
+        ],
+        "reliable": true
+      }
+    },
+    "probabilityHouseLosesOverHorizon": 0.1,
+    "meanLosingDays": 10.485,
+    "worstDayQuantiles": {
+      "p1": {
+        "value": -9634400.82,
+        "ci95": [
+          -10922399,
+          -8857621
+        ],
+        "reliable": true
+      },
+      "p50": {
+        "value": -2611647.5,
+        "ci95": [
+          -2679736,
+          -2531468
+        ],
+        "reliable": true
+      }
+    },
+    "maxDrawdownQuantiles": {
+      "p50": {
+        "value": 4013036.5,
+        "ci95": [
+          3872316,
+          4206444
+        ],
+        "reliable": true
+      },
+      "p99": {
+        "value": 14303679.579999994,
+        "ci95": [
+          13505333,
+          19180478
+        ],
+        "reliable": true
+      },
+      "p99_9": {
+        "value": 21092233.308999997,
+        "ci95": [
+          19180478,
+          21225409
+        ],
+        "reliable": false
+      }
+    },
+    "largestSinglePayoutObserved": 10000000,
+    "reserve99": {
+      "drawdown": 14303679.579999994,
+      "drawdownCi95": [
+        13505333,
+        19180478
+      ],
+      "reliable": true,
+      "recommended": 119180478
+    },
+    "reserve99_9": {
+      "drawdown": 21092233.308999997,
+      "drawdownCi95": [
+        19180478,
+        21225409
+      ],
+      "reliable": false,
+      "recommended": 121225409
+    },
+    "stress": {
+      "description": "Deterministic worst case allowed by the configured caps: every open round pays its maximum at once.",
+      "maxTotalExposure": 50000000000,
+      "sumOfGameExposureCaps": 25000000000,
+      "minHouseReserve": 10000000000
+    }
+  },
+  "seconds": 97.332
+}

@@ -33,7 +33,7 @@ export default async function WalletPage() {
       <Card className="mt-6">
         <CardHeader title="Daily chips" subtitle="A small virtual top-up so you can keep playing for fun." />
         <CardBody>
-          <DailyBonus amount={bonus.amount} claimedToday={bonus.claimedToday} nextAvailableAt={bonus.nextAvailableAt} maxBalance={bonus.maxBalance} />
+          <DailyBonus amount={bonus.amount} claimedToday={bonus.claimedToday} nextAvailableAt={bonus.nextAvailableAt} maxBalance={bonus.maxBalance} blockedReason={bonus.blockedReason} />
         </CardBody>
       </Card>
       <Card className="mt-6">

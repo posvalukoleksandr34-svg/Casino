@@ -6,6 +6,7 @@ import { AppError } from '@/server/errors';
 import { startRound } from '@/server/games/round-service';
 import { getLimits, selfExclude, startCoolOff, updateLimits, INCREASE_DELAY_MS } from '@/server/responsible/limits';
 import { key, newPlayer } from './helpers';
+import { losingDiceBet } from './oracle';
 
 const code = (e: unknown) => (e instanceof AppError ? e.code : String(e));
 const bet = (userId: string, amount: number, sessionStartedAt?: Date) =>
@@ -13,15 +14,18 @@ const bet = (userId: string, amount: number, sessionStartedAt?: Date) =>
 
 describe('responsible-play limits are enforced before wagers are accepted', () => {
   it('24-hour loss limit', async () => {
+    // Deterministic: the first bet is chosen (from the committed seed) to lose.
     const p = await newPlayer('rgloss');
     await withTransaction((tx) => updateLimits(tx, p.userId, { dailyLossLimit: 2_000 }));
-    await bet(p.userId, 1_000); // 1% chance: almost certainly lost
-    const err = await bet(p.userId, 1_500).catch((e) => e);
-    // either the first bet was lost (limit hit) or, rarely, won (net loss smaller) — check the deterministic case
+    const lost = await startRound({ userId: p.userId, gameId: 'dice', bet: await losingDiceBet(p.userId, 1_000), idempotencyKey: key() });
+    expect(lost.body.round.payout).toBe(0);
+    // Net loss 1,000: a further 1,500 could exceed 2,000; 2,001 certainly would.
+    await expect(bet(p.userId, 1_500)).rejects.toSatisfy((e) => code(e) === 'RESPONSIBLE_GAMING');
+    await expect(bet(p.userId, 2_001)).rejects.toSatisfy((e) => code(e) === 'RESPONSIBLE_GAMING');
+    // Exactly up to the limit is allowed.
+    await expect(bet(p.userId, 1_000)).resolves.toBeDefined();
     const { limits } = await getLimits(getDb(), p.userId);
     expect(limits.dailyLossLimit).toBe(2_000);
-    if (err instanceof AppError) expect(err.code).toBe('RESPONSIBLE_GAMING');
-    await expect(bet(p.userId, 2_001)).rejects.toSatisfy((e) => code(e) === 'RESPONSIBLE_GAMING');
   });
 
   it('daily wagering limit counts every stake', async () => {

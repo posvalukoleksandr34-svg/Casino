@@ -13,6 +13,7 @@ import { lockWalletAccount, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
 import { getPlatformSettings } from '../risk/risk-service';
 import { audit } from '../audit/audit';
+import { getLimits } from '../responsible/limits';
 
 async function grant(tx: Tx, userId: string, type: 'SIGNUP' | 'DAILY', claimKey: string, amount: number, walletId: number) {
   const ids = await systemAccountIds(tx);
@@ -54,11 +55,19 @@ export async function dailyBonusStatus(tx: Executor, userId: string, now = new D
   const claimedToday = last ? utcDay(last.createdAt) === utcDay(now) : false;
   const next = new Date(`${utcDay(now)}T00:00:00Z`);
   next.setUTCDate(next.getUTCDate() + 1);
+  // No play incentives while a player has chosen a break from play.
+  const rg = await getLimits(tx, userId, now);
+  const blockedReason = rg.selfExcludedUntil
+    ? 'Daily chips are not offered while your account is self-excluded.'
+    : rg.coolOffUntil
+      ? 'Daily chips are not offered during a cool-off break.'
+      : null;
   return {
     amount: settings.dailyBonus,
     maxBalance: settings.dailyBonusMaxBalance,
     claimedToday,
     nextAvailableAt: claimedToday ? next.toISOString() : now.toISOString(),
+    blockedReason,
   };
 }
 
@@ -70,6 +79,7 @@ export async function claimDailyBonus(userId: string, now = new Date()) {
   return withTransaction(async (tx) => {
     const wallet = await lockWalletAccount(tx, userId);
     const status = await dailyBonusStatus(tx, userId, now);
+    if (status.blockedReason) throw errors.responsible(status.blockedReason);
     if (status.amount <= 0) throw errors.conflict('Daily chips are currently unavailable');
     if (status.claimedToday) throw errors.conflict('Daily chips already claimed today', { nextAvailableAt: status.nextAvailableAt });
     if (wallet.balance >= status.maxBalance) {

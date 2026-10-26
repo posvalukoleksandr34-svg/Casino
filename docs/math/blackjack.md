@@ -62,7 +62,9 @@ Monte Carlo through the production engine code (`dealFromShoe` /
 
 The generated table lives between the `GENERATED-ESTIMATES` markers in
 `src/engine/games/blackjack/estimates.ts`; reports land in
-`reports/blackjack-simulation-*.json`. `theoretical()` refuses to publish a
+`reports/evidence/blackjack-estimates-2026-10-26.json` (the 16 runs behind the published
+table; new runs write `reports/blackjack-simulation-<timestamp>.json`, not committed).
+`theoretical()` refuses to publish a
 configuration that has no estimate (the admin cannot activate un-simulated
 rules), and the UI prints the figure with “≈” and the CI.
 

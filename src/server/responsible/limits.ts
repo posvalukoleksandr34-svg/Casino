@@ -90,12 +90,16 @@ export async function updateLimits(tx: Tx, userId: string, requested: Partial<Li
     }
   }
   const hasDelayed = Object.keys(delayed).length > 0;
+  // Every loosening waits the full delay from the latest loosening request:
+  // a later request must not inherit an earlier request's (sooner) effective time.
+  const loosenedNow = LIMIT_KEYS.some((k) => k in requested && k in delayed && !(k in immediate));
+  const effectiveAt = loosenedNow ? new Date(now.getTime() + INCREASE_DELAY_MS) : row.pendingEffectiveAt;
   await tx
     .update(responsibleLimits)
     .set({
       ...immediate,
       pending: hasDelayed ? delayed : null,
-      pendingEffectiveAt: hasDelayed ? (row.pendingEffectiveAt ?? new Date(now.getTime() + INCREASE_DELAY_MS)) : null,
+      pendingEffectiveAt: hasDelayed ? effectiveAt : null,
       updatedAt: now,
     })
     .where(eq(responsibleLimits.userId, userId));
@@ -129,17 +133,24 @@ export interface PlayWindowTotals {
 }
 
 /**
- * Net loss counts every stake placed in the window as lost and subtracts
- * payouts received in the window, so open rounds are treated conservatively.
+ * Rolling-window totals, by time of the money movement:
+ *   wagered  = stakes placed in the window (including extra stakes);
+ *   net loss = stakes placed in the window − payouts received in the window.
+ * Stakes of voided rounds are excluded (they were refunded in full). An open
+ * round's stake counts as lost until it settles (conservative).
  */
 export async function playTotals(db: Executor, userId: string, now: Date): Promise<PlayWindowTotals> {
   const day = new Date(now.getTime() - 86400_000);
   const week = new Date(now.getTime() - 7 * 86400_000);
   const res = await db.execute<{ w24: string; p24: string; w7: string; p7: string }>(sql`
+    WITH placed AS (
+      SELECT b.stake, b.created_at FROM bets b JOIN game_rounds r ON r.id = b.round_id
+       WHERE b.user_id = ${userId} AND b.created_at > ${week} AND r.status <> 'VOIDED'
+    )
     SELECT
-      (SELECT coalesce(sum(stake), 0) FROM bets WHERE user_id = ${userId} AND created_at > ${day})::text AS w24,
+      (SELECT coalesce(sum(stake), 0) FROM placed WHERE created_at > ${day})::text AS w24,
       (SELECT coalesce(sum(amount), 0) FROM payouts WHERE user_id = ${userId} AND created_at > ${day})::text AS p24,
-      (SELECT coalesce(sum(stake), 0) FROM bets WHERE user_id = ${userId} AND created_at > ${week})::text AS w7,
+      (SELECT coalesce(sum(stake), 0) FROM placed)::text AS w7,
       (SELECT coalesce(sum(amount), 0) FROM payouts WHERE user_id = ${userId} AND created_at > ${week})::text AS p7
   `);
   const r = res.rows[0]!;

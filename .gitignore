@@ -13,4 +13,6 @@ next-env.d.ts
 .env.*.local
 npm-debug.log*
 .DS_Store
+# Simulation run outputs (reproducible); committed evidence lives in reports/evidence/
+/reports/*.json
 /reports/tmp/
