@@ -118,6 +118,18 @@ function end(config: CrashConfig, s: CrashState, status: 'cashed' | 'busted', at
   return settled(next, payout, riskWithEdge(config, next, atE2 ?? s.autoCashoutE2 ?? 200));
 }
 
+/**
+ * Elapsed ms at which the flight is decided by time alone: the automatic
+ * target (if reached before the crash), the cap, or the crash. Rounded up to
+ * a whole millisecond so that `resolveByTime` is guaranteed to settle at it.
+ */
+export function flightEndMs(s: Pick<CrashState, 'crashE2' | 'autoCashoutE2' | 'capE2' | 'growthPerMs'>): number {
+  const r = s.growthPerMs;
+  if (s.autoCashoutE2 !== null && s.autoCashoutE2 <= s.crashE2) return Math.ceil(timeToReach(s.autoCashoutE2, r));
+  if (s.crashE2 >= s.capE2) return Math.ceil(timeToReach(s.capE2, r));
+  return Math.ceil(timeToReach(s.crashE2, r));
+}
+
 /** Settles whatever has already happened by `elapsedMs` (auto cash-out, cap or crash), or null. */
 function resolveByTime(config: CrashConfig, s: CrashState, elapsedMs: number): StepResult<CrashState> | null {
   const r = s.growthPerMs;
@@ -185,6 +197,10 @@ export const crash: GameModule<CrashConfig, CrashBet, CrashState, CrashAction, C
   expire(config, state, ctx) {
     if (state.status !== 'flying') return null;
     return resolveByTime(config, state, ctx.elapsedMs);
+  },
+
+  expiresAfterMs(_config, state) {
+    return state.status === 'flying' ? flightEndMs(state) : null;
   },
 
   view(_config, state, isFinal) {

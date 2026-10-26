@@ -8,7 +8,7 @@
  * Lock order (deadlock-free): player wallet → round row → seed pair →
  * house bankroll → wagers-in-play → other system accounts.
  */
-import { and, asc, desc, eq, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, lt, lte, sql } from 'drizzle-orm';
 import { GameRuleError, type GameModule, type RiskProfile, type StepResult } from '@/engine/games/types';
 import { getGameModule } from '@/engine/games/registry';
 import { createRandomStream } from '@/engine/rng/provably-fair';
@@ -25,6 +25,8 @@ import { assertWagerAcceptable, getGameLimits, getPlatformSettings } from '../ri
 import { reserveNonce } from '../fairness/seeds';
 import { maybeFail } from '../testing/faults';
 import { metrics } from '../observability/metrics';
+import { captureError } from '../observability/errors';
+import { logger } from '../observability/logger';
 import { loadActiveGame, loadConfigById, parseWith, requireGameId } from './catalog';
 
 type RoundRow = typeof gameRounds.$inferSelect;
@@ -70,6 +72,17 @@ function toView(mod: GameModule, config: unknown, row: RoundRow, revealedServerS
     },
     voidReason: row.voidReason,
   };
+}
+
+/**
+ * Absolute server time at which an open state settles by time alone, from the
+ * engine's explicit expiry capability (null: never expires).
+ */
+function expiryFor(mod: GameModule, config: unknown, state: unknown, startedAt: Date): Date | null {
+  const ms = mod.expiresAfterMs(config, state);
+  if (ms === null) return null;
+  if (!Number.isFinite(ms) || ms < 0) throw new Error(`${mod.id}: invalid expiry offset ${ms}`);
+  return new Date(startedAt.getTime() + Math.ceil(ms));
 }
 
 function assessOrThrow(mod: GameModule, config: unknown, bet: unknown): RiskProfile {
@@ -240,6 +253,7 @@ export async function startRound(input: StartRoundInput): Promise<IdempotentResu
           startedAt: now,
           updatedAt: now,
           settledAt: settledNow ? now : null,
+          expiresAt: settledNow ? null : expiryFor(game.mod, game.config, step.state, now),
         })
         .returning();
       const body: RoundResponse = {
@@ -300,6 +314,7 @@ async function applyStep(
       payoutVariance: step.risk.payoutVariance,
       actionCount: round.actionCount + 1,
       updatedAt: now,
+      expiresAt: settledNow ? null : expiryFor(mod, config, step.state, round.startedAt),
       ...(settledNow ? { status: 'SETTLED' as const, payoutTotal: step.payout, settledAt: now } : {}),
     })
     .where(eq(gameRounds.id, round.id))
@@ -388,7 +403,13 @@ export async function actOnRound(input: ActInput): Promise<IdempotentResult<Roun
 
 /**
  * Settles a round whose result is determined by elapsed time (e.g. a crash
- * round that busted while the player was away). Safe to call repeatedly.
+ * round that busted while the player was away). Safe to call repeatedly and
+ * concurrently: the wallet and round row locks serialise callers, the status
+ * is re-checked under the lock, and the settlement ledger key is unique.
+ *
+ * When the round is not (yet) decidable, its schedule is corrected from the
+ * engine so that a stale or back-filled `expires_at` cannot keep it at the
+ * head of the expiry queue.
  */
 export async function expireRoundIfDue(roundId: string, now = new Date()): Promise<boolean> {
   return withTransaction(async (tx) => {
@@ -400,22 +421,70 @@ export async function expireRoundIfDue(roundId: string, now = new Date()): Promi
     const mod = getGameModule(requireGameId(round.gameId));
     const config = await loadConfigById(tx, mod, round.configId);
     const step = mod.expire(config, round.state, { elapsedMs: now.getTime() - round.startedAt.getTime() });
-    if (!step) return false;
+    if (!step) {
+      const next = expiryFor(mod, config, round.state, round.startedAt);
+      if (next && next.getTime() <= now.getTime()) {
+        throw new Error(`${round.gameId} round ${round.id} is due since ${next.toISOString()} but the engine did not settle it`);
+      }
+      if ((next?.getTime() ?? null) !== (round.expiresAt?.getTime() ?? null)) {
+        await tx.update(gameRounds).set({ expiresAt: next }).where(eq(gameRounds.id, round.id));
+      }
+      return false;
+    }
     await applyStep(tx, round, mod, config, mod.name, wallet, step, null);
     return true;
   });
 }
 
+/** Retry delay after a failed expiry attempt: 5 s doubling, capped at 1 hour. */
+export function expiryBackoffMs(attempts: number): number {
+  return Math.min(5_000 * 2 ** Math.min(attempts, 20), 3_600_000);
+}
+
+/**
+ * Moves a round that failed to expire behind the rest of the due queue, so a
+ * single faulty round can never block the rounds after it.
+ */
+async function deferExpiry(roundId: string, now: Date, err: unknown): Promise<void> {
+  captureError(err, { route: 'job:expire-rounds' });
+  metrics.inc('casino_round_expiry_failures_total');
+  try {
+    await getDb()
+      .update(gameRounds)
+      .set({
+        expiryAttempts: sql`${gameRounds.expiryAttempts} + 1`,
+        expiresAt: sql`${now.toISOString()}::timestamptz + make_interval(secs => least(5 * power(2, least(${gameRounds.expiryAttempts}, 20)), 3600))`,
+      })
+      .where(and(eq(gameRounds.id, roundId), eq(gameRounds.status, 'OPEN')));
+  } catch (deferErr) {
+    logger.error('could not defer failed round expiry', { roundId, error: (deferErr as Error).message });
+  }
+}
+
+/**
+ * One bounded pass of the expiry queue: OPEN rounds whose engine-declared
+ * expiry time has passed, oldest due first (partial index
+ * game_rounds_expiry_due_idx). Rounds that can never expire by time have no
+ * expiry time and are never selected; a round that fails is deferred with
+ * backoff instead of being retried at the head of the next batch.
+ */
 export async function expireDueRounds(now = new Date(), limit = 200): Promise<number> {
-  const rows = await getDb()
+  const due = await getDb()
     .select({ id: gameRounds.id })
     .from(gameRounds)
-    .where(and(eq(gameRounds.status, 'OPEN'), lt(gameRounds.startedAt, new Date(now.getTime() - 1000))))
-    .orderBy(asc(gameRounds.startedAt))
+    .where(and(eq(gameRounds.status, 'OPEN'), lte(gameRounds.expiresAt, now)))
+    .orderBy(asc(gameRounds.expiresAt), asc(gameRounds.id))
     .limit(limit);
-  let n = 0;
-  for (const r of rows) if (await expireRoundIfDue(r.id, now)) n += 1;
-  return n;
+  let settled = 0;
+  for (const r of due) {
+    try {
+      if (await expireRoundIfDue(r.id, now)) settled += 1;
+    } catch (err) {
+      await deferExpiry(r.id, now, err);
+    }
+  }
+  if (settled) metrics.inc('casino_rounds_expired_total', {}, settled);
+  return settled;
 }
 
 export async function openRounds(userId: string): Promise<RoundView[]> {
@@ -524,7 +593,7 @@ export async function voidRound(input: { roundId: string; adminId: string; reaso
     const now = new Date();
     await tx
       .update(gameRounds)
-      .set({ status: 'VOIDED', settledAt: now, updatedAt: now, voidReason: input.reason })
+      .set({ status: 'VOIDED', settledAt: now, updatedAt: now, voidReason: input.reason, expiresAt: null })
       .where(eq(gameRounds.id, round.id));
     await recordAdminAction(tx, {
       adminId: input.adminId,

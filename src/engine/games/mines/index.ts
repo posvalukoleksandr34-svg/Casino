@@ -168,6 +168,10 @@ export const mines: GameModule<MinesConfig, MinesBet, MinesState, MinesAction, M
     return null; // Mines rounds never expire; the player can always return and continue.
   },
 
+  expiresAfterMs() {
+    return null; // Mines rounds never expire; the player can always return and continue.
+  },
+
   view(config, state, isFinal) {
     const playing = !isFinal && state.status === 'playing';
     const k = state.revealed.length;

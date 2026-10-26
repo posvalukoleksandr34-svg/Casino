@@ -104,3 +104,31 @@ describe('crash round', () => {
     }
   });
 });
+
+describe('crash expiry capability', () => {
+  const config = crash.defaultConfig;
+  it('expire() settles exactly from expiresAfterMs and never a millisecond earlier', () => {
+    for (let nonce = 0; nonce < 400; nonce += 1) {
+      const auto = [undefined, 101, 150, 200, 1000, 100_000][nonce % 6];
+      const start = crash.start(config, { amount: 1000, ...(auto ? { autoCashoutE2: auto } : {}) }, new HmacRandomStream({ serverSeed: 'e'.repeat(64), clientSeed: 'expiry', nonce }));
+      if (start.status !== 'OPEN') {
+        expect(crash.expiresAfterMs(config, start.state)).toBeNull();
+        continue;
+      }
+      const due = crash.expiresAfterMs(config, start.state)!;
+      expect(Number.isInteger(due)).toBe(true);
+      expect(crash.expire(config, start.state, { elapsedMs: due - 1 })).toBeNull();
+      const done = crash.expire(config, start.state, { elapsedMs: due });
+      expect(done?.status).toBe('SETTLED');
+      expect(crash.expiresAfterMs(config, done!.state)).toBeNull();
+    }
+  });
+
+  it('games without time-based settlement declare that explicitly', async () => {
+    const { getGameModule } = await import('@/engine/games/registry');
+    for (const id of ['roulette', 'dice', 'mines', 'blackjack'] as const) {
+      const mod = getGameModule(id);
+      expect(mod.expiresAfterMs(mod.defaultConfig, {})).toBeNull();
+    }
+  });
+});

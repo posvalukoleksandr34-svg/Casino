@@ -43,7 +43,7 @@ erDiagram
 | `ledger_transactions` | Transaction header; `idempotency_key` = business key (`round:<id>:settle`) | unique key; append-only |
 | `ledger_entries` | Signed amounts; `balance_after`; gapless `account_seq` | append-only; unique `(account_id, account_seq)`; deferred trigger: Σ = 0 and ≥ 2 entries |
 | `seed_pairs` | Provably fair seeds (server seed AES-GCM encrypted), next nonce | one ACTIVE per user; revealed pairs immutable; nonce never decreases |
-| `game_rounds` | One row per round; risk snapshot; state JSON | unique `(seed_pair_id, nonce)`; one OPEN round per (user, game); settled/voided rows immutable; status/settled/payout consistency CHECKs |
+| `game_rounds` | One row per round; risk snapshot; state JSON | unique `(seed_pair_id, nonce)`; one OPEN round per (user, game); settled/voided rows immutable; status/settled/payout consistency CHECKs; `expires_at` only on OPEN rows (partial index `game_rounds_expiry_due_idx` for the expiry queue, migration 0003) |
 | `bets` | Every accepted wager (one per roulette position, double, split…) | unique `(round_id, seq)`; append-only |
 | `payouts` | Exactly one per settled round (amount may be 0) | unique `round_id`, unique ledger tx; append-only |
 | `bonuses` | Virtual rewards with unique claim keys (`daily:<user>:<date>`) | unique `claim_key`; append-only |

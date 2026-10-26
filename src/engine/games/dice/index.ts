@@ -134,6 +134,10 @@ export const dice: GameModule<DiceConfig, DiceBet, DiceState, never, DiceState> 
     return null;
   },
 
+  expiresAfterMs() {
+    return null; // Settles instantly.
+  },
+
   view(_config, state) {
     return state;
   },

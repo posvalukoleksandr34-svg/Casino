@@ -138,6 +138,10 @@ export const roulette: GameModule<RouletteConfig, RouletteBetInput, RouletteStat
     return null;
   },
 
+  expiresAfterMs() {
+    return null; // Settles instantly.
+  },
+
   view(_config, state) {
     return state;
   },

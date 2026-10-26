@@ -112,6 +112,14 @@ export interface GameModule<C = unknown, B = unknown, S = unknown, A = unknown, 
    * round must stay open.
    */
   expire(config: C, state: S, ctx: ActionContext): StepResult<S> | null;
+  /**
+   * Explicit time-expiry capability: the elapsed time (ms since the round
+   * started, server clock) from which `expire` is guaranteed to settle this
+   * open state, or null when the state never settles without a player action.
+   * The server schedules automatic settlement from this value only, so games
+   * that never expire (e.g. Mines) never enter the expiry queue.
+   */
+  expiresAfterMs(config: C, state: S): number | null;
   /** Client-safe view; secrets (mine positions, hole card, crash point) only once settled. */
   view(config: C, state: S, settled: boolean): V;
   /** Theoretical return for documentation and analytics. */

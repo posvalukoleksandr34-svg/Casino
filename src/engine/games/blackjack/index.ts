@@ -285,6 +285,10 @@ export const blackjack: GameModule<BlackjackConfig, BlackjackBet, BlackjackState
     return null;
   },
 
+  expiresAfterMs() {
+    return null; // A hand waits for the player indefinitely.
+  },
+
   view(config, s, isFinal) {
     const reveal = isFinal || s.phase === 'done';
     const { shoe: _shoe, next: _next, ...rest } = s;

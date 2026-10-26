@@ -181,6 +181,9 @@ export const gameRounds = pgTable('game_rounds', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
   settledAt: ts('settled_at'),
   voidReason: text('void_reason'),
+  /** When the engine says this OPEN round settles by time alone (null: never). */
+  expiresAt: ts('expires_at'),
+  expiryAttempts: integer('expiry_attempts').notNull().default(0),
 });
 
 export const ledgerTransactions = pgTable('ledger_transactions', {

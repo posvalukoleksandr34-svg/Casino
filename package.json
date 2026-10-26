@@ -25,6 +25,7 @@
     "sim:game": "tsx scripts/simulate-game.ts",
     "sim:risk": "tsx scripts/simulate-risk.ts",
     "job:reconcile": "tsx scripts/reconcile.ts",
+    "job:expire-rounds": "tsx scripts/expire-rounds.ts",
     "start:dev-server": "next start -p 3000"
   },
   "dependencies": {

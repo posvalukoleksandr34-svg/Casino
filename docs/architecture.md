@@ -125,8 +125,25 @@ This is exercised by fault-injection tests (`tests/integration/rounds.test.ts`).
 | `start(config, bet, rng)` | Draws all randomness for the round; returns initial or final state |
 | `act(config, state, action, ctx)` | Deterministic state transition for interactive games (may request extra stakes) |
 | `expire(config, state, ctx)` | Time-based settlement (e.g. crash) |
+| `expiresAfterMs(config, state)` | Explicit expiry capability: elapsed ms from which `expire` settles the state, or `null` (never) |
 | `view(config, state, settled)` | Client-safe projection; hides secrets until the round is final |
 | `theoretical(config)` | Documented RTP / house edge, exact or simulation estimate with CI |
+
+### Time-based expiry
+
+The server stores `game_rounds.expires_at = started_at + expiresAfterMs(state)`
+(recomputed after every step; `NULL` for rounds that never settle by time,
+always `NULL` once a round is finished — enforced by a CHECK constraint). The
+`expire-rounds` job (every 5 s, advisory-locked, also `npm run
+job:expire-rounds`) selects only `status = 'OPEN' AND expires_at <= now()`,
+oldest due first, through the partial index `game_rounds_expiry_due_idx`.
+Non-expiring games (Mines, Blackjack) therefore never occupy the queue. Each
+round is settled in its own transaction under the wallet and round locks with
+the status re-checked, and the ledger settlement key is unique, so repeated or
+concurrent runs (scheduler, lazy expiry on read) settle a round at most once.
+A round whose expiry fails is deferred with backoff (5 s doubling to 1 h,
+`expiry_attempts`) and reported to `error_events`; it cannot block the rounds
+behind it. Reconciliation flags rounds overdue by more than 5 minutes.
 
 Adding a game = a new module + registry entry + catalogue entry (limits) + UI component.
 Wallet, ledger, risk, fairness, history, analytics and admin work unchanged.
@@ -135,7 +152,7 @@ Wallet, ledger, risk, fairness, history, analytics and admin work unchanged.
 
 ```
 migrations/            forward-only SQL migrations (schema, constraints, triggers)
-scripts/               migrate · seed · reconcile · simulations · demo activity
+scripts/               migrate · seed · reconcile · expire-rounds · simulations · demo activity
 src/engine/            pure game engine (money, rng, games/*, stats, verify)
 src/server/            domain services (db, auth, ledger, wallet, risk, games, fairness,
                        responsible, promotions, admin, analytics, audit, observability,
