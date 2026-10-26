@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { GAME_CONTENT } from '@/content/games';
+import { rtpText } from '@/lib/format';
 import { Card, CardBody, CardHeader } from '../ui/card';
 import { Table, Td, Th, Tr } from '../ui/table';
 
@@ -25,7 +26,7 @@ export function GameRules({ gameId, theoretical, full = false }: { gameId: strin
       <Card>
         <CardHeader
           title="Payouts & return to player"
-          subtitle={`${theoretical.method === 'exact' ? 'Exact (analytical)' : 'Estimated by simulation'} · RTP ${(theoretical.rtp * 100).toFixed(3)}%${
+          subtitle={`${theoretical.method === 'exact' ? 'Exact (analytical)' : 'Estimated by simulation'} · RTP ${rtpText(theoretical, 3)}${
             theoretical.ci95 ? ` (95% CI ${(theoretical.ci95[0] * 100).toFixed(2)}–${(theoretical.ci95[1] * 100).toFixed(2)}%)` : ''
           }`}
         />

@@ -6,8 +6,13 @@
 import { PAYOUT_ODDS, WINNING_POCKETS, type RouletteBetType } from '@/engine/games/roulette/rules';
 import { mines as minesModule, multiplierE4 as minesMultiplier, survivalProbability } from '@/engine/games/mines';
 import { survivalAt as crashSurvival } from '@/engine/games/crash';
+import { blackjack as blackjackModule, insuranceEdge } from '@/engine/games/blackjack';
+import { ESTIMATES, estimateKey } from '@/engine/games/blackjack/estimates';
 
 const minesConfig = minesModule.defaultConfig;
+const bjConfig = blackjackModule.defaultConfig;
+const bjEstimate = ESTIMATES[estimateKey(bjConfig)];
+const pct = (x: number, d = 2) => `${(x * 100).toFixed(d)}%`;
 const minesCell = (m: number, k: number) =>
   k > 25 - m ? '—' : `${(minesMultiplier(minesConfig, m, k) / 10_000).toLocaleString('en-US', { maximumFractionDigits: 4 })}× (${(survivalProbability(m, k) * 100).toFixed(2)}%)`;
 
@@ -149,6 +154,40 @@ export const GAME_CONTENT: Record<string, GameContent> = {
       'For any target x ≥ 1.01, P(crash ≥ x) = 0.99 / x exactly (up to 2⁻⁵² discretisation), so the expected return is x × 0.99/x = 99%: house edge 1% for every target of at least 1.01×, manual or automatic.',
       'P(crash = 1.00×) = 1 − 0.99/1.01 ≈ 1.98%: those rounds end at take-off. Cashing out at exactly 1.00× would therefore return only 98.02%.',
       'Variance per unit staked for target x is x² p (1 − p) with p = 0.99/x: 0.99 at 2×, 8.9 at 10×, 98 at 100×.',
+    ],
+  },
+  blackjack: {
+    id: 'blackjack',
+    name: 'Blackjack',
+    short: 'Beat the dealer without going over 21.',
+    description: `Classic blackjack against the dealer, dealt from a freshly shuffled ${bjConfig.decks}-deck shoe every hand — the entire shoe order is fixed by your provably fair seed before the first card. Get closer to 21 than the dealer without going over.`,
+    rules: [
+      'Cards 2–10 count their face value, J/Q/K count 10, an ace counts 1 or 11. An ace and a ten-value card as your first two cards is a blackjack.',
+      `Dealing order: you, dealer (face up), you, dealer (face down). The dealer ${bjConfig.dealerHitsSoft17 ? 'hits' : 'stands on'} soft 17 and draws to 16 or less.`,
+      'With an ace or ten showing, the dealer checks for blackjack before you act. If the dealer has blackjack you lose only your original stake (a player blackjack pushes).',
+      `Insurance (half your stake) is offered when the dealer shows an ace and pays 2:1 if the dealer has blackjack.`,
+      `Double on any first two cards${bjConfig.doubleAfterSplit ? ', also after splitting' : ' (not after splitting)'}: your stake doubles and you receive exactly one more card.`,
+      'Split two cards of equal value into separate hands (up to 4 hands). Split aces receive one card each and cannot be split again; an ace and a ten after a split counts 21, not blackjack.',
+      'No surrender. Unfinished hands stay open until you complete them.',
+      'A 3:2 or 6:5 blackjack payout that is not a whole number of 0.01 chips is rounded down.',
+    ],
+    payoutTable: {
+      columns: ['Outcome', 'Pays', 'Returned per 10 chips'],
+      rows: [
+        ['Blackjack', `${bjConfig.blackjackPays}`, bjConfig.blackjackPays === '3:2' ? '25' : '22'],
+        ['Win', '1:1', '20'],
+        ['Push', 'Stake returned', '10'],
+        ['Insurance (dealer blackjack)', '2:1', '15 per 5 insured'],
+        ['Loss / bust', '—', '0'],
+      ],
+    },
+    math: [
+      bjEstimate
+        ? `Unlike the other games, the return depends on your decisions. With basic strategy the house edge is estimated at ${pct(bjEstimate.houseEdge, 3)} (95% CI ${pct(bjEstimate.ci95[0])}–${pct(bjEstimate.ci95[1])}), from ${bjEstimate.hands.toLocaleString('en-US')} simulated hands of this exact game code. This is an estimate, not an exact value.`
+        : 'The house-edge estimate for these rules has not been produced yet.',
+      'Any deviation from basic strategy raises the house edge. Card counting does not help: every hand starts from a new shuffled shoe.',
+      `Insurance has a house edge of about ${pct(insuranceEdge(bjConfig.decks))} with a fresh ${bjConfig.decks}-deck shoe: given the dealer's ace, the hole card is a ten with probability ${16 * bjConfig.decks}/${52 * bjConfig.decks - 1} before accounting for your own two cards. Basic strategy never takes it.`,
+      bjEstimate ? `Variance per unit of initial stake is about ${bjEstimate.variancePerUnit.toFixed(2)} (doubles and splits make it larger than an even-money bet).` : 'Variance per unit of initial stake is about 1.3.',
     ],
   },
 };

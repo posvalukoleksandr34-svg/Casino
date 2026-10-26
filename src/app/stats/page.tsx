@@ -5,13 +5,14 @@ import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { requireUser } from '@/server/auth/current';
 import { listGames } from '@/server/games/lobby';
 import { playerStats } from '@/server/users/stats';
+import { rtpText } from '@/lib/format';
 
 export const metadata = { title: 'Statistics' };
 
 export default async function StatsPage() {
   const session = await requireUser('/stats');
   const [stats, games] = await Promise.all([playerStats(session.userId), listGames({ includeDisabled: true })]);
-  const theory = new Map(games.map((g) => [g.id, g.theoretical.rtp]));
+  const theory = new Map(games.map((g) => [g.id, g.theoretical]));
   const t = stats.totals;
   return (
     <>
@@ -56,7 +57,7 @@ export default async function StatsPage() {
                     <Td className="text-right"><Chips amount={g.net} sign colored suffix={false} /></Td>
                     <Td className="text-right"><Pct value={g.wins / g.rounds} digits={1} /></Td>
                     <Td className="text-right"><Pct value={g.wagered ? g.paidOut / g.wagered : null} /></Td>
-                    <Td className="text-right text-ink-400"><Pct value={theory.get(g.gameId) ?? null} /></Td>
+                    <Td className="num text-right text-ink-400">{theory.has(g.gameId) ? rtpText(theory.get(g.gameId)!) : '—'}</Td>
                     <Td className="num text-right">{g.bestMultiplier.toFixed(2)}×</Td>
                   </Tr>
                 ))}

@@ -4,6 +4,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { listGames } from '@/server/games/lobby';
+import { rtpText } from '@/lib/format';
 
 export const metadata = { title: 'Rules & odds' };
 
@@ -38,7 +39,7 @@ export default async function RulesPage() {
                       <span className="font-medium text-ink-100">{g.name}</span>
                     </div>
                   </Td>
-                  <Td className="num text-right text-gold-300">{(g.theoretical.rtp * 100).toFixed(3)}%</Td>
+                  <Td className="num text-right text-gold-300">{rtpText(g.theoretical, 3)}</Td>
                   <Td className="num text-right">{(g.theoretical.houseEdge * 100).toFixed(3)}%</Td>
                   <Td className="text-ink-400">
                     {g.theoretical.method === 'exact' ? 'Exact (analytical)' : `Simulation estimate${g.theoretical.ci95 ? `, 95% CI ${(g.theoretical.ci95[0] * 100).toFixed(2)}–${(g.theoretical.ci95[1] * 100).toFixed(2)}%` : ''}`}

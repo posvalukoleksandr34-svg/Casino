@@ -1,3 +1,4 @@
+import { blackjack } from './blackjack';
 import { crash } from './crash';
 import { dice } from './dice';
 import { mines } from './mines';
@@ -14,6 +15,7 @@ const modules: Partial<Record<GameId, GameModule>> = {
   dice: dice as unknown as GameModule,
   mines: mines as unknown as GameModule,
   crash: crash as unknown as GameModule,
+  blackjack: blackjack as unknown as GameModule,
 };
 
 export function getGameModule(id: GameId): GameModule {

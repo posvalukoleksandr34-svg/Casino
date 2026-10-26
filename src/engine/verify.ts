@@ -4,6 +4,7 @@
  * see: the revealed server seed, the client seed, the nonce and the game
  * parameters chosen for the round.
  */
+import { label } from './games/blackjack/cards';
 import { drawCrashPoint } from './games/crash';
 import { DICE_OUTCOMES } from './games/dice';
 import { MINES_TILES } from './games/mines';
@@ -19,6 +20,9 @@ export interface VerificationResult {
 export type VerifyParams = Record<string, unknown>;
 
 type Verifier = (input: FairnessInput, params: VerifyParams) => { outcome: Record<string, unknown>; description: string };
+
+/** Cards shown by the blackjack verifier (more than any hand can use from a fresh shoe in practice). */
+const BLACKJACK_PREFIX = 24;
 
 const verifiers: Record<string, Verifier> = {
   roulette: (input) => {
@@ -43,6 +47,16 @@ const verifiers: Record<string, Verifier> = {
       Array.from({ length: 5 }, (_, c) => (positions.includes(r * 5 + c) ? '✹' : '·')).join(' '),
     ).join('\n');
     return { outcome: { mines: positions, grid }, description: `Mines at ${positions.join(', ')}` };
+  },
+  blackjack: (input, params) => {
+    const decks = params.decks === undefined ? 6 : Number(params.decks);
+    if (decks !== 6 && decks !== 8) throw new Error('Number of decks must be 6 or 8');
+    const shoe = shuffle(Array.from({ length: 52 * decks }, (_, i) => i), createRandomStream(input));
+    const cards = shoe.slice(0, BLACKJACK_PREFIX).map(label);
+    return {
+      outcome: { firstCards: cards, dealOrder: 'player, dealer up, player, dealer hole, then cards in the order they were requested' },
+      description: `Shoe begins ${cards.slice(0, 6).join(' ')} …`,
+    };
   },
 };
 

@@ -3,6 +3,7 @@ import { GameGlyph } from '@/components/games/game-glyph';
 import { Badge } from '@/components/ui/badge';
 import { currentSession } from '@/server/auth/current';
 import { listGames } from '@/server/games/lobby';
+import { rtpText } from '@/lib/format';
 
 export default async function HomePage() {
   const [session, games] = await Promise.all([currentSession(), listGames()]);
@@ -49,7 +50,7 @@ export default async function HomePage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="num text-lg font-semibold text-gold-300">{(g.theoretical.rtp * 100).toFixed(2)}%</div>
+                  <div className="num text-lg font-semibold text-gold-300">{rtpText(g.theoretical)}</div>
                   <div className="num text-[11px] text-ink-400">edge {(g.theoretical.houseEdge * 100).toFixed(2)}%</div>
                 </div>
               </li>

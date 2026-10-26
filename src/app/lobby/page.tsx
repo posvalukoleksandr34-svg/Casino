@@ -3,6 +3,7 @@ import { GameGlyph } from '@/components/games/game-glyph';
 import { Badge } from '@/components/ui/badge';
 import { Chips, PageHeader } from '@/components/ui/misc';
 import { listGames } from '@/server/games/lobby';
+import { rtpText } from '@/lib/format';
 
 export const metadata = { title: 'Game lobby' };
 
@@ -30,7 +31,7 @@ export default async function LobbyPage() {
               <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
                 <div className="surface-raised px-2 py-2.5">
                   <dt className="text-[10px] uppercase tracking-wider text-ink-400">RTP</dt>
-                  <dd className="num mt-1 text-sm font-semibold text-gold-300">{(g.theoretical.rtp * 100).toFixed(2)}%</dd>
+                  <dd className="num mt-1 text-sm font-semibold text-gold-300">{rtpText(g.theoretical)}</dd>
                 </div>
                 <div className="surface-raised px-2 py-2.5">
                   <dt className="text-[10px] uppercase tracking-wider text-ink-400">Min</dt>

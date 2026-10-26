@@ -4,6 +4,7 @@ import { DiceGame } from '@/components/games/dice-game';
 import { RouletteGame } from '@/components/games/roulette-game';
 import { MinesGame } from '@/components/games/mines-game';
 import { CrashGame } from '@/components/games/crash-game';
+import { BlackjackGame } from '@/components/games/blackjack-game';
 import { GameRules } from '@/components/games/game-rules';
 import { Badge } from '@/components/ui/badge';
 import { Callout, Chips, PageHeader } from '@/components/ui/misc';
@@ -11,8 +12,10 @@ import type { DiceConfig } from '@/engine/games/dice';
 import type { RouletteConfig } from '@/engine/games/roulette';
 import type { MinesConfig } from '@/engine/games/mines';
 import type { CrashConfig } from '@/engine/games/crash';
+import type { BlackjackConfig } from '@/engine/games/blackjack';
 import { getGameSummary } from '@/server/games/lobby';
 import { currentSession } from '@/server/auth/current';
+import { rtpText } from '@/lib/format';
 
 export async function generateMetadata({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = await params;
@@ -40,6 +43,9 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
     case 'crash':
       screen = <CrashGame {...props} config={game.config as CrashConfig} />;
       break;
+    case 'blackjack':
+      screen = <BlackjackGame {...props} config={game.config as BlackjackConfig} />;
+      break;
     default:
       notFound();
   }
@@ -52,8 +58,8 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
         subtitle={game.tagline}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="gold">RTP {(game.theoretical.rtp * 100).toFixed(2)}%</Badge>
-            <Badge>House edge {(game.theoretical.houseEdge * 100).toFixed(2)}%</Badge>
+            <Badge tone="gold">RTP {rtpText(game.theoretical)}</Badge>
+            <Badge>House edge {game.theoretical.method === 'exact' ? '' : '≈'}{(game.theoretical.houseEdge * 100).toFixed(2)}%</Badge>
             <Badge>
               Limits <Chips amount={game.limits.minStake} suffix={false} />–<Chips amount={game.limits.maxStake} suffix={false} />
             </Badge>

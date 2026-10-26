@@ -151,6 +151,16 @@ export function Verifier() {
           {game === 'mines' && (
             <Field label="Number of mines">{(p) => <Input {...p} inputMode="numeric" value={extra.mines} onChange={(e) => setExtra((x) => ({ ...x, mines: e.target.value }))} />}</Field>
           )}
+          {game === 'blackjack' && (
+            <Field label="Decks in the shoe">
+              {(p) => (
+                <Select {...p} value={extra.decks} onChange={(e) => setExtra((x) => ({ ...x, decks: e.target.value }))}>
+                  <option value="6">6</option>
+                  <option value="8">8</option>
+                </Select>
+              )}
+            </Field>
+          )}
           <Field label="Commitment shown before play (optional)" hint="Paste the SHA-256 hash to check the seed was not changed.">
             {(p) => <Input {...p} className="font-mono text-xs" value={commitment} onChange={(e) => setCommitment(e.target.value.trim())} />}
           </Field>

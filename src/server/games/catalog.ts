@@ -50,6 +50,14 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
     tagline: 'Watch the multiplier climb and cash out before it crashes.',
     limits: { minStake: 10, maxStake: 1_000 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
   },
+  blackjack: {
+    id: 'blackjack',
+    sortOrder: 50,
+    initialStatus: 'ACTIVE',
+    tagline: 'Six decks, dealer stands on soft 17, blackjack pays 3:2. Fresh shoe every hand.',
+    // A hand can grow to 4 split hands, each doubled: worst case 16× the initial stake (+ insurance 1.5×).
+    limits: { minStake: 100, maxStake: 5_000 * CHIP, maxPayoutPerRound: 100_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
 };
 
 export function catalogEntries(): CatalogEntry[] {
