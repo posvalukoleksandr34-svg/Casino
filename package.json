@@ -51,7 +51,7 @@
     "postcss": "8.5.29"
   },
   "devDependencies": {
-    "@next/eslint-plugin-next": "15.5.28",
+    "@next/eslint-plugin-next": "16.4.3",
     "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.19.1",
