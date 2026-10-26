@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { GAME_CONTENT } from '@/content/games';
 import { diceRtp, multiplierE4For } from '@/engine/games/dice';
 import { payoutTable } from '@/engine/games/roulette';
+import { blackjack, insuranceEdge } from '@/engine/games/blackjack';
+import { estimateFor } from '@/engine/games/blackjack/estimates';
 
 /** Player-facing tables must match the engine exactly. */
 describe('published rules match the engine', () => {
@@ -16,6 +18,18 @@ describe('published rules match the engine', () => {
       expect(row[2]).toBe(`${(multiplierE4For(w, 100) / 10_000).toFixed(4)}×`);
       expect(row[3]).toBe(`${(diceRtp(w, 100) * 100).toFixed(4)}%`);
     }
+  });
+
+  it('blackjack publishes the simulated estimate (as an estimate) and the exact insurance edge', () => {
+    const c = GAME_CONTENT.blackjack!;
+    const est = estimateFor(blackjack.defaultConfig);
+    expect(c.math.join(' ')).toContain(`${(est.houseEdge * 100).toFixed(3)}%`);
+    expect(c.math.join(' ')).toContain('estimate');
+    expect(c.math.join(' ')).toContain(`${(insuranceEdge(6) * 100).toFixed(2)}%`);
+    const t = blackjack.theoretical(blackjack.defaultConfig);
+    expect(t.method).toBe('estimate');
+    expect(t.ci95![0]).toBeLessThan(t.rtp);
+    expect(t.ci95![1]).toBeGreaterThan(t.rtp);
   });
 
   it('every game with content has rules and maths', () => {

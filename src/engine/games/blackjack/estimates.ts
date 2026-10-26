@@ -14,8 +14,11 @@ export interface EdgeEstimate {
 
 type Key = `${6 | 8}-${'S17' | 'H17'}-${'3:2' | '6:5'}-${'DAS' | 'NDAS'}`;
 
-// GENERATED-ESTIMATES-START
-export const ESTIMATES: Partial<Record<Key, EdgeEstimate>> = {};
+// GENERATED-ESTIMATES-START (2026-10-26, npm run sim:game -- blackjack --all --write)
+export const ESTIMATES: Partial<Record<Key, EdgeEstimate>> = {
+  '6-S17-3:2-DAS': { houseEdge: 0.004191, ci95: [0.003791, 0.004591], variancePerUnit: 1.3316, hands: 32000000 },
+  '6-S17-3:2-NDAS': { houseEdge: 0.005445, ci95: [0.004659, 0.006231], variancePerUnit: 1.2868, hands: 8000000 },
+};
 // GENERATED-ESTIMATES-END
 
 export function estimateKey(c: { decks: number; dealerHitsSoft17: boolean; blackjackPays: string; doubleAfterSplit: boolean }): Key {
