@@ -91,7 +91,7 @@ export function TransactionsTable() {
                   <Chips amount={t.amount} sign colored suffix={false} />
                 </Td>
                 <Td className="text-right">{t.balanceAfter !== null && <Chips amount={t.balanceAfter} suffix={false} />}</Td>
-                <Td className="num text-right text-xs text-ink-500">#{t.transactionId}</Td>
+                <Td className="num text-right text-xs text-ink-400">#{t.transactionId}</Td>
               </Tr>
             ))}
           </tbody>

@@ -54,7 +54,7 @@ export default async function HealthPage() {
           </Table>
         </CardBody>
       </Card>
-      <p className="mt-6 text-xs text-ink-500">
+      <p className="mt-6 text-xs text-ink-400">
         Liveness: <code>GET /api/health</code> · Readiness: <code>GET /api/health/ready</code> · Prometheus metrics: <code>GET /api/metrics</code> (bearer token).
       </p>
     </>

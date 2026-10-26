@@ -47,14 +47,14 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
                     <Td className="text-xs">{a.kind}</Td>
                     <Td>
                       {a.message}
-                      <details className="mt-1 text-xs text-ink-500">
+                      <details className="mt-1 text-xs text-ink-400">
                         <summary className="cursor-pointer">details</summary>
                         <pre className="mt-1 overflow-x-auto">{JSON.stringify(a.details, null, 2)}</pre>
                       </details>
                     </Td>
                     <Td className="text-right">
                       {a.acknowledgedAt ? (
-                        <span className="text-xs text-ink-500">ack {a.acknowledgedAt.toLocaleString()}</span>
+                        <span className="text-xs text-ink-400">ack {a.acknowledgedAt.toLocaleString()}</span>
                       ) : canAck ? (
                         <ReasonedAction label="Acknowledge" title="Acknowledge alert" path={`/api/admin/alerts/${a.id}/ack`} body={(reason) => ({ reason })} />
                       ) : null}

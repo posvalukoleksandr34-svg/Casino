@@ -164,7 +164,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                   <Td className="font-medium text-ink-100">{GAME_NAMES[g.gameId] ?? g.gameId}</Td>
                   {[g.distribution.lost, g.distribution.partial, g.distribution.push, g.distribution.upTo2x, g.distribution.upTo10x, g.distribution.upTo100x, g.distribution.above100x].map((n, i) => (
                     <Td key={i} className="num text-right">
-                      {n.toLocaleString()} <span className="text-xs text-ink-500">({((n / Math.max(1, g.rounds)) * 100).toFixed(1)}%)</span>
+                      {n.toLocaleString()} <span className="text-xs text-ink-400">({((n / Math.max(1, g.rounds)) * 100).toFixed(1)}%)</span>
                     </Td>
                   ))}
                   <Td className="num text-right">{g.maxMultiplier.toFixed(2)}×</Td>
@@ -174,7 +174,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
           </Table>
         </CardBody>
       </Card>
-      <p className="mt-6 text-xs leading-relaxed text-ink-500">
+      <p className="mt-6 text-xs leading-relaxed text-ink-400">
         Method: for each settled round the server stores the theoretical expected payout E and variance V of the wager under the documented rules (computed exactly for roulette and dice).
         Theoretical GGR = Σ stake − Σ E; z = (Σ payout − Σ E) / √Σ V. NGR deducts promotional (bonus) cost, the only expense in this virtual-currency product. Passing these checks is
         consistent with correct operation but does not prove it.

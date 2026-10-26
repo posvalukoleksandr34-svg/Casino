@@ -22,15 +22,15 @@ export default async function GameRulesPage({ params }: { params: Promise<{ game
         <CardHeader title="Table limits" subtitle={`Configuration version ${game.configVersion}`} />
         <CardBody className="grid gap-4 text-sm sm:grid-cols-3">
           <div>
-            <div className="text-xs text-ink-500">Minimum stake</div>
+            <div className="text-xs text-ink-400">Minimum stake</div>
             <Chips amount={game.limits.minStake} />
           </div>
           <div>
-            <div className="text-xs text-ink-500">Maximum stake</div>
+            <div className="text-xs text-ink-400">Maximum stake</div>
             <Chips amount={game.limits.maxStake} />
           </div>
           <div>
-            <div className="text-xs text-ink-500">Maximum payout per round</div>
+            <div className="text-xs text-ink-400">Maximum payout per round</div>
             <Chips amount={game.limits.maxPayoutPerRound} />
           </div>
         </CardBody>

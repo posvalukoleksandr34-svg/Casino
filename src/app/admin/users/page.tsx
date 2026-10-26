@@ -41,7 +41,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                     <Link href={`/admin/users/${u.id}`} className="font-medium text-ink-100 hover:text-gold-300">
                       {u.username}
                     </Link>
-                    <div className="text-xs text-ink-500">{u.email}</div>
+                    <div className="text-xs text-ink-400">{u.email}</div>
                   </Td>
                   <Td className="text-xs">{u.role}</Td>
                   <Td>

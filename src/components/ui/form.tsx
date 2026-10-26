@@ -2,7 +2,7 @@ import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type Selec
 import { cn } from '@/lib/cn';
 
 const control =
-  'w-full rounded-xl border border-ink-600 bg-ink-900 px-3.5 text-sm text-ink-100 placeholder:text-ink-500 transition-colors hover:border-ink-500 focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/25 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-negative/70';
+  'w-full rounded-xl border border-ink-600 bg-ink-900 px-3.5 text-sm text-ink-100 placeholder:text-ink-400 transition-colors hover:border-ink-500 focus:border-gold-500 focus:outline-none focus:ring-2 focus:ring-gold-500/25 disabled:cursor-not-allowed disabled:opacity-60 aria-[invalid=true]:border-negative/70';
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
   return <input ref={ref} className={cn(control, 'h-11', className)} {...rest} />;

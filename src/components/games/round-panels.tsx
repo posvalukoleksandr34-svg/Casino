@@ -43,7 +43,7 @@ export function RecentRounds({ gameId, refreshKey }: { gameId: string; refreshKe
             <Link href={`/history/${r.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm hover:bg-ink-850/60">
               <div className="min-w-0">
                 <div className="truncate text-ink-200">{summarizeRound(r.gameId, r.summary, r.status)}</div>
-                <div className="text-xs text-ink-500">{new Date(r.startedAt).toLocaleTimeString()}</div>
+                <div className="text-xs text-ink-400">{new Date(r.startedAt).toLocaleTimeString()}</div>
               </div>
               <div className="text-right">
                 <div className="num text-xs text-ink-400">stake {formatChips(r.stake)}</div>
@@ -62,7 +62,7 @@ export function RecentRounds({ gameId, refreshKey }: { gameId: string; refreshKe
 export function FairnessStrip({ round }: { round: RoundView | null }) {
   if (!round) {
     return (
-      <p className="text-xs text-ink-500">
+      <p className="text-xs text-ink-400">
         Each result is derived from your committed server seed, client seed and nonce. <Link href="/fairness" className="text-gold-400">How to verify</Link>
       </p>
     );
@@ -70,20 +70,20 @@ export function FairnessStrip({ round }: { round: RoundView | null }) {
   return (
     <dl className="grid gap-2 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        <dt className="text-ink-500">Server seed hash</dt>
+        <dt className="text-ink-400">Server seed hash</dt>
         <dd>
           <Mono>{round.fairness.serverSeedHash.slice(0, 24)}…</Mono>
         </dd>
       </div>
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-2">
-          <dt className="text-ink-500">Client seed</dt>
+          <dt className="text-ink-400">Client seed</dt>
           <dd>
             <Mono>{round.fairness.clientSeed}</Mono>
           </dd>
         </div>
         <div className="flex items-center gap-2">
-          <dt className="text-ink-500">Nonce</dt>
+          <dt className="text-ink-400">Nonce</dt>
           <dd>
             <Mono>{round.fairness.nonce}</Mono>
           </dd>

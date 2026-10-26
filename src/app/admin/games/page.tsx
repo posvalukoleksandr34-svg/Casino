@@ -52,20 +52,20 @@ export default async function AdminGamesPage() {
               <div className="text-sm">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">Limits</div>
                 <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <dt className="text-ink-500">Stake</dt>
+                  <dt className="text-ink-400">Stake</dt>
                   <dd>
                     <Chips amount={g.limits.minStake} suffix={false} /> – <Chips amount={g.limits.maxStake} suffix={false} />
                   </dd>
-                  <dt className="text-ink-500">Max payout</dt>
+                  <dt className="text-ink-400">Max payout</dt>
                   <dd><Chips amount={g.limits.maxPayoutPerRound} suffix={false} /></dd>
-                  <dt className="text-ink-500">Max exposure</dt>
+                  <dt className="text-ink-400">Max exposure</dt>
                   <dd><Chips amount={g.limits.maxGameExposure} suffix={false} /></dd>
                 </dl>
               </div>
               <div className="text-sm">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">Active configuration v{g.activeConfig?.version}</div>
                 <pre className="mt-1 max-h-32 overflow-auto rounded-lg bg-ink-900 p-2 text-[11px] text-ink-300">{JSON.stringify(g.activeConfig?.config, null, 2)}</pre>
-                <div className="mt-1 text-xs text-ink-500">{g.versions.length} version(s) on record</div>
+                <div className="mt-1 text-xs text-ink-400">{g.versions.length} version(s) on record</div>
               </div>
             </CardBody>
           </Card>

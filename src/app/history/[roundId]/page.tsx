@@ -48,23 +48,23 @@ export default async function RoundPage({ params }: { params: Promise<{ roundId:
           <CardHeader title="Provably fair inputs" subtitle="Recompute this result yourself once the server seed is revealed." />
           <CardBody className="space-y-3 text-sm">
             <div>
-              <div className="text-xs text-ink-500">Server seed commitment (SHA-256)</div>
+              <div className="text-xs text-ink-400">Server seed commitment (SHA-256)</div>
               <Mono>{round.fairness.serverSeedHash}</Mono>
             </div>
             <div className="flex flex-wrap gap-6">
               <div>
-                <div className="text-xs text-ink-500">Client seed</div>
+                <div className="text-xs text-ink-400">Client seed</div>
                 <Mono>{round.fairness.clientSeed}</Mono>
               </div>
               <div>
-                <div className="text-xs text-ink-500">Nonce</div>
+                <div className="text-xs text-ink-400">Nonce</div>
                 <Mono>{round.fairness.nonce}</Mono>
               </div>
             </div>
             {round.fairness.serverSeed ? (
               <>
                 <div>
-                  <div className="text-xs text-ink-500">Revealed server seed</div>
+                  <div className="text-xs text-ink-400">Revealed server seed</div>
                   <Mono>{round.fairness.serverSeed}</Mono>
                 </div>
                 <Link href={`/fairness?${verifyQuery}#verify`} className="inline-flex h-10 items-center rounded-xl bg-gradient-to-b from-gold-400 to-gold-600 px-4 text-sm font-semibold text-ink-950">

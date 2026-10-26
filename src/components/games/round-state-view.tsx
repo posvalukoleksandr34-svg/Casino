@@ -42,21 +42,21 @@ export function RoundStateView({ gameId, state, status }: { gameId: string; stat
       return (
         <dl className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <dt className="text-xs text-ink-500">Roll</dt>
+            <dt className="text-xs text-ink-400">Roll</dt>
             <dd className={cn('num text-3xl font-light', s.won ? 'text-positive' : 'text-ink-200')}>{(s.roll / 100).toFixed(2)}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Condition</dt>
+            <dt className="text-xs text-ink-400">Condition</dt>
             <dd className="num text-ink-200">
               Roll {s.direction} {(s.target / 100).toFixed(2)} ({(s.winCount / 100).toFixed(2)}%)
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Multiplier</dt>
+            <dt className="text-xs text-ink-400">Multiplier</dt>
             <dd className="num text-ink-200">{(s.multiplierE4 / 10_000).toFixed(4)}×</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Result</dt>
+            <dt className="text-xs text-ink-400">Result</dt>
             <dd className={s.won ? 'text-positive' : 'text-ink-300'}>{s.won ? 'Win' : 'No win'}</dd>
           </div>
         </dl>
@@ -90,19 +90,19 @@ export function RoundStateView({ gameId, state, status }: { gameId: string; stat
       return (
         <dl className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <dt className="text-xs text-ink-500">Crash point</dt>
+            <dt className="text-xs text-ink-400">Crash point</dt>
             <dd className="num text-3xl font-light text-ink-100">{s.crashE2 === null ? 'hidden until the round ends' : `${(s.crashE2 / 100).toFixed(2)}×`}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Your cash-out</dt>
+            <dt className="text-xs text-ink-400">Your cash-out</dt>
             <dd className={cn('num text-3xl font-light', s.status === 'cashed' ? 'text-positive' : 'text-ink-300')}>{s.cashedOutE2 ? `${(s.cashedOutE2 / 100).toFixed(2)}×` : s.status === 'busted' ? 'busted' : '—'}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Automatic target</dt>
+            <dt className="text-xs text-ink-400">Automatic target</dt>
             <dd className="num text-ink-200">{s.autoCashoutE2 ? `${(s.autoCashoutE2 / 100).toFixed(2)}×` : 'none'}</dd>
           </div>
           <div>
-            <dt className="text-xs text-ink-500">Ended after</dt>
+            <dt className="text-xs text-ink-400">Ended after</dt>
             <dd className="num text-ink-200">{s.endedAtMs !== null ? `${(s.endedAtMs / 1000).toFixed(2)} s` : '—'}</dd>
           </div>
         </dl>

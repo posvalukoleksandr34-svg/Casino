@@ -152,7 +152,7 @@ export function CrashGame({ config, limits, status }: { config: CrashConfig; lim
                 <Button variant="primary" size="lg" block loading={busy} onClick={() => act(round!.id, { type: 'cashout' }, 'cash out')} data-testid="crash-cashout">
                   Cash out
                 </Button>
-                <p className="text-xs text-ink-500">The server clock decides: your cash-out counts at the moment the server receives it. Network delay can lower the multiplier you get.</p>
+                <p className="text-xs text-ink-400">The server clock decides: your cash-out counts at the moment the server receives it. Network delay can lower the multiplier you get.</p>
               </>
             ) : (
               <>

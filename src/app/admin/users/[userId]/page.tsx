@@ -82,7 +82,7 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
                   <Tr key={t.entryId}>
                     <Td className="whitespace-nowrap text-xs text-ink-400">{new Date(t.createdAt).toLocaleString()}</Td>
                     <Td>{TX_LABELS[t.type] ?? t.type}</Td>
-                    <Td className="num text-xs text-ink-500">#{t.transactionId}</Td>
+                    <Td className="num text-xs text-ink-400">#{t.transactionId}</Td>
                     <Td className="text-right"><Chips amount={t.amount} sign colored suffix={false} /></Td>
                   </Tr>
                 ))}
@@ -101,20 +101,20 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
                   ['24 h wager limit', d.responsibleLimits.dailyWagerLimit],
                 ].map(([k, v]) => (
                   <div key={k as string}>
-                    <dt className="text-xs text-ink-500">{k}</dt>
+                    <dt className="text-xs text-ink-400">{k}</dt>
                     <dd>{v ? <Chips amount={v as number} /> : 'none'}</dd>
                   </div>
                 ))}
                 <div>
-                  <dt className="text-xs text-ink-500">Session limit</dt>
+                  <dt className="text-xs text-ink-400">Session limit</dt>
                   <dd>{d.responsibleLimits.sessionLimitMinutes ? `${d.responsibleLimits.sessionLimitMinutes} min` : 'none'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-ink-500">Cool-off until</dt>
+                  <dt className="text-xs text-ink-400">Cool-off until</dt>
                   <dd>{d.responsibleLimits.coolOffUntil?.toLocaleString() ?? '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs text-ink-500">Self-excluded until</dt>
+                  <dt className="text-xs text-ink-400">Self-excluded until</dt>
                   <dd>{d.responsibleLimits.selfExcludedUntil?.toLocaleDateString() ?? '—'}</dd>
                 </div>
               </dl>
@@ -131,9 +131,9 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
                 <li key={a.id} className="flex justify-between gap-3 py-2">
                   <span className="text-ink-200">
                     {a.action}
-                    {a.reason && <span className="text-ink-500"> — {a.reason}</span>}
+                    {a.reason && <span className="text-ink-400"> — {a.reason}</span>}
                   </span>
-                  <span className="whitespace-nowrap text-xs text-ink-500">{a.createdAt.toLocaleString()}</span>
+                  <span className="whitespace-nowrap text-xs text-ink-400">{a.createdAt.toLocaleString()}</span>
                 </li>
               ))}
             </ul>

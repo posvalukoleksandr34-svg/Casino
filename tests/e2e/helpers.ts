@@ -3,8 +3,20 @@ import { PASSWORD } from './env';
 
 let n = 0;
 
+/**
+ * Each test context presents its own client address. The e2e server trusts one
+ * proxy hop (TRUST_PROXY_HOPS=1), exactly as production does behind the proxy,
+ * so per-IP limits (e.g. 10 registrations per hour) apply per simulated client
+ * instead of throttling the whole suite, which all runs from 127.0.0.1.
+ */
+async function asDistinctClient(page: Page) {
+  const ip = `10.${(process.pid % 250) + 1}.${Math.floor(n / 250) % 250}.${(n % 250) + 1}`;
+  await page.context().setExtraHTTPHeaders({ 'X-Forwarded-For': ip });
+}
+
 export async function registerPlayer(page: Page): Promise<{ email: string; username: string }> {
   n += 1;
+  await asDistinctClient(page);
   const username = `e2e_${Date.now().toString(36)}${n}`;
   const email = `${username}@example.test`;
   await page.goto('/register');

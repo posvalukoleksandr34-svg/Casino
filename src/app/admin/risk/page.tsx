@@ -58,7 +58,7 @@ export default async function AdminRiskPage() {
           </CardBody>
         </Card>
       </div>
-      <p className="mt-6 text-xs text-ink-500">
+      <p className="mt-6 text-xs text-ink-400">
         Reserve requirement analysis (Monte Carlo) is available offline via <code>npm run sim:risk</code>; results are documented in docs/risk.md and are never mixed with live figures.
       </p>
     </>

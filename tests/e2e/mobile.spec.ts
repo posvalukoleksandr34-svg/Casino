@@ -10,3 +10,12 @@ test('mobile layout: no horizontal page scroll and dice playable', async ({ page
   await page.getByTestId('dice-roll-button').click();
   expect((await response).status()).toBe(201);
 });
+
+test('mobile layout: key pages fit the screen without horizontal scrolling', async ({ page }) => {
+  await registerPlayer(page);
+  for (const path of ['/', '/lobby', '/games/blackjack', '/games/mines', '/games/crash', '/games/roulette', '/wallet', '/history', '/responsible-play', '/fairness', '/rules/blackjack', '/settings']) {
+    await page.goto(path);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, path).toBeLessThanOrEqual(1);
+  }
+});

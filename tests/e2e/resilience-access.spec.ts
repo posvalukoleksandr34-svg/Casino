@@ -1,0 +1,78 @@
+import { randomUUID } from 'node:crypto';
+import { expect, test } from '@playwright/test';
+import { registerPlayer } from './helpers';
+
+test.describe('interrupted requests, access control and honest states', () => {
+  test('a wager whose response is lost is recovered safely and charged exactly once', async ({ page }) => {
+    await registerPlayer(page);
+    await page.goto('/games/dice');
+    let reachedServer = 0;
+    await page.route('**/api/games/dice/rounds', async (route) => {
+      if (reachedServer === 0) {
+        reachedServer += 1;
+        await route.fetch(); // the server processes the wager…
+      }
+      await route.abort('connectionreset'); // …but the browser never sees a response (nor for its automatic retries)
+    });
+    await page.getByTestId('dice-roll-button').click();
+    await expect(page.getByText('A request may not have completed')).toBeVisible({ timeout: 30_000 });
+
+    await page.unroute('**/api/games/dice/rounds');
+    await page.getByRole('button', { name: 'Retry safely' }).click();
+    await expect(page.getByText('A request may not have completed')).toHaveCount(0);
+
+    const history = await (await page.request.get('/api/rounds?game=dice')).json();
+    expect(history.items).toHaveLength(1); // one round, not two
+    const round = history.items[0];
+    const wallet = await (await page.request.get('/api/wallet')).json();
+    expect(wallet.balance).toBe(1_000_000 - round.stake + (round.payout ?? 0));
+    await expect(page.getByTestId('header-balance')).toHaveText(
+      (wallet.balance / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    );
+  });
+
+  test('every admin API refuses players and anonymous visitors', async ({ page, baseURL }) => {
+    const endpoints: [string, string][] = [
+      ['GET', '/api/admin/overview'],
+      ['GET', '/api/admin/users'],
+      ['GET', '/api/admin/audit'],
+      ['GET', '/api/admin/analytics'],
+      ['GET', '/api/admin/reconciliation'],
+      ['GET', '/api/admin/health'],
+      ['POST', '/api/admin/reconciliation'],
+      ['POST', `/api/admin/users/${randomUUID()}/adjust`],
+      ['POST', `/api/admin/users/${randomUUID()}/role`],
+      ['POST', '/api/admin/house/fund'],
+      ['PATCH', '/api/admin/platform'],
+    ];
+    const call = (method: string, url: string) =>
+      page.request.fetch(url, { method, data: method === 'GET' ? undefined : {}, headers: { Origin: baseURL!, 'Idempotency-Key': randomUUID() } });
+    for (const [m, u] of endpoints) expect((await call(m, u)).status(), `${m} ${u} anonymous`).toBe(401);
+    await registerPlayer(page);
+    for (const [m, u] of endpoints) expect((await call(m, u)).status(), `${m} ${u} as player`).toBe(403);
+  });
+
+  test('public readiness reports pass/fail only, without internal details', async ({ page }) => {
+    const res = await page.request.get('/api/health/ready');
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.status).toBe('ok');
+    for (const c of body.checks) expect(Object.keys(c).sort()).toEqual(['ms', 'name', 'ok']);
+  });
+
+  test('password recovery says plainly when no e-mail provider is configured', async ({ page, baseURL }) => {
+    await page.goto('/forgot-password');
+    await expect(page.getByText('Recovery e-mail unavailable')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Send reset link' })).toHaveCount(0);
+    const res = await page.request.post('/api/auth/password/forgot', { data: { email: 'someone@example.test' }, headers: { Origin: baseURL! } });
+    expect(await res.json()).toMatchObject({ ok: false, recovery: 'unavailable' });
+  });
+
+  test('signed-out visitors see a sign-in prompt, not a balance error', async ({ page }) => {
+    for (const game of ['dice', 'blackjack', 'mines']) {
+      await page.goto(`/games/${game}`);
+      await expect(page.getByText('Sign in to play').first()).toBeVisible();
+      await expect(page.getByText('Stake exceeds your balance')).toHaveCount(0);
+    }
+  });
+});

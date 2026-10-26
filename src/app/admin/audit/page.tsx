@@ -38,11 +38,11 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
             <tbody>
               {items.map((a) => (
                 <Tr key={a.id}>
-                  <Td className="num text-xs text-ink-500">{a.id}</Td>
+                  <Td className="num text-xs text-ink-400">{a.id}</Td>
                   <Td className="whitespace-nowrap text-xs text-ink-400">{a.createdAt.toLocaleString()}</Td>
                   <Td className="text-xs">
                     {a.actorId ? <Link href={`/admin/users/${a.actorId}`} className="hover:text-gold-300">{a.actorName ?? a.actorId.slice(0, 8)}</Link> : a.actorType.toLowerCase()}
-                    <div className="text-ink-500">{a.actorType}</div>
+                    <div className="text-ink-400">{a.actorType}</div>
                   </Td>
                   <Td className="font-mono text-xs">{a.action}</Td>
                   <Td className="text-xs">{a.resourceType ? `${a.resourceType}:${a.resourceId?.slice(0, 12) ?? ''}` : '—'}</Td>

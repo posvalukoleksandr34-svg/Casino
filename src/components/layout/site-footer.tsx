@@ -20,7 +20,7 @@ export function SiteFooter() {
         <FooterCol title="Your account" links={[['/wallet', 'Wallet'], ['/settings', 'Settings & privacy'], ['/responsible-play', 'Responsible play']]} />
       </div>
       <div className="border-t border-ink-800/70">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-ink-500 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-ink-400 sm:px-6">
           <span>© {new Date().getUTCFullYear()} Aurovane — demonstration platform. Not licensed for real-money gambling.</span>
           <span>Every game has a house edge: over time, players are expected to lose chips.</span>
         </div>

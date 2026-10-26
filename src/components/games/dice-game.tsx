@@ -134,7 +134,7 @@ export function DiceGame({ config, limits, status }: Props) {
                   aria-hidden="true"
                 />
               )}
-              <div className="mt-4 flex justify-between text-[11px] text-ink-500">
+              <div className="mt-4 flex justify-between text-[11px] text-ink-400">
                 {[0, 25, 50, 75, 100].map((v) => (
                   <span key={v} className="num">
                     {v}
@@ -207,7 +207,7 @@ export function DiceGame({ config, limits, status }: Props) {
                     className={cn('rounded-lg border px-1 py-1.5 text-[11px] transition-colors', winCount === p.chance ? 'border-gold-500 bg-gold-800/30 text-gold-200' : 'border-ink-700 text-ink-300 hover:border-ink-500')}
                   >
                     <div className="font-medium">{p.label}</div>
-                    <div className="num text-ink-500">{(p.chance / 100).toFixed(1)}%</div>
+                    <div className="num text-ink-400">{(p.chance / 100).toFixed(1)}%</div>
                   </button>
                 ))}
               </div>

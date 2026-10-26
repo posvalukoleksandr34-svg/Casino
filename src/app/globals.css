@@ -21,7 +21,7 @@
   --color-ink-700: #282a31;
   --color-ink-600: #353841;
   --color-ink-500: #4b4f5a;
-  --color-ink-400: #737884;
+  --color-ink-400: #858a95; /* ≥ 4.5:1 (WCAG AA) on every surface token */
   --color-ink-300: #a0a4ae;
   --color-ink-200: #c9ccd3;
   --color-ink-100: #ebe8e2;

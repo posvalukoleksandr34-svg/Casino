@@ -43,16 +43,16 @@ export function SeedManager({ initial }: { initial: Overview }) {
           {initial.active ? (
             <>
               <div>
-                <div className="text-xs text-ink-500">Server seed commitment (SHA-256)</div>
+                <div className="text-xs text-ink-400">Server seed commitment (SHA-256)</div>
                 <Mono>{initial.active.serverSeedHash}</Mono>
               </div>
               <div className="flex flex-wrap gap-6">
                 <div>
-                  <div className="text-xs text-ink-500">Client seed</div>
+                  <div className="text-xs text-ink-400">Client seed</div>
                   <Mono>{initial.active.clientSeed}</Mono>
                 </div>
                 <div>
-                  <div className="text-xs text-ink-500">Next nonce</div>
+                  <div className="text-xs text-ink-400">Next nonce</div>
                   <Mono>{initial.active.nextNonce}</Mono>
                 </div>
               </div>
@@ -67,7 +67,7 @@ export function SeedManager({ initial }: { initial: Overview }) {
           <Button variant="primary" onClick={rotate} loading={busy}>
             Rotate & reveal current seed
           </Button>
-          <p className="text-xs text-ink-500">Rotation is unavailable while a round using the current seed is still open, because revealing the seed would expose its outcome.</p>
+          <p className="text-xs text-ink-400">Rotation is unavailable while a round using the current seed is still open, because revealing the seed would expose its outcome.</p>
         </CardBody>
       </Card>
       <Card>
@@ -80,11 +80,11 @@ export function SeedManager({ initial }: { initial: Overview }) {
               {initial.revealed.map((r) => (
                 <li key={r.serverSeedHash} className="space-y-1.5 rounded-xl border border-ink-700 p-3">
                   <div>
-                    <span className="text-ink-500">Seed </span>
+                    <span className="text-ink-400">Seed </span>
                     <Mono>{r.serverSeed}</Mono>
                   </div>
                   <div>
-                    <span className="text-ink-500">Commitment </span>
+                    <span className="text-ink-400">Commitment </span>
                     <Mono>{r.serverSeedHash}</Mono>
                   </div>
                   <div className="flex flex-wrap gap-4 text-ink-400">
@@ -182,7 +182,7 @@ export function Verifier() {
                 </div>
               </div>
               <div className="text-xs">
-                <div className="text-ink-500">SHA-256(server seed)</div>
+                <div className="text-ink-400">SHA-256(server seed)</div>
                 <Mono>{result.value.serverSeedHash}</Mono>
                 {commitment && (
                   <div className={result.value.serverSeedHash === commitment.toLowerCase() ? 'mt-2 text-positive' : 'mt-2 text-negative'}>

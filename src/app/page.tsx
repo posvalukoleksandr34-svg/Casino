@@ -34,7 +34,7 @@ export default async function HomePage() {
               </Link>
             )}
           </div>
-          <p className="mt-4 text-xs text-ink-500">18+ only. Chips cannot be purchased, withdrawn or exchanged.</p>
+          <p className="mt-4 text-xs text-ink-400">18+ only. Chips cannot be purchased, withdrawn or exchanged.</p>
         </div>
         <div className="surface relative overflow-hidden p-6 animate-fade-in">
           <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-gold-500/10 blur-3xl" />
@@ -56,7 +56,7 @@ export default async function HomePage() {
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs leading-relaxed text-ink-500">
+          <p className="mt-4 text-xs leading-relaxed text-ink-400">
             RTP includes the returned stake. A positive house edge means players are expected to lose chips over time; short-term
             results vary widely.
           </p>

@@ -136,7 +136,7 @@ export function BlackjackGame({ config, limits, status }: { config: BlackjackCon
                 )}
               </div>
               {s ? <CardRow cards={s.dealer} /> : <div className="h-24 sm:h-28" />}
-              <p className="mt-3 text-xs text-ink-500">
+              <p className="mt-3 text-xs text-ink-400">
                 Dealer {config.dealerHitsSoft17 ? 'hits' : 'stands on'} soft 17 · blackjack pays {config.blackjackPays} · insurance pays 2:1
               </p>
             </section>
@@ -241,7 +241,7 @@ export function BlackjackGame({ config, limits, status }: { config: BlackjackCon
                       })}
                     </div>
                     {suggestion && <p className="text-xs text-gold-300">Basic strategy suggests: {ACTION_LABEL[suggestion as Exclude<ActionType, 'insurance'>]}.</p>}
-                    <p className="text-xs text-ink-500">Doubling or splitting adds a stake equal to the current hand&apos;s. You can leave and come back: this hand stays open.</p>
+                    <p className="text-xs text-ink-400">Doubling or splitting adds a stake equal to the current hand&apos;s. You can leave and come back: this hand stays open.</p>
                   </>
                 )}
               </>

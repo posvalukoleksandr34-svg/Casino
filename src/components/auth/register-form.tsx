@@ -74,7 +74,7 @@ export function RegisterForm() {
       <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!ageConfirmed || !termsAccepted}>
         Create account
       </Button>
-      <p className="text-center text-xs text-ink-500">
+      <p className="text-center text-xs text-ink-400">
         You will receive 10,000 virtual welcome chips. See <Link href="/responsible-play" className="text-gold-400">responsible play</Link>.
       </p>
     </form>

@@ -61,24 +61,24 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
           <CardHeader title="Fairness inputs" />
           <CardBody className="space-y-3 text-sm">
             <div>
-              <div className="text-xs text-ink-500">Commitment</div>
+              <div className="text-xs text-ink-400">Commitment</div>
               <Mono>{r.fairness.serverSeedHash}</Mono>
             </div>
             <div className="flex gap-6">
               <div>
-                <div className="text-xs text-ink-500">Client seed</div>
+                <div className="text-xs text-ink-400">Client seed</div>
                 <Mono>{r.fairness.clientSeed}</Mono>
               </div>
               <div>
-                <div className="text-xs text-ink-500">Nonce</div>
+                <div className="text-xs text-ink-400">Nonce</div>
                 <Mono>{r.fairness.nonce}</Mono>
               </div>
             </div>
             <div>
-              <div className="text-xs text-ink-500">Server seed</div>
+              <div className="text-xs text-ink-400">Server seed</div>
               {r.fairness.serverSeed ? <Mono>{r.fairness.serverSeed}</Mono> : <span className="text-ink-400">not yet revealed (still the player&apos;s active seed)</span>}
             </div>
-            <div className="text-xs text-ink-500">
+            <div className="text-xs text-ink-400">
               Started {new Date(r.startedAt).toLocaleString()}
               {r.settledAt && ` · closed ${new Date(r.settledAt).toLocaleString()}`} · {r.actionCount} action(s)
             </div>

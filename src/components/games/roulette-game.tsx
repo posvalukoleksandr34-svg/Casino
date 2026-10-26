@@ -166,7 +166,7 @@ export function RouletteGame({ config, limits, status }: { config: RouletteConfi
                         <span className={r.won ? 'text-positive' : 'text-ink-400'}>
                           {describeBet(r.bet)} · {formatChips(r.bet.amount)}
                         </span>
-                        <span className={cn('num', r.won ? 'text-positive' : 'text-ink-500')}>{r.won ? `+${formatChips(r.payout)}` : 'lost'}</span>
+                        <span className={cn('num', r.won ? 'text-positive' : 'text-ink-400')}>{r.won ? `+${formatChips(r.payout)}` : 'lost'}</span>
                       </li>
                     ))}
                   </ul>

@@ -178,7 +178,7 @@ export function DailyGgrChart({ points }: { points: DailyPoint[] }) {
               </span>
               <span className="num font-semibold text-ink-100">{compactChips(points[hover]!.theory)}</span>
             </div>
-            <div className="mt-1 text-ink-500">{points[hover]!.rounds.toLocaleString()} rounds</div>
+            <div className="mt-1 text-ink-400">{points[hover]!.rounds.toLocaleString()} rounds</div>
           </Tooltip>
         )}
       </div>
@@ -303,7 +303,7 @@ export function RtpDeviationChart({ rows }: { rows: RtpRow[] }) {
                 <span className="num font-semibold text-ink-100">{data[hover]!.z!.toFixed(2)}</span>
               </div>
             )}
-            <div className="mt-1 text-ink-500">{data[hover]!.rounds.toLocaleString()} rounds</div>
+            <div className="mt-1 text-ink-400">{data[hover]!.rounds.toLocaleString()} rounds</div>
           </Tooltip>
         )}
       </div>

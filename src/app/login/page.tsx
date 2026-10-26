@@ -18,7 +18,7 @@ export default async function LoginPage() {
           <Link href="/forgot-password" className="text-gold-400 hover:text-gold-300">
             Forgot password?
           </Link>
-          <span className="mx-2 text-ink-600">·</span>
+          <span className="mx-2 text-ink-600" aria-hidden="true">·</span>
           New here?{' '}
           <Link href="/register" className="text-gold-400 hover:text-gold-300">
             Create an account

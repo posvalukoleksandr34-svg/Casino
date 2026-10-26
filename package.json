@@ -12,7 +12,7 @@
     "build": "next build && node scripts/prepare-standalone.mjs",
     "check:bundle": "node scripts/check-client-bundle.mjs",
     "check:docs": "node scripts/check-doc-links.mjs",
-    "start": "node .next/standalone/server.js",
+    "start": "node --env-file-if-exists=.env .next/standalone/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "db:generate": "drizzle-kit generate",

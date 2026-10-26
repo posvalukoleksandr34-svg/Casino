@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from 'react';
 import { formatChips, MINOR_PER_CHIP, parseChips } from '@/engine/money';
 import { cn } from '@/lib/cn';
+import { useSession } from '../layout/session-provider';
 
 const PRESETS = [1, 5, 10, 50, 100, 500].map((c) => c * MINOR_PER_CHIP);
 
@@ -35,16 +36,20 @@ export function StakeInput({
     if (!focused) setText(formatChips(value).replace(/,/g, ''));
   }, [value, focused]);
 
+  // Signed-out visitors have no balance yet: the screen asks them to sign in
+  // instead of reporting a misleading "exceeds your balance" error.
+  const { user } = useSession();
+  const knownBalance = user ? balance : Number.POSITIVE_INFINITY;
   const problem =
     value < min
       ? `Minimum stake is ${formatChips(min)}`
       : value > max
         ? `Maximum stake is ${formatChips(max)}`
-        : value > balance
+        : value > knownBalance
           ? 'Stake exceeds your balance'
           : null;
 
-  const clamp = (v: number) => Math.max(min, Math.min(v, max, Math.max(balance, min)));
+  const clamp = (v: number) => Math.max(min, Math.min(v, max, Math.max(knownBalance, min)));
 
   return (
     <div>
@@ -75,7 +80,7 @@ export function StakeInput({
           }}
           className="num h-11 min-w-0 flex-1 bg-transparent px-3.5 text-base font-semibold text-ink-100 outline-none disabled:opacity-60"
         />
-        <span className="mr-2 text-[10px] font-semibold tracking-wider text-ink-500">CHIPS</span>
+        <span className="mr-2 text-[10px] font-semibold tracking-wider text-ink-400">CHIPS</span>
         <button type="button" disabled={disabled} onClick={() => onChange(clamp(Math.floor(value / 2)))} className="h-8 rounded-lg px-2.5 text-xs font-semibold text-ink-300 hover:bg-ink-800 hover:text-ink-100" aria-label="Halve stake">
           ½
         </button>

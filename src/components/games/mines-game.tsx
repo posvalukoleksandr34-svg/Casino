@@ -139,7 +139,7 @@ export function MinesGame({ config, limits, status }: { config: MinesConfig; lim
                 <Button variant="primary" size="lg" block loading={busy} disabled={picks === 0} onClick={() => act(round!.id, { type: 'cashout' }, 'cash out')} data-testid="mines-cashout">
                   {picks === 0 ? 'Pick a tile' : `Cash out ${formatChips(currentPayout)}`}
                 </Button>
-                <p className="text-xs text-ink-500">You can leave and come back: this round stays open until you cash out or hit a mine.</p>
+                <p className="text-xs text-ink-400">You can leave and come back: this round stays open until you cash out or hit a mine.</p>
               </>
             ) : (
               <>
