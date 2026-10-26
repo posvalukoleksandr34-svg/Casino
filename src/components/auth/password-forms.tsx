@@ -10,7 +10,7 @@ import { Callout } from '../ui/misc';
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<{ message: string; ok: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   async function submit(e: FormEvent) {
@@ -18,15 +18,20 @@ export function ForgotPasswordForm() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api<{ message: string }>('/api/auth/password/forgot', { method: 'POST', body: { email } });
-      setDone(res.message);
+      const res = await api<{ message: string; ok: boolean }>('/api/auth/password/forgot', { method: 'POST', body: { email } });
+      setDone({ message: res.message, ok: res.ok });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
   }
-  if (done) return <Callout tone="positive" title="Check your inbox">{done}</Callout>;
+  if (done)
+    return (
+      <Callout tone={done.ok ? 'positive' : 'warning'} title={done.ok ? 'Request received' : 'Recovery e-mail unavailable'} role="status">
+        {done.message}
+      </Callout>
+    );
   return (
     <form onSubmit={submit} className="space-y-5">
       {error && <Callout tone="negative">{error}</Callout>}

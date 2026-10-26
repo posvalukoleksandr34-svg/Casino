@@ -1,6 +1,6 @@
 import { StatusBadge } from '@/components/ui/badge';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
-import { PageHeader, Stat } from '@/components/ui/misc';
+import { Callout, PageHeader, Stat } from '@/components/ui/misc';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { requirePermission } from '@/server/auth/current';
 import { operationalHealth } from '@/server/observability/health';
@@ -22,6 +22,13 @@ export default async function HealthPage() {
         <Stat label="DB pool" value={`${h.pool.total - h.pool.idle}/${h.pool.total} busy`} sub={`${h.pool.waiting} waiting`} />
         <Stat label="Server error rate" value={requests ? `${((server / requests) * 100).toFixed(2)}%` : '—'} sub={`${server} of ${requests} requests since start · ${h.errors.last_day} logged errors in 24 h`} />
       </div>
+      {h.passwordRecovery !== 'email' && (
+        <Callout tone="warning" className="mt-6" title="Password-recovery e-mail is not being delivered">
+          {h.passwordRecovery === 'console'
+            ? 'MAIL_TRANSPORT=console: reset links are printed to the server console (development only).'
+            : 'No e-mail provider is configured (MAIL_TRANSPORT=disabled). Players see that recovery is unavailable and must contact support. Configure SMTP_URL and MAIL_FROM — see docs/operations.md.'}
+        </Callout>
+      )}
       <Card className="mt-6">
         <CardHeader title="Readiness checks" subtitle={`Checked ${new Date(h.checkedAt).toLocaleString()}`} />
         <CardBody>

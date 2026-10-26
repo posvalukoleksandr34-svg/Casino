@@ -5,10 +5,13 @@ import { StatusBadge } from '@/components/ui/badge';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Callout, Chips, PageHeader, Pct, Stat } from '@/components/ui/misc';
 import { overview } from '@/server/admin/admin-service';
+import { requirePermission } from '@/server/auth/current';
 
 export const metadata = { title: 'Overview' };
 
 export default async function AdminOverviewPage() {
+  // Every admin page checks for itself: layouts are not guaranteed to run for every page request.
+  await requirePermission('admin:access');
   const o = await overview();
   const a = o.allTime;
   const d = o.last24h;

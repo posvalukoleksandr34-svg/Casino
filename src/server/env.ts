@@ -17,7 +17,10 @@ const schema = z.object({
   SCRYPT_LOG_N: z.coerce.number().int().min(10).max(20).default(17),
   SESSION_IDLE_MINUTES: z.coerce.number().int().min(5).max(24 * 60).default(120),
   SESSION_ABSOLUTE_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(24),
-  MAIL_TRANSPORT: z.enum(['console', 'disabled']).default('console'),
+  /** smtp = real delivery; console = development only; disabled = no recovery e-mail (honest default). */
+  MAIL_TRANSPORT: z.enum(['smtp', 'console', 'disabled']).default('disabled'),
+  SMTP_URL: z.string().optional(),
+  MAIL_FROM: z.string().optional(),
   BACKGROUND_JOBS: boolish.default(true),
   RECONCILE_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
   METRICS_TOKEN: z.string().optional(),
@@ -69,6 +72,11 @@ export function productionProblems(e: Env, raw: Record<string, string | undefine
   if (!e.IP_HASH_SECRET) problems.push('IP_HASH_SECRET is required');
   else if (e.IP_HASH_SECRET.length < 32) problems.push('IP_HASH_SECRET must be at least 32 characters');
   if (e.METRICS_TOKEN && e.METRICS_TOKEN.length < 24) problems.push('METRICS_TOKEN must be at least 24 characters when set');
+  if (e.MAIL_TRANSPORT === 'console') problems.push('MAIL_TRANSPORT=console prints reset links and is development-only; use smtp or disabled');
+  if (e.MAIL_TRANSPORT === 'smtp') {
+    if (!e.SMTP_URL || !/^smtps?:\/\//.test(e.SMTP_URL)) problems.push('MAIL_TRANSPORT=smtp requires SMTP_URL (smtp:// or smtps://)');
+    if (!e.MAIL_FROM) problems.push('MAIL_TRANSPORT=smtp requires MAIL_FROM');
+  }
   if (!raw.APP_URL) problems.push('APP_URL must be set explicitly');
   const app = new URL(e.APP_URL);
   if (app.protocol !== 'https:' && !LOOPBACK.has(app.hostname) && raw.ALLOW_INSECURE_HTTP !== 'true') {

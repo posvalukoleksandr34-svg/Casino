@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   // Lint runs as a separate CI step (npm run lint) so builds stay deterministic.
   eslint: { ignoreDuringBuilds: true },
-  serverExternalPackages: ['pg'],
+  serverExternalPackages: ['pg', 'nodemailer'],
   // The app serves no optimised images (no next/image, no remote images). With
   // optimisation off, /_next/image is not served at all, removing the sharp /
   // libvips attack surface (cf. GHSA-2464-fhr4-w9xw, GHSA-cjq9-62q9-8jv4).

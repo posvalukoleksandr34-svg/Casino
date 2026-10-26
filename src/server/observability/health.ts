@@ -3,6 +3,7 @@ import { getDb, getPool } from '../db/client';
 import { pendingMigrations } from '../db/migrator';
 import { latestReconciliation } from '../jobs/reconciliation';
 import { env } from '../env';
+import { passwordRecoveryMode } from '../users/accounts';
 
 export interface HealthCheck {
   name: string;
@@ -80,6 +81,7 @@ export async function operationalHealth() {
       node: process.version,
     },
     reconciliation: recon,
+    passwordRecovery: passwordRecoveryMode(),
     errors: errors.rows[0] ?? { last_hour: 0, last_day: 0 },
   };
 }

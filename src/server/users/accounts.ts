@@ -28,6 +28,8 @@ import { grantSignupBonus } from '../promotions/bonuses';
 import { dummyVerify, hashPassword, needsRehash, passwordProblems, verifyPassword } from '../auth/password';
 import { createSession, revokeAllSessions } from '../auth/sessions';
 import { logger } from '../observability/logger';
+import { consume, type RateLimitRule } from '../http/rate-limit';
+import { getMailer, sendInBackground } from '../mail/mailer';
 import { listTransactions } from '../wallet/wallet';
 
 export const emailSchema = z
@@ -116,24 +118,35 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
     await audit(db, { actorType: 'ANONYMOUS', action: 'auth.login_failed', ipHash: meta.ipHash, metadata: { reason: 'unknown_account' } });
     throw genericFailure();
   }
-  if (user.lockedUntil && user.lockedUntil > new Date()) {
+  // Reserve this attempt atomically before checking the password: concurrent
+  // guesses are counted exactly (row lock), so no more than MAX_FAILED_LOGINS
+  // passwords can be tried per lockout window, however many run in parallel.
+  const reserved = await db.execute<{ attempt: number }>(sql`
+    UPDATE users SET failed_login_count = failed_login_count + 1, updated_at = now()
+     WHERE id = ${user.id} AND (locked_until IS NULL OR locked_until <= now())
+    RETURNING failed_login_count AS attempt`);
+  const attempt = reserved.rows[0]?.attempt;
+  const lockedError = (until: Date | null) =>
+    new AppError('ACCOUNT_LOCKED', 'Too many failed attempts. Try again later.', { lockedUntil: (until ?? new Date(Date.now() + LOCKOUT_MINUTES * 60_000)).toISOString() });
+  const lockNow = async () => {
+    const until = new Date(Date.now() + LOCKOUT_MINUTES * 60_000);
+    await db.update(users).set({ failedLoginCount: 0, lockedUntil: until, updatedAt: new Date() }).where(eq(users.id, user.id));
+    return until;
+  };
+  if (attempt === undefined) {
     await dummyVerify(password);
-    throw new AppError('ACCOUNT_LOCKED', 'Too many failed attempts. Try again later.', {
-      lockedUntil: user.lockedUntil.toISOString(),
-    });
+    const [current] = await db.select({ lockedUntil: users.lockedUntil }).from(users).where(eq(users.id, user.id));
+    throw lockedError(current?.lockedUntil ?? null);
+  }
+  if (attempt > MAX_FAILED_LOGINS) {
+    // Lost a race with the attempt that reached the limit: never verified.
+    await dummyVerify(password);
+    throw lockedError(await lockNow());
   }
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok) {
-    const failures = user.failedLoginCount + 1;
-    const lock = failures >= MAX_FAILED_LOGINS;
-    await db
-      .update(users)
-      .set({
-        failedLoginCount: lock ? 0 : failures,
-        lockedUntil: lock ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000) : user.lockedUntil,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, user.id));
+    const lock = attempt >= MAX_FAILED_LOGINS;
+    if (lock) await lockNow();
     await audit(db, {
       actorId: user.id,
       actorType: 'USER',
@@ -183,60 +196,104 @@ export async function changePassword(userId: string, sessionId: string, current:
   });
 }
 
-/**
- * Starts a password reset. Always succeeds from the caller's point of view so
- * the endpoint cannot be used to discover registered e-mail addresses.
- */
-export async function requestPasswordReset(emailRaw: string, meta: RequestMeta): Promise<void> {
-  const email = emailSchema.safeParse(emailRaw);
-  if (!email.success) return;
-  const db = getDb();
-  const [user] = await db.select({ id: users.id, status: users.status }).from(users).where(eq(users.email, email.data));
-  if (!user || user.status !== 'ACTIVE') return;
-  const token = randomToken(32);
-  await db.insert(passwordResetTokens).values({
-    userId: user.id,
-    tokenHash: sha256Hex(token),
-    expiresAt: new Date(Date.now() + 30 * 60_000),
-  });
-  await audit(db, { actorId: user.id, actorType: 'USER', action: 'auth.password_reset_requested', resourceType: 'user', resourceId: user.id, ipHash: meta.ipHash });
-  const link = `${env().APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
-  if (env().MAIL_TRANSPORT === 'console' && env().NODE_ENV !== 'production') {
-    // Development-only delivery channel. Never enabled in production.
-    process.stdout.write(`\n[dev mailer] Password reset link for ${email.data}: ${link}\n\n`);
-  } else {
-    logger.warn('password reset requested but no mail transport is configured', { userId: user.id });
-  }
+/** How a password-reset request is fulfilled on this deployment (same for every address). */
+export type PasswordRecovery = 'email' | 'console' | 'unavailable';
+
+export function passwordRecoveryMode(): PasswordRecovery {
+  const mailer = getMailer();
+  if (mailer.deliversEmail) return 'email';
+  return mailer.kind === 'console' ? 'console' : 'unavailable';
 }
 
+export const RESET_TOKEN_TTL_MS = 30 * 60_000;
+/** Reset e-mails per address per hour; extra requests are dropped silently (no enumeration signal). */
+const RESET_EMAILS_PER_ADDRESS: RateLimitRule = { name: 'pwreset:address', limit: 3, windowSeconds: 3600, by: 'user' };
+
+/**
+ * Starts a password reset. The response — and its timing — is the same
+ * whether or not the address belongs to an account: delivery happens in the
+ * background and the result only says how this deployment delivers resets.
+ * No token is created when nothing can deliver it.
+ */
+export async function requestPasswordReset(emailRaw: string, meta: RequestMeta): Promise<{ recovery: PasswordRecovery }> {
+  const recovery = passwordRecoveryMode();
+  if (recovery === 'unavailable') return { recovery };
+  const email = emailSchema.safeParse(emailRaw);
+  if (!email.success) return { recovery };
+  try {
+    await consume(RESET_EMAILS_PER_ADDRESS, sha256Hex(`pwreset:${email.data}`));
+  } catch (err) {
+    if (err instanceof AppError && err.code === 'RATE_LIMITED') {
+      logger.warn('password reset e-mail throttled for an address', {});
+      return { recovery };
+    }
+    throw err;
+  }
+  const db = getDb();
+  const [user] = await db.select({ id: users.id, status: users.status }).from(users).where(eq(users.email, email.data));
+  if (!user || user.status !== 'ACTIVE') return { recovery };
+  const token = randomToken(32);
+  await withTransaction(async (tx) => {
+    // Only the newest link works.
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
+    await tx.insert(passwordResetTokens).values({ userId: user.id, tokenHash: sha256Hex(token), expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) });
+    await audit(tx, { actorId: user.id, actorType: 'USER', action: 'auth.password_reset_requested', resourceType: 'user', resourceId: user.id, ipHash: meta.ipHash });
+  });
+  const link = `${env().APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
+  sendInBackground(
+    {
+      to: email.data,
+      subject: 'Reset your Aurovane password',
+      text:
+        `Someone (hopefully you) asked to reset the password for this Aurovane account.\n\n` +
+        `Open this link within 30 minutes to choose a new password. It works once:\n${link}\n\n` +
+        `If you did not ask for this, ignore this e-mail; your password stays the same.\n\n` +
+        `Aurovane uses non-redeemable virtual chips only.`,
+    },
+    { purpose: 'password_reset', userId: user.id },
+  );
+  return { recovery };
+}
+
+const INVALID_RESET = 'This reset link is invalid or has expired';
+
+/**
+ * Redeems a reset token exactly once. The token is claimed with a single
+ * conditional UPDATE (unused AND unexpired, re-checked at claim time), so
+ * concurrent redemptions cannot both succeed. All of the user's other reset
+ * links and every session are revoked.
+ */
 export async function resetPassword(token: string, next: string, meta: RequestMeta): Promise<void> {
   const db = getDb();
+  const tokenHash = sha256Hex(token);
   const [row] = await db
     .select({ id: passwordResetTokens.id, userId: passwordResetTokens.userId })
     .from(passwordResetTokens)
-    .where(
-      and(
-        eq(passwordResetTokens.tokenHash, sha256Hex(token)),
-        isNull(passwordResetTokens.usedAt),
-        gt(passwordResetTokens.expiresAt, new Date()),
-      ),
-    );
-  if (!row) throw errors.validation('This reset link is invalid or has expired');
+    .where(and(eq(passwordResetTokens.tokenHash, tokenHash), isNull(passwordResetTokens.usedAt), gt(passwordResetTokens.expiresAt, new Date())));
+  if (!row) throw errors.validation(INVALID_RESET);
   const [user] = await db.select().from(users).where(eq(users.id, row.userId));
-  if (!user || user.status === 'DELETED') throw errors.validation('This reset link is invalid or has expired');
+  if (!user || user.status === 'DELETED') throw errors.validation(INVALID_RESET);
   const problems = passwordProblems(next, { email: user.email, username: user.username });
   if (problems.length) throw errors.validation('Password does not meet the policy', { password: problems });
   const hash = await hashPassword(next);
   await withTransaction(async (tx) => {
-    const used = await tx
+    const now = new Date();
+    const claimed = await tx
       .update(passwordResetTokens)
-      .set({ usedAt: new Date() })
-      .where(and(eq(passwordResetTokens.id, row.id), isNull(passwordResetTokens.usedAt)))
+      .set({ usedAt: now })
+      .where(and(eq(passwordResetTokens.id, row.id), isNull(passwordResetTokens.usedAt), gt(passwordResetTokens.expiresAt, now)))
       .returning({ id: passwordResetTokens.id });
-    if (used.length === 0) throw errors.validation('This reset link has already been used');
+    if (claimed.length === 0) throw errors.validation(INVALID_RESET);
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: now })
+      .where(and(eq(passwordResetTokens.userId, row.userId), isNull(passwordResetTokens.usedAt)));
     await tx
       .update(users)
-      .set({ passwordHash: hash, failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() })
+      .set({ passwordHash: hash, failedLoginCount: 0, lockedUntil: null, updatedAt: now })
       .where(eq(users.id, row.userId));
     await revokeAllSessions(tx, row.userId);
     await audit(tx, { actorId: row.userId, actorType: 'USER', action: 'auth.password_reset', resourceType: 'user', resourceId: row.userId, ipHash: meta.ipHash });
@@ -356,6 +413,10 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
       .where(eq(users.id, userId));
     await tx.update(sessions).set({ userAgent: null, ipHash: null }).where(eq(sessions.userId, userId));
     await revokeAllSessions(tx, userId);
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResetTokens.userId, userId), isNull(passwordResetTokens.usedAt)));
     await audit(tx, { actorId: userId, actorType: 'USER', action: 'user.deleted', resourceType: 'user', resourceId: userId, ipHash: meta.ipHash });
   });
 }
