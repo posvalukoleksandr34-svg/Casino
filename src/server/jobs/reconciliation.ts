@@ -18,6 +18,46 @@ export interface CheckResult {
   sample: unknown[];
 }
 
+/**
+ * Per-round summary of one transaction type's postings, classified against the
+ * round's own player: the owner's wallet, wagers-in-play, the house, and any
+ * other account ("foreign" — another player's wallet or an unrelated system
+ * account). Derived from raw entries only.
+ */
+const roundLegs = (type: 'BET_PLACED' | 'BET_SETTLED' | 'ROUND_VOIDED') => `
+  SELECT t.round_id, count(DISTINCT t.id) AS n,
+         bool_or(t.user_id IS DISTINCT FROM r.user_id) AS wrong_user,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'PLAYER_WALLET' AND a.user_id = r.user_id), 0) AS owner_wallet,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'WAGERS_IN_PLAY'), 0) AS escrow,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'HOUSE_BANKROLL'), 0) AS house,
+         count(e.id) FILTER (WHERE a.type = 'HOUSE_BANKROLL') AS house_legs,
+         count(e.id) FILTER (WHERE NOT ((a.type = 'PLAYER_WALLET' AND a.user_id = r.user_id)
+                                        OR a.type IN ('WAGERS_IN_PLAY', 'HOUSE_BANKROLL'))) AS foreign_legs
+  FROM ledger_transactions t
+  JOIN game_rounds r ON r.id = t.round_id
+  LEFT JOIN ledger_entries e ON e.transaction_id = t.id
+  LEFT JOIN ledger_accounts a ON a.id = e.account_id
+  WHERE t.type = '${type}'
+  GROUP BY t.round_id`;
+
+/** Per-transaction posting summary relative to the transaction's own player (t.user_id). */
+const txLegs = (types: string[]) => `
+  SELECT t.id AS tx_id,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'PLAYER_WALLET' AND a.user_id = t.user_id), 0) AS owner_wallet,
+         count(e.id) FILTER (WHERE a.type = 'PLAYER_WALLET' AND a.user_id = t.user_id) AS owner_legs,
+         count(e.id) FILTER (WHERE a.type = 'PLAYER_WALLET' AND a.user_id IS DISTINCT FROM t.user_id) AS foreign_legs,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'PROMOTIONS'), 0) AS promotions,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'ADJUSTMENTS'), 0) AS adjustments,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'HOUSE_BANKROLL'), 0) AS house,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'ISSUANCE'), 0) AS issuance,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'WAGERS_IN_PLAY'), 0) AS escrow,
+         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE')) AS other_system_legs
+  FROM ledger_transactions t
+  LEFT JOIN ledger_entries e ON e.transaction_id = t.id
+  LEFT JOIN ledger_accounts a ON a.id = e.account_id
+  WHERE t.type IN (${types.map((x) => `'${x}'`).join(', ')})
+  GROUP BY t.id`;
+
 const CHECKS: { name: string; description: string; sql: string }[] = [
   {
     name: 'transactions_balanced',
@@ -71,47 +111,67 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
   },
   {
     name: 'round_stakes_match_bets',
-    description: 'Each round stake equals the sum of its bets and of its BET_PLACED ledger debits',
-    sql: `SELECT r.id, r.stake_total::text, coalesce(b.total, 0)::text AS bets_total, coalesce(l.total, 0)::text AS ledger_total
+    description:
+      "Each round's stake equals its bets (all owned by the round's player) and its BET_PLACED postings: exactly −stake from the owner's wallet, +stake to wagers-in-play, nothing else",
+    sql: `SELECT r.id, r.stake_total::text AS stake, coalesce(b.total, 0)::text AS bets_total, b.foreign_bets,
+                 l.n AS placements, l.wrong_user, l.owner_wallet::text, l.escrow::text, l.house_legs, l.foreign_legs
           FROM game_rounds r
-          LEFT JOIN (SELECT round_id, sum(stake) AS total FROM bets GROUP BY round_id) b ON b.round_id = r.id
-          LEFT JOIN (
-            SELECT t.round_id, sum(e.amount) AS total FROM ledger_transactions t
-            JOIN ledger_entries e ON e.transaction_id = t.id
-            JOIN ledger_accounts a ON a.id = e.account_id AND a.code = '${SYSTEM_ACCOUNTS.WAGERS_IN_PLAY.code}'
-            WHERE t.type = 'BET_PLACED' GROUP BY t.round_id) l ON l.round_id = r.id
-          WHERE r.stake_total <> coalesce(b.total, 0) OR r.stake_total <> coalesce(l.total, 0)`,
+          LEFT JOIN (SELECT bt.round_id, sum(bt.stake) AS total, count(*) FILTER (WHERE bt.user_id <> gr.user_id) AS foreign_bets
+                     FROM bets bt JOIN game_rounds gr ON gr.id = bt.round_id GROUP BY bt.round_id) b ON b.round_id = r.id
+          LEFT JOIN (${roundLegs('BET_PLACED')}) l ON l.round_id = r.id
+          WHERE r.stake_total <> coalesce(b.total, 0) OR coalesce(b.foreign_bets, 0) <> 0
+             OR l.round_id IS NULL OR l.wrong_user OR l.owner_wallet <> -r.stake_total OR l.escrow <> r.stake_total
+             OR l.house_legs <> 0 OR l.foreign_legs <> 0`,
   },
   {
     name: 'settled_rounds_have_one_payout',
-    description: 'Every SETTLED round has exactly one payout record and one settlement transaction matching payout_total',
-    sql: `SELECT r.id, r.payout_total::text, p.amount::text AS payout_record, s.n AS settlements, s.credit::text
+    description:
+      "Every SETTLED round has exactly one settlement transaction for its player — owner's wallet +payout, wagers-in-play −stake, house +(stake − payout), nothing else — and exactly one matching payout record",
+    sql: `SELECT r.id, r.stake_total::text AS stake, r.payout_total::text AS payout, s.n AS settlements, s.wrong_user,
+                 s.owner_wallet::text, s.escrow::text, s.house::text, s.foreign_legs,
+                 p.amount::text AS payout_record, p.user_id = r.user_id AS payout_owner_ok, p.ledger_transaction_id
           FROM game_rounds r
+          LEFT JOIN (${roundLegs('BET_SETTLED')}) s ON s.round_id = r.id
           LEFT JOIN payouts p ON p.round_id = r.id
-          LEFT JOIN (
-            SELECT t.round_id, count(DISTINCT t.id) AS n,
-                   coalesce(sum(e.amount) FILTER (WHERE a.type = 'PLAYER_WALLET'), 0) AS credit
-            FROM ledger_transactions t
-            JOIN ledger_entries e ON e.transaction_id = t.id
-            JOIN ledger_accounts a ON a.id = e.account_id
-            WHERE t.type = 'BET_SETTLED' GROUP BY t.round_id) s ON s.round_id = r.id
-          WHERE r.status = 'SETTLED'
-            AND (p.amount IS NULL OR p.amount <> r.payout_total OR s.n IS DISTINCT FROM 1 OR s.credit <> r.payout_total)`,
+          LEFT JOIN ledger_transactions pt ON pt.id = p.ledger_transaction_id
+          WHERE r.status = 'SETTLED' AND (
+                s.n IS DISTINCT FROM 1 OR s.wrong_user OR s.owner_wallet <> r.payout_total OR s.escrow <> -r.stake_total
+             OR s.house <> r.stake_total - r.payout_total OR s.foreign_legs <> 0
+             OR p.round_id IS NULL OR p.amount <> r.payout_total OR p.user_id <> r.user_id
+             OR pt.round_id IS DISTINCT FROM r.id OR pt.type <> 'BET_SETTLED')`,
   },
   {
     name: 'unsettled_rounds_have_no_payout',
     description: 'OPEN and VOIDED rounds have no payout and no settlement transaction',
     sql: `SELECT r.id, r.status FROM game_rounds r
           WHERE r.status <> 'SETTLED' AND (
+            r.payout_total IS NOT NULL OR
             EXISTS (SELECT 1 FROM payouts p WHERE p.round_id = r.id) OR
             EXISTS (SELECT 1 FROM ledger_transactions t WHERE t.round_id = r.id AND t.type = 'BET_SETTLED'))`,
   },
   {
-    name: 'voided_rounds_refunded_once',
-    description: 'Every VOIDED round has exactly one refund transaction equal to its stake',
-    sql: `SELECT r.id, r.stake_total::text, count(t.id) AS refunds
-          FROM game_rounds r LEFT JOIN ledger_transactions t ON t.round_id = r.id AND t.type = 'ROUND_VOIDED'
-          WHERE r.status = 'VOIDED' GROUP BY r.id HAVING count(t.id) <> 1`,
+    name: 'voided_rounds_refunded_exactly',
+    description:
+      "Every VOIDED round has exactly one ROUND_VOIDED transaction for its player that credits the owner's wallet with exactly the round stake and debits wagers-in-play by exactly the stake, with no other postings; no other round has a refund",
+    sql: `SELECT r.id, r.status, r.stake_total::text AS stake, coalesce(v.n, 0) AS refunds, v.wrong_user,
+                 v.owner_wallet::text, v.escrow::text, v.house_legs, v.foreign_legs
+          FROM game_rounds r
+          LEFT JOIN (${roundLegs('ROUND_VOIDED')}) v ON v.round_id = r.id
+          WHERE (r.status = 'VOIDED' AND (
+                  v.round_id IS NULL OR v.n <> 1 OR v.wrong_user OR v.owner_wallet <> r.stake_total
+               OR v.escrow <> -r.stake_total OR v.house_legs <> 0 OR v.foreign_legs <> 0))
+             OR (r.status <> 'VOIDED' AND v.round_id IS NOT NULL)`,
+  },
+  {
+    name: 'round_transactions_linked',
+    description:
+      "Wager, settlement and refund transactions reference an existing round of the same player (settlements only SETTLED rounds, refunds only VOIDED rounds); other transaction types reference no round",
+    sql: `SELECT t.id, t.type, t.round_id, t.user_id, r.user_id AS round_user, r.status
+          FROM ledger_transactions t LEFT JOIN game_rounds r ON r.id = t.round_id
+          WHERE (t.type IN ('BET_PLACED', 'BET_SETTLED', 'ROUND_VOIDED') AND (r.id IS NULL OR t.user_id IS DISTINCT FROM r.user_id))
+             OR (t.type NOT IN ('BET_PLACED', 'BET_SETTLED', 'ROUND_VOIDED') AND t.round_id IS NOT NULL)
+             OR (t.type = 'BET_SETTLED' AND r.status <> 'SETTLED')
+             OR (t.type = 'ROUND_VOIDED' AND r.status <> 'VOIDED')`,
   },
   {
     name: 'payouts_within_declared_max',
@@ -125,11 +185,44 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
   },
   {
     name: 'bonuses_match_ledger',
-    description: 'Each bonus record matches its BONUS_GRANTED wallet credit',
-    sql: `SELECT b.id, b.amount::text, coalesce(sum(e.amount) FILTER (WHERE a.type = 'PLAYER_WALLET'), 0)::text AS credited
-          FROM bonuses b JOIN ledger_transactions t ON t.id = b.ledger_transaction_id
-          JOIN ledger_entries e ON e.transaction_id = t.id JOIN ledger_accounts a ON a.id = e.account_id
-          GROUP BY b.id, b.amount HAVING b.amount <> coalesce(sum(e.amount) FILTER (WHERE a.type = 'PLAYER_WALLET'), 0)`,
+    description:
+      "Bonus records and BONUS_GRANTED transactions correspond one-to-one: same player, owner's wallet +amount, promotions −amount, nothing else",
+    sql: `SELECT t.id AS transaction_id, b.id AS bonus_id, b.amount::text, l.owner_wallet::text, l.promotions::text, l.foreign_legs
+          FROM (SELECT * FROM ledger_transactions WHERE type = 'BONUS_GRANTED') t
+          FULL JOIN bonuses b ON b.ledger_transaction_id = t.id
+          LEFT JOIN (${txLegs(['BONUS_GRANTED'])}) l ON l.tx_id = t.id
+          WHERE t.id IS NULL OR b.id IS NULL OR b.user_id IS DISTINCT FROM t.user_id
+             OR l.owner_wallet IS DISTINCT FROM b.amount OR l.promotions IS DISTINCT FROM -b.amount OR l.foreign_legs <> 0
+             OR l.other_system_legs <> 0`,
+  },
+  {
+    name: 'admin_money_movements_audited',
+    description:
+      'Every balance adjustment (owner wallet ±x against the adjustments account) and every house funding after bootstrap was made by an identified admin and has the matching audited admin action',
+    sql: `SELECT t.id, t.type, t.actor_id, t.user_id, l.owner_wallet::text, l.adjustments::text, l.house::text, l.issuance::text,
+                 l.foreign_legs, l.other_system_legs, aa.n AS admin_actions, aa.amount::text AS audited_amount
+          FROM ledger_transactions t
+          LEFT JOIN (${txLegs(['ADJUSTMENT', 'HOUSE_FUNDING'])}) l ON l.tx_id = t.id
+          LEFT JOIN (SELECT (after->>'transactionId')::bigint AS tx_id, admin_id, action, count(*) AS n,
+                            max((after->>'amount')::bigint) AS amount
+                     FROM admin_actions WHERE action IN ('ledger.adjustment', 'house.funded') AND after ? 'transactionId'
+                     GROUP BY 1, 2, 3) aa
+            ON aa.tx_id = t.id AND aa.admin_id = t.actor_id
+               AND aa.action = CASE t.type WHEN 'ADJUSTMENT' THEN 'ledger.adjustment' ELSE 'house.funded' END
+          WHERE (t.type = 'ADJUSTMENT' AND (
+                  t.actor_id IS NULL OR t.user_id IS NULL OR aa.n IS DISTINCT FROM 1 OR aa.amount IS DISTINCT FROM l.owner_wallet
+               OR l.owner_wallet = 0 OR l.owner_wallet <> -l.adjustments OR l.foreign_legs <> 0
+               OR l.house <> 0 OR l.issuance <> 0 OR l.promotions <> 0 OR l.escrow <> 0))
+             OR (t.type = 'HOUSE_FUNDING' AND (
+                  l.house <= 0 OR l.house <> -l.issuance OR l.foreign_legs <> 0 OR l.owner_legs <> 0
+               OR l.adjustments <> 0 OR l.promotions <> 0 OR l.escrow <> 0
+               OR (t.idempotency_key <> 'house-funding:initial' AND (t.actor_id IS NULL OR aa.n IS DISTINCT FROM 1))))`,
+  },
+  {
+    name: 'expiry_queue_not_overdue',
+    description: 'No OPEN round is more than 5 minutes past its engine-declared expiry time (the expiry job is keeping up)',
+    sql: `SELECT id, game_id, expires_at, expiry_attempts FROM game_rounds
+          WHERE status = 'OPEN' AND expires_at < now() - interval '5 minutes'`,
   },
 ];
 

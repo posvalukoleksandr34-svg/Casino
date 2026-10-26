@@ -62,7 +62,7 @@ Phase 5 adds Crash, Mines, Blackjack and Slots with the same guarantees.
 | F6 | Games can be suspended/disabled; a platform kill switch blocks new rounds |
 | F7 | Open rounds survive disconnects and can be resumed (`/api/rounds/active`) |
 | F8 | Analytics compare realised with theoretical results using stored per-round expectation and variance |
-| F9 | Reconciliation verifies 13 ledger/round invariants on a schedule and on demand |
+| F9 | Reconciliation verifies 17 ledger/round/operational invariants on a schedule and on demand |
 | F10 | All state-changing staff actions require a reason and are audited with before/after |
 | F11 | Players can export their data and delete their account (financial records retained, pseudonymised) |
 

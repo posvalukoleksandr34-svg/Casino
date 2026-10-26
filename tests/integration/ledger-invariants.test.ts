@@ -4,7 +4,8 @@ import { getDb, withTransaction } from '@/server/db/client';
 import { getWalletAccount, systemAccountIds } from '@/server/ledger/accounts';
 import { LedgerError, postTransaction } from '@/server/ledger/ledger';
 import { AppError } from '@/server/errors';
-import { expectDbError, expectLedgerConsistent, newPlayer } from './helpers';
+import { startRound } from '@/server/games/round-service';
+import { expectDbError, expectLedgerConsistent, key, newPlayer } from './helpers';
 
 describe('ledger invariants enforced by the database', () => {
   it('rejects unbalanced postings in application code', async () => {
@@ -41,6 +42,14 @@ describe('ledger invariants enforced by the database', () => {
 
   it('ledger rows are append-only', async () => {
     const db = getDb();
+    // Row-level triggers only fire when rows exist: create them here instead of
+    // relying on other test files having run first.
+    const p = await newPlayer('append'); // writes an audit_logs row
+    await startRound({ userId: p.userId, gameId: 'dice', bet: { amount: 100, target: 5000, direction: 'under' }, idempotencyKey: key() });
+    for (const table of ['audit_logs', 'payouts', 'bets', 'ledger_entries', 'ledger_transactions']) {
+      const { rows } = await db.execute(sql.raw(`SELECT count(*)::int AS n FROM ${table}`));
+      expect((rows[0] as { n: number }).n).toBeGreaterThan(0);
+    }
     await expectDbError(db.execute(sql`UPDATE ledger_entries SET amount = amount + 1 WHERE id = (SELECT min(id) FROM ledger_entries)`), /append-only/);
     await expectDbError(db.execute(sql`DELETE FROM ledger_entries WHERE id = (SELECT min(id) FROM ledger_entries)`), /append-only/);
     await expectDbError(db.execute(sql`UPDATE ledger_transactions SET description = 'tampered'`), /append-only/);
@@ -81,20 +90,28 @@ describe('ledger invariants enforced by the database', () => {
 
   it('a business key can only be posted once', async () => {
     const ids = await systemAccountIds(getDb());
-    const post = () =>
-      withTransaction((tx) =>
-        postTransaction(tx, {
-          type: 'ADJUSTMENT',
-          idempotencyKey: 'test:once',
-          description: 'once',
-          postings: [
-            { accountId: ids.ADJUSTMENTS, amount: -1 },
-            { accountId: ids.PROMOTIONS, amount: 1 },
-          ],
-        }),
-      );
-    await post();
-    await expect(post()).rejects.toSatisfy((e) => e instanceof AppError && e.code === 'CONFLICT');
+    const rollback = new Error('rollback');
+    // Rolled back afterwards: an unaudited system-to-system ADJUSTMENT must never
+    // persist (reconciliation's admin_money_movements_audited would flag it).
+    await expect(
+      withTransaction(async (tx) => {
+        const post = () =>
+          postTransaction(tx, {
+            type: 'ADJUSTMENT',
+            idempotencyKey: 'test:once',
+            description: 'once',
+            postings: [
+              { accountId: ids.ADJUSTMENTS, amount: -1 },
+              { accountId: ids.PROMOTIONS, amount: 1 },
+            ],
+          });
+        await post();
+        await expect(post()).rejects.toSatisfy((e) => e instanceof AppError && e.code === 'CONFLICT');
+        throw rollback;
+      }),
+    ).rejects.toBe(rollback);
+    const left = await getDb().execute(sql`SELECT 1 FROM ledger_transactions WHERE idempotency_key = 'test:once'`);
+    expect(left.rows).toHaveLength(0);
   });
 
   it('signup bonus is credited through the ledger and everything reconciles', async () => {

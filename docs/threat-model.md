@@ -32,7 +32,7 @@ operator infrastructure (env secrets, DB superuser).
 | T15 | Biased mapping | Modulo bias, float bias | Rejection sampling; 52-bit floats; statistical tests | rng + statistical tests |
 | T16 | API abuse / DoS | Flood wagers, huge bodies | Per-user and per-IP rate limits (shared in DB), 64 KB body cap, statement timeout 15 s, pool limits | rate-limit test |
 | T17 | Rounding errors | Fractional chips accumulate | Integer arithmetic; multiplications in BigInt; floor rounding toward the house < 1 minor unit; never in favour of fabricating money | money tests |
-| T18 | Inconsistent game/ledger state | Crash between steps | Single transaction; deferred balance check; reconciliation (13 checks) | fault-injection + tamper tests |
+| T18 | Inconsistent game/ledger state | Crash between steps | Single transaction; deferred balance check; reconciliation (17 checks, owner-aware posting verification) | fault-injection + tamper tests |
 | T19 | Insider tampering | Edit ledger/audit rows in SQL | Append-only triggers; balance only via entries; reconciliation detects edits even with triggers disabled; recommend non-owner app role | tamper test |
 | T20 | Operator manipulation of a player | Change odds for a specific player | Risk engine has no player identity/history inputs; config is global and audited; outcomes from committed seeds | code structure, fairness tests |
 | T21 | Clickjacking | Frame the UI | `X-Frame-Options: DENY`, `frame-ancestors 'none'` | headers |

@@ -84,8 +84,39 @@ transaction sums to zero, so the sum of all balances is always zero (closed syst
 | 8 | Reject invalid / unauthorised transactions | CHECKs, FKs | Zod, RBAC, risk engine | API/e2e tests |
 | 9 | History never silently modified | append-only triggers | no update paths | tamper test |
 | 10 | Corrections via compensating entries | — | `ADJUSTMENT` only | admin tests |
-| 11 | Settled rounds reconcile | — | — | 13 reconciliation checks |
+| 11 | Settled rounds reconcile | — | — | 17 reconciliation checks (below) |
 | 12 | No partial settlement | deferred balance check, one transaction | — | fault-injection tests |
+
+## Reconciliation checks
+
+`src/server/jobs/reconciliation.ts` re-derives every invariant from raw rows in one
+`REPEATABLE READ READ ONLY` snapshot; it never trusts the application's summaries.
+Missing records are found with outer joins (a missing transaction or payout row is a
+mismatch, not a silently dropped join row). Postings are classified per round or
+transaction against the *owner* (the round's / transaction's player), so money that is
+balanced but sent to the wrong account is still caught. Any mismatch marks the run
+`MISMATCH` and raises a CRITICAL alert. Fault-injection coverage:
+`tests/integration/reconciliation-faults.test.ts` (savepoint-scoped, rolled back).
+
+| Check | Verifies |
+|---|---|
+| `transactions_balanced` | every transaction sums to 0 with ≥ 2 entries |
+| `account_balances_match_entries` | each account balance = Σ its entries |
+| `balance_after_chain` | each entry's `balance_after` = running sum in `account_seq` order |
+| `account_sequence_gapless` | per-account sequence 1..n matches the entry counter |
+| `system_closed` | Σ all balances = 0 |
+| `no_negative_restricted_accounts` | wallets, house and escrow ≥ 0 |
+| `escrow_matches_open_rounds` | wagers-in-play = Σ stake of OPEN rounds |
+| `round_stakes_match_bets` | stake = Σ bets (all the owner's) = BET_PLACED postings: owner wallet −stake, escrow +stake, no house or other legs |
+| `settled_rounds_have_one_payout` | exactly one BET_SETTLED for the owner: wallet +payout, escrow −stake, house +(stake − payout), no other legs; exactly one payout row (amount, owner, linked transaction) |
+| `unsettled_rounds_have_no_payout` | OPEN/VOIDED rounds have no payout value, payout row or settlement |
+| `voided_rounds_refunded_exactly` | exactly one ROUND_VOIDED for the owner: wallet +stake, escrow −stake, nothing else; no refund on any non-voided round |
+| `round_transactions_linked` | wager/settlement/refund transactions reference an existing round of the same player with a compatible status; other types reference no round |
+| `payouts_within_declared_max` | payout ≤ the max payout approved by the risk engine |
+| `nonces_unique_and_below_counter` | nonces are below the seed pair counter (no reuse) |
+| `bonuses_match_ledger` | bonus rows ↔ BONUS_GRANTED transactions one-to-one: owner wallet +amount, promotions −amount, nothing else |
+| `admin_money_movements_audited` | every ADJUSTMENT (owner wallet vs adjustments account) and every non-bootstrap HOUSE_FUNDING has an actor and exactly one matching audited admin action with the same amount |
+| `expiry_queue_not_overdue` | no OPEN round is > 5 min past its `expires_at` (expiry job health) |
 
 **Limitation:** a PostgreSQL superuser or table owner can disable triggers. In production,
 run the application with a role that owns nothing (`GRANT SELECT, INSERT` on append-only
