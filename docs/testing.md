@@ -125,5 +125,6 @@ tree that became the commit following `fa68f7f`.
 new restore drill: typecheck, lint, unit tests, `npm audit signatures`, the workflow-policy
 and secret-scan steps, integration, statistical, build, bundle and e2e. The drill failed
 because the runner's newer `pg_dump` wrote a PostgreSQL 17 setting into the archive. The
-ops scripts now require version-matched client tools, and CI installs
-`postgresql-client-16`. Results of the follow-up run are in the final report.
+ops scripts now require version-matched client tools. The next run showed that
+`ubuntu-latest` is Ubuntu 26.04, which has no `postgresql-client-16`, so the integration job
+is pinned to `ubuntu-24.04`. Results of the follow-up run are in the final report.

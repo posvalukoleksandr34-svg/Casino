@@ -33,7 +33,7 @@ other.
 | Job | Steps | Timeout |
 |---|---|---|
 | Typecheck, lint, unit tests, supply-chain checks | workflow policy, secret scan, `npm ci`, `npm audit signatures`, typecheck, lint, unit tests, docs links, `npm audit --audit-level=moderate` | 15 min |
-| Integration tests (PostgreSQL 16) | full integration suite (incl. Crash ordering under real row locks), then the backup → restore → reconcile drill (`npm run ops:restore-check`) | 20 min |
+| Integration tests (PostgreSQL 16) | full integration suite (incl. Crash ordering under real row locks), then the backup → restore → reconcile drill (`npm run ops:restore-check`). Runs on `ubuntu-24.04`, whose archive has the PostgreSQL 16 client tools the drill needs (`ubuntu-latest` = 26.04 has only newer ones); move it when production moves to a newer PostgreSQL major | 20 min |
 | Statistical tests | fixed-seed chi-square / confidence-interval tests | 20 min |
 | Production build and end-to-end tests | `npm run build`, bundle secret check, Playwright against the standalone build | 30 min |
 | CI required | aggregates the four results | 5 min |
