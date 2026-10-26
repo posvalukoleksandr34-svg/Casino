@@ -49,30 +49,41 @@ Each was confirmed to **fail on the previous code** before the fix was kept.
 | Daily chips during cool-off / self-exclusion | `responsible-hardening.test.ts` |
 | Flaky 24-hour loss-limit test (1 % failure rate) | `responsible.test.ts` (deterministic seed oracle) |
 | Append-only test depended on file order | `ledger-invariants.test.ts` |
+| Password-reset response waited for the token write (existing accounts only) | `password-recovery.test.ts` (old code still blocked after 3 s) |
+| Concurrent reset requests left two usable links | `password-recovery.test.ts` (old code: 2 of 3 links usable) |
+
+Also covered since: the `/api/metrics` policy (optional; unset, empty or blank token
+disables it and every request gets 403; a token that is set must be ≥ 24 header-safe
+characters in production) in `env.test.ts` and `api.test.ts`; and the wager rate-limit
+test, which failed when its burst straddled a 10-second window boundary (a few percent of
+runs), now sends 2 × limit + 1 requests so one window always overflows.
 
 ## Results of the final run (2026-10-26, this repository's environment)
 
+Re-run after the follow-up review (CI triggers, metrics policy, password-reset timing).
 Clean `npm ci` (Node 22.22, npm 10.9), PostgreSQL 16.15:
 
 | Command | Result |
 |---|---|
 | `npm run typecheck` | pass |
 | `npm run lint` | pass (0 problems) |
-| `npm run test:unit` | **151 passed** (18 files) |
+| `npm run test:unit` | **154 passed** (18 files) |
 | `npm run check:docs` | pass |
 | `npm audit --audit-level=moderate` | 0 vulnerabilities |
-| `npm run test:integration` | **124 passed** (16 files, 35 s) |
-| `npm run test:stats` | **18 passed** (4 files, 62 s) |
+| `npm run test:integration` | **130 passed** (16 files, 29 s) |
+| `npm run test:stats` | **18 passed** (4 files, 55 s) |
 | `npm run build` (no `.env` present, as in CI) | pass; no `.env` in the artifact |
 | `npm run check:bundle` | pass (103 files, no server secrets) |
-| `npm run test:e2e` | **19 passed** (chromium desktop + Pixel 7 mobile, 48 s) |
-| Docker images + `docker compose up` (generated secrets) | runner and tools images build; readiness 200 with `database_role` ok (app connects as `casino_app`); migrations ran as `casino_migrator`; no `.env` in the image; app runs as uid 1000 (`node`); only the proxy port is published |
+| `npm run test:e2e` | **19 passed** (chromium desktop + Pixel 7 mobile, 52 s) |
+| Standalone server, `NODE_ENV=production` | `METRICS_TOKEN` unset or empty: starts, logs "metrics endpoint disabled", `/api/metrics` 403 with no header, `Bearer `, `Bearer undefined`; 19-character token: exits with status 1 and the `Unsafe production configuration` message; 64-hex token: 403 without it, 200 with it |
+| Docker images + `docker compose up` (generated secrets) | not re-run in the follow-up (no Docker or Compose changes). Previous pass: images build; readiness 200 with `database_role` ok (app connects as `casino_app`); migrations ran as `casino_migrator`; no `.env` in the image; app runs as uid 1000 (`node`); only the proxy port is published |
 
 Baseline before this pass, for comparison: unit 107, integration 71 of 72 (the flaky
 loss-limit test failed), statistical 18, e2e 9.
 
 **Not run here:** the GitHub Actions workflows themselves (no runner in this
-environment; the same commands were run locally in the same order), a real SMTP provider
+environment; the same commands were run locally in the same order; the workflow files
+were only checked to parse as YAML — `actionlint` could not be downloaded), a real SMTP provider
 (an in-test SMTP server was used), real TLS certificates (configs validated with
 `nginx -t` and a throwaway self-signed certificate), and the 2M-round extended
 simulations (shorter runs of the same scripts were executed).

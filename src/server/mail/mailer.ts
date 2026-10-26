@@ -13,6 +13,7 @@
 import nodemailer from 'nodemailer';
 import { env } from '../env';
 import { logger } from '../observability/logger';
+import { captureError } from '../observability/errors';
 import { metrics } from '../observability/metrics';
 
 export type MailTransportKind = 'smtp' | 'console' | 'disabled';
@@ -116,7 +117,20 @@ export function sendInBackground(message: MailMessage, context: { purpose: strin
   pending.add(p);
 }
 
-/** Tests: wait for background deliveries to finish. */
+/**
+ * Runs work that ends in an e-mail (account lookups, token writes, then
+ * sendInBackground) after the caller has returned, so a response's timing
+ * cannot reveal whether an account exists. Failures are captured, never thrown.
+ */
+export function runInBackground(name: string, task: () => Promise<void>): void {
+  const p: Promise<void> = Promise.resolve()
+    .then(task)
+    .catch((err: unknown) => captureError(err, { route: `background:${name}` }))
+    .finally(() => pending.delete(p));
+  pending.add(p);
+}
+
+/** Tests: wait for background work and deliveries to finish. */
 export async function flushMail(): Promise<void> {
   while (pending.size) await Promise.all([...pending]);
 }

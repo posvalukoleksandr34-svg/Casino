@@ -10,6 +10,8 @@ import { GET as walletRoute } from '@/app/api/wallet/route';
 import { GET as metricsRoute } from '@/app/api/metrics/route';
 import { GET as healthRoute } from '@/app/api/health/ready/route';
 import { SESSION_COOKIE_DEV } from '@/server/auth/sessions';
+import { resetEnvCache } from '@/server/env';
+import { RATE_LIMITS } from '@/server/http/rate-limit';
 import { newPlayer } from './helpers';
 
 const BASE = 'http://localhost:3000';
@@ -120,7 +122,11 @@ describe('API: wagering', () => {
   it('rate-limits bursts of wagers per user', async () => {
     const p = await newPlayer('apirate');
     const statuses: number[] = [];
-    for (let i = 0; i < 34; i += 1) {
+    // Fixed 10-second windows: a burst of 34 could straddle a boundary (e.g. 20 + 14) and
+    // never exceed 30 in either. 2 × limit + 1 requests always put 31 in one window
+    // (the burst takes well under 10 s, so it spans at most two).
+    const attempts = 2 * RATE_LIMITS.betUser.limit + 1;
+    for (let i = 0; i < attempts; i += 1) {
       const res = await startRoundRoute(req('/api/games/dice/rounds', { method: 'POST', body: { bet: { amount: 10, target: 5000, direction: 'under' } }, token: p.token, headers: { 'idempotency-key': randomUUID() } }), params({ gameId: 'dice' }));
       statuses.push(res.status);
       if (res.status === 429) {
@@ -141,3 +147,45 @@ describe('API: operations endpoints', () => {
     expect(metrics.status).toBe(403);
   });
 });
+
+describe('API: metrics endpoint policy (optional, fails closed)', () => {
+  const withToken = async (value: string | undefined, fn: () => Promise<void> | void) => {
+    const saved = process.env.METRICS_TOKEN;
+    if (value === undefined) delete process.env.METRICS_TOKEN;
+    else process.env.METRICS_TOKEN = value;
+    resetEnvCache();
+    try {
+      await fn();
+    } finally {
+      if (saved === undefined) delete process.env.METRICS_TOKEN;
+      else process.env.METRICS_TOKEN = saved;
+      resetEnvCache();
+    }
+  };
+  const probes = [undefined, 'Bearer ', 'Bearer', 'Bearer undefined', 'Bearer null', 'Bearer    '];
+  const call = (authorization?: string) => metricsRoute(req('/api/metrics', { headers: authorization === undefined ? {} : { authorization } }));
+
+  it.each([
+    ['unset', undefined],
+    ['empty (as Docker Compose passes an unset variable)', ''],
+    ['whitespace only', '    '],
+  ])('token %s: disabled — every request is refused', async (_label, value) => {
+    await withToken(value, () => {
+      for (const p of probes) expect(call(p).status, `authorization=${JSON.stringify(p)}`).toBe(403);
+    });
+  });
+
+  it('token set: only the exact bearer token is accepted', async () => {
+    const token = 'm'.repeat(12) + 'X9_-.~+/=' + 'k'.repeat(10);
+    await withToken(token, async () => {
+      for (const p of [...probes, `Bearer ${token}x`, `bearer ${token}`, `Basic ${token}`, token]) {
+        expect(call(p).status, `authorization=${JSON.stringify(p)}`).toBe(403);
+      }
+      const ok = call(`Bearer ${token}`);
+      expect(ok.status).toBe(200);
+      expect(ok.headers.get('content-type')).toContain('text/plain');
+      expect(await ok.text()).toContain('process_uptime_seconds');
+    });
+  });
+});
+

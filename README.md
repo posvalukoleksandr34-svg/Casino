@@ -101,8 +101,9 @@ npm run check:docs
 ```
 
 Results of the latest full run and what each suite covers: [docs/testing.md](docs/testing.md).
-CI (`.github/workflows/ci.yml`) runs all of these on every pull request with a disposable
-PostgreSQL service; `extended.yml` runs large simulations weekly.
+CI (`.github/workflows/ci.yml`) runs all of these on every pull request and every push to
+the default branch (`ccr-c301db4d-y6lhy2`), with a disposable PostgreSQL service;
+`extended.yml` runs large simulations weekly.
 
 Simulations (results are **simulated** and never mixed with live data):
 
@@ -120,9 +121,11 @@ npm start                   # loads ./.env if present, then serves on PORT (defa
 ```
 
 With `NODE_ENV=production` (set by the build) the server **refuses to start** on an
-unsafe configuration: missing or weak `SEED_ENCRYPTION_KEY`/`IP_HASH_SECRET`, short
-`METRICS_TOKEN`, implicit or non-HTTPS public `APP_URL`, default database passwords, or
-`MAIL_TRANSPORT=console`. Readiness additionally fails if the database role is a
+unsafe configuration: missing or weak `SEED_ENCRYPTION_KEY`/`IP_HASH_SECRET`, a
+`METRICS_TOKEN` that is set but short or not header-safe, implicit or non-HTTPS public
+`APP_URL`, default database passwords, or `MAIL_TRANSPORT=console`. `METRICS_TOKEN` itself
+is optional: left empty, `/api/metrics` is disabled and refuses every request (there is no
+unauthenticated mode). Readiness additionally fails if the database role is a
 superuser or the schema owner.
 
 ## Docker deployment
@@ -155,7 +158,7 @@ TLS, backups, secret rotation, monitoring, incident response and e-mail:
 5. Configure an SMTP provider for password recovery, or staff a support path (without one
    the site states that recovery is unavailable).
 6. Ship logs and metrics; alert on readiness, reconciliation mismatches, expiry and mail
-   failures.
+   failures. Metric-based alerts need `METRICS_TOKEN` set (metrics are disabled without it).
 7. Off-site backups with a tested restore (procedure in `docs/operations.md` §6).
 
 ## Status

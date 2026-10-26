@@ -29,7 +29,7 @@ import { dummyVerify, hashPassword, needsRehash, passwordProblems, verifyPasswor
 import { createSession, revokeAllSessions } from '../auth/sessions';
 import { logger } from '../observability/logger';
 import { consume, type RateLimitRule } from '../http/rate-limit';
-import { getMailer, sendInBackground } from '../mail/mailer';
+import { getMailer, runInBackground, sendInBackground } from '../mail/mailer';
 import { listTransactions } from '../wallet/wallet';
 
 export const emailSchema = z
@@ -211,9 +211,10 @@ const RESET_EMAILS_PER_ADDRESS: RateLimitRule = { name: 'pwreset:address', limit
 
 /**
  * Starts a password reset. The response — and its timing — is the same
- * whether or not the address belongs to an account: delivery happens in the
- * background and the result only says how this deployment delivers resets.
- * No token is created when nothing can deliver it.
+ * whether or not the address belongs to an account: everything that depends
+ * on the account (lookup, token, audit, e-mail) runs in the background, and
+ * the result only says how this deployment delivers resets. No token is
+ * created when nothing can deliver it.
  */
 export async function requestPasswordReset(emailRaw: string, meta: RequestMeta): Promise<{ recovery: PasswordRecovery }> {
   const recovery = passwordRecoveryMode();
@@ -229,23 +230,30 @@ export async function requestPasswordReset(emailRaw: string, meta: RequestMeta):
     }
     throw err;
   }
-  const db = getDb();
-  const [user] = await db.select({ id: users.id, status: users.status }).from(users).where(eq(users.email, email.data));
-  if (!user || user.status !== 'ACTIVE') return { recovery };
+  runInBackground('password_reset', () => issueResetLink(email.data, meta));
+  return { recovery };
+}
+
+/** Creates a reset token for an active account and e-mails it; nothing for any other address. */
+async function issueResetLink(email: string, meta: RequestMeta): Promise<void> {
   const token = randomToken(32);
-  await withTransaction(async (tx) => {
-    // Only the newest link works.
+  const userId = await withTransaction(async (tx) => {
+    // Locking the account serialises concurrent requests, so only the newest link works.
+    const [user] = await tx.select({ id: users.id, status: users.status }).from(users).where(eq(users.email, email)).for('update');
+    if (!user || user.status !== 'ACTIVE') return null;
     await tx
       .update(passwordResetTokens)
       .set({ usedAt: new Date() })
       .where(and(eq(passwordResetTokens.userId, user.id), isNull(passwordResetTokens.usedAt)));
     await tx.insert(passwordResetTokens).values({ userId: user.id, tokenHash: sha256Hex(token), expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS) });
     await audit(tx, { actorId: user.id, actorType: 'USER', action: 'auth.password_reset_requested', resourceType: 'user', resourceId: user.id, ipHash: meta.ipHash });
+    return user.id;
   });
+  if (!userId) return;
   const link = `${env().APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
   sendInBackground(
     {
-      to: email.data,
+      to: email,
       subject: 'Reset your Aurovane password',
       text:
         `Someone (hopefully you) asked to reset the password for this Aurovane account.\n\n` +
@@ -253,9 +261,8 @@ export async function requestPasswordReset(emailRaw: string, meta: RequestMeta):
         `If you did not ask for this, ignore this e-mail; your password stays the same.\n\n` +
         `Aurovane uses non-redeemable virtual chips only.`,
     },
-    { purpose: 'password_reset', userId: user.id },
+    { purpose: 'password_reset', userId },
   );
-  return { recovery };
 }
 
 const INVALID_RESET = 'This reset link is invalid or has expired';

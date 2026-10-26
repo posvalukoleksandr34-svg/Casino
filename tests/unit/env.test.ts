@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { productionProblems, type Env } from '@/server/env';
+import { metricsToken, productionProblems, type Env } from '@/server/env';
 
 const good: Env = {
   NODE_ENV: 'production',
@@ -55,3 +55,26 @@ describe('production configuration fails closed', () => {
     expect(problems.join(' ')).not.toContain(secret);
   });
 });
+
+describe('METRICS_TOKEN policy: optional, fails closed', () => {
+  it('production accepts no token (metrics disabled) — an explicit, documented choice', () => {
+    expect(productionProblems({ ...good, METRICS_TOKEN: undefined } as Env, raw)).toEqual([]);
+    expect(productionProblems({ ...good, METRICS_TOKEN: '' } as Env, raw)).toEqual([]);
+  });
+
+  it('a token that is set must be strong and header-safe', () => {
+    const ok = 'a1B2c3D4e5F6g7H8i9J0k1L2m3';
+    expect(productionProblems({ ...good, METRICS_TOKEN: ok } as Env, raw)).toEqual([]);
+    for (const bad of [' '.repeat(30), 'x'.repeat(23), `${'x'.repeat(20)} spaced token`, `${'x'.repeat(24)}\n`]) {
+      expect(productionProblems({ ...good, METRICS_TOKEN: bad } as Env, raw).join(' '), JSON.stringify(bad)).toMatch(/METRICS_TOKEN/);
+    }
+  });
+
+  it('unset, empty and whitespace-only tokens disable the endpoint; nothing means "no authentication"', () => {
+    expect(metricsToken({ METRICS_TOKEN: undefined })).toBeNull();
+    expect(metricsToken({ METRICS_TOKEN: '' })).toBeNull();
+    expect(metricsToken({ METRICS_TOKEN: '   ' })).toBeNull();
+    expect(metricsToken({ METRICS_TOKEN: 'abc' })).toBe('abc');
+  });
+});
+

@@ -46,6 +46,17 @@ latency to the server is the player's risk (documented in the UI; the automatic 
 removes it). The flight's end time is also stored as `game_rounds.expires_at` for the expiry
 queue; it is server-only and never part of any response.
 
+**Known limitation (open).** Receipt-time pricing holds once the cash-out transaction has
+the wallet and round locks. Between receipt and taking those locks (session check, rate
+limit, idempotency key: a few milliseconds), a time-based settlement that starts *after*
+the crash — the expiry job, or the lazy settlement triggered by the client's own 300 ms
+round poll — can take the locks first and settle the round as a bust; the cash-out then
+fails with "round finished". This affects only cash-outs received within those few
+milliseconds before the crash point, and never the payout table or the RTP of the
+automatic target. Closing it needs a product decision: delay time-based settlement by a
+grace period (the crash would be shown later), or have reads report a due crash without
+settling it, leaving settlement to the cash-out path and a delayed job.
+
 ## RTP, edge and variance
 
 For any target x ≥ 1.01× (automatic, or a manual cash-out at that multiplier):

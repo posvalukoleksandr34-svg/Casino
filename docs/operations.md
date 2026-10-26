@@ -39,7 +39,7 @@ Production refuses to start with missing, short or default values (`src/server/e
 | `DATABASE_URL` | least-privilege role; non-default password ≥ 16 chars for a non-local host |
 | `SEED_ENCRYPTION_KEY` | 32 bytes (base64 or 64 hex) |
 | `IP_HASH_SECRET` | ≥ 32 characters |
-| `METRICS_TOKEN` | ≥ 24 characters when set |
+| `METRICS_TOKEN` | optional (see §7); when set, ≥ 24 characters of `[A-Za-z0-9._~+/=-]` |
 | `MAIL_TRANSPORT` | `smtp` (with `SMTP_URL`, `MAIL_FROM`) or `disabled`; `console` is refused |
 
 Generate values locally, never in a shared terminal log:
@@ -62,7 +62,7 @@ browser bundle; the logger redacts keys matching password/token/secret/cookie/se
 |---|---|---|
 | `SEED_ENCRYPTION_KEY` | Put the new key in `SEED_ENCRYPTION_KEY`, the old one in `SEED_ENCRYPTION_KEYS_PREVIOUS`, redeploy. New seeds use the new key; old ciphertexts carry a key id and still decrypt. Remove the old key once every pair encrypted with it has been revealed (players rotate seeds; old pairs are revealed on rotation). | none |
 | `IP_HASH_SECRET` | Replace and redeploy. | audit IP hashes before/after no longer correlate |
-| `METRICS_TOKEN` | Replace in the app and in the scraper. | scrape gap |
+| `METRICS_TOKEN` | Replace in the app and in the scraper. Setting it empty disables `/api/metrics`. | scrape gap |
 | DB passwords | `ALTER ROLE casino_app PASSWORD '…'` (as an admin), update the secret, rolling restart. Same for `casino_migrator`. | brief reconnects |
 | SMTP credentials | Update `SMTP_URL`, restart. | none |
 
@@ -177,8 +177,12 @@ checksum with it.
 |---|---|
 | `GET /api/health` | liveness (process up). Used by the Docker `HEALTHCHECK`. |
 | `GET /api/health/ready` | readiness: least-privilege DB role, DB reachable, migrations applied, reference data present. Public; returns only check names and pass/fail (details are logged server-side). |
-| `GET /api/metrics` | Prometheus text, requires `Authorization: Bearer $METRICS_TOKEN`. |
+| `GET /api/metrics` | Prometheus text, requires `Authorization: Bearer $METRICS_TOKEN`. **Optional:** with no token configured (unset, empty or blank) the endpoint is disabled and answers 403 to every request — there is no unauthenticated mode. The startup log states which (`metrics endpoint enabled` / `disabled`). |
 | `/admin/health` | staff view: readiness details, pool, memory, error rate, reconciliation, password-recovery delivery state. |
+
+Metrics are optional so that a deployment without Prometheus does not have to invent a
+token, but the metric-based alerts below need `METRICS_TOKEN` set and a scraper using it.
+Without them, `/admin/health`, the alerts table and the logs are the only signals.
 
 Alert on **(external)**: readiness failing for > 1 min; `casino_round_expiry_failures_total`
 increasing; `casino_mail_failed_total` increasing; any `RECONCILIATION_MISMATCH` alert
@@ -210,8 +214,11 @@ samples and raises a CRITICAL alert.
 * `MAIL_TRANSPORT=smtp`, `SMTP_URL=smtps://user:pass@smtp.provider:465` (or `smtp://…:587`,
   STARTTLS is then required for non-loopback hosts), `MAIL_FROM="Aurovane <no-reply@your.domain>"`.
 * Configure SPF, DKIM and DMARC for the sending domain with your provider.
-* Delivery is asynchronous; failures increment `casino_mail_failed_total` and are logged
-  without the link or address. Reset links are single-use, expire after 30 minutes, are
+* Delivery is asynchronous, and so is everything that depends on the account (lookup,
+  token write), so response times do not reveal whether an address has an account.
+  Delivery failures increment `casino_mail_failed_total` and are logged without the link
+  or address; a failure before sending (e.g. the database) is recorded as an error event
+  for `background:password_reset` (`/admin/health`). Reset links are single-use, expire after 30 minutes, are
   stored only as SHA-256 hashes, are throttled per address (3/hour, silently) and per IP.
 * Without a provider (`disabled`, the default) the site says so honestly: the
   forgot-password page explains that recovery is unavailable and asks players to contact

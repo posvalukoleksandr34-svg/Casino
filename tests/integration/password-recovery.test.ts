@@ -5,10 +5,10 @@
  */
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server, type Socket } from 'node:net';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sha256Hex } from '@/server/crypto';
-import { getDb } from '@/server/db/client';
+import { getDb, withTransaction } from '@/server/db/client';
 import { auditLogs, passwordResetTokens } from '@/server/db/schema';
 import { resetEnvCache } from '@/server/env';
 import { AppError } from '@/server/errors';
@@ -161,6 +161,46 @@ describe('password recovery over SMTP', () => {
       .from(passwordResetTokens)
       .where(and(eq(passwordResetTokens.userId, p.userId)));
     expect(open.every((t) => t.usedAt !== null)).toBe(true);
+  });
+
+  it('responds without waiting for any account-dependent work (no timing signal)', async () => {
+    const p = await newPlayer('timing');
+    // Hold a lock that blocks every write to reset tokens. A request whose response waited
+    // for the token write (as before) cannot finish until it is released.
+    let release!: () => void;
+    const released = new Promise<void>((resolve) => (release = resolve));
+    let locked!: () => void;
+    const isLocked = new Promise<void>((resolve) => (locked = resolve));
+    const holder = withTransaction(async (tx) => {
+      await tx.execute(sql`LOCK TABLE password_reset_tokens IN SHARE ROW EXCLUSIVE MODE`);
+      locked();
+      await released;
+    });
+    await isLocked;
+    try {
+      const outcome = await Promise.race([
+        requestPasswordReset(p.email, meta).then((r) => r.recovery),
+        new Promise((resolve) => setTimeout(() => resolve('still waiting'), 3000)),
+      ]);
+      expect(outcome).toBe('email');
+      expect(smtp.inbox).toHaveLength(0);
+    } finally {
+      release();
+      await holder;
+    }
+    await flushMail();
+    expect(smtp.inbox).toHaveLength(1);
+    expect(smtp.inbox[0]!.to.join()).toContain(p.email);
+  });
+
+  it('concurrent requests for one account still leave only the newest link usable', async () => {
+    const p = await newPlayer('concurrent');
+    await Promise.all([requestPasswordReset(p.email, meta), requestPasswordReset(p.email, meta), requestPasswordReset(p.email, meta)]);
+    await flushMail();
+    expect(smtp.inbox).toHaveLength(3);
+    const rows = await getDb().select().from(passwordResetTokens).where(eq(passwordResetTokens.userId, p.userId));
+    expect(rows).toHaveLength(3);
+    expect(rows.filter((r) => r.usedAt === null)).toHaveLength(1);
   });
 
   it('throttles reset e-mails per address silently (3 per hour)', async () => {

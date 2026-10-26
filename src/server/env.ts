@@ -23,6 +23,12 @@ const schema = z.object({
   MAIL_FROM: z.string().optional(),
   BACKGROUND_JOBS: boolish.default(true),
   RECONCILE_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
+  /**
+   * Bearer token for /api/metrics. OPTIONAL by design: metrics are an opt-in
+   * integration. Unset (or empty, as Compose passes it) means the endpoint is
+   * disabled and refuses every request — there is no unauthenticated mode.
+   * When set in production it must be a strong, header-safe token.
+   */
   METRICS_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
@@ -71,7 +77,10 @@ export function productionProblems(e: Env, raw: Record<string, string | undefine
   else if (decodedKeyLength(e.SEED_ENCRYPTION_KEY) !== 32) problems.push('SEED_ENCRYPTION_KEY must be 32 bytes (base64 or 64 hex characters)');
   if (!e.IP_HASH_SECRET) problems.push('IP_HASH_SECRET is required');
   else if (e.IP_HASH_SECRET.length < 32) problems.push('IP_HASH_SECRET must be at least 32 characters');
-  if (e.METRICS_TOKEN && e.METRICS_TOKEN.length < 24) problems.push('METRICS_TOKEN must be at least 24 characters when set');
+  // Optional (see the schema comment), but a token that is set must be usable as one.
+  if (e.METRICS_TOKEN && !/^[A-Za-z0-9._~+/=-]{24,}$/.test(e.METRICS_TOKEN)) {
+    problems.push('METRICS_TOKEN, when set, must be at least 24 characters of [A-Za-z0-9._~+/=-] (leave it empty to disable /api/metrics)');
+  }
   if (e.MAIL_TRANSPORT === 'console') problems.push('MAIL_TRANSPORT=console prints reset links and is development-only; use smtp or disabled');
   if (e.MAIL_TRANSPORT === 'smtp') {
     if (!e.SMTP_URL || !/^smtps?:\/\//.test(e.SMTP_URL)) problems.push('MAIL_TRANSPORT=smtp requires SMTP_URL (smtp:// or smtps://)');
@@ -95,6 +104,15 @@ export function productionProblems(e: Env, raw: Record<string, string | undefine
     }
   }
   return problems;
+}
+
+/**
+ * The token that unlocks /api/metrics, or null when the endpoint is disabled
+ * (unset, empty or whitespace-only — never treated as "no authentication").
+ */
+export function metricsToken(e: Pick<Env, 'METRICS_TOKEN'> = env()): string | null {
+  const t = e.METRICS_TOKEN;
+  return t && t.trim() ? t : null;
 }
 
 /** For tests that mutate process.env between cases. */

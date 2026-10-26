@@ -32,7 +32,7 @@ Amounts are integers in minor units (100 = 1 chip).
 |---|---|---|
 | GET | `/api/health` | Liveness |
 | GET | `/api/health/ready` | DB, migrations, reference data (503 when degraded) |
-| GET | `/api/metrics` | Prometheus text; `Authorization: Bearer $METRICS_TOKEN` |
+| GET | `/api/metrics` | Prometheus text; `Authorization: Bearer $METRICS_TOKEN`. Optional: 403 for every request when no token is configured |
 | GET | `/api/games` | Catalogue: status, config version, limits, theoretical RTP |
 | GET | `/api/games/:gameId` | One game |
 

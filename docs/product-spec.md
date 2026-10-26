@@ -109,7 +109,8 @@ reconciliation, automated tests, Docker. (Delivered — see README "Status".)
   and require same-currency postings.
 * Single PostgreSQL primary; the hot house-bankroll row bounds wager throughput (documented
   scaling path: sharded house sub-accounts).
-* E-mail delivery is not integrated; password-reset links are logged in development only.
+* E-mail is used only for password recovery, over an operator-supplied SMTP provider
+  (`docs/operations.md` §9); without one, recovery is reported as unavailable.
 * Session time limits are measured per login session.
 * Theoretical figures for strategy-dependent games (blackjack) are simulation estimates with
   confidence intervals and are labelled as such.
