@@ -21,8 +21,8 @@ export type VerifyParams = Record<string, unknown>;
 
 type Verifier = (input: FairnessInput, params: VerifyParams) => { outcome: Record<string, unknown>; description: string };
 
-/** Cards shown by the blackjack verifier (more than any hand can use from a fresh shoe in practice). */
-const BLACKJACK_PREFIX = 24;
+/** Cards shown by the blackjack verifier when the number dealt is not given. */
+const BLACKJACK_DEFAULT_CARDS = 24;
 
 const verifiers: Record<string, Verifier> = {
   roulette: (input) => {
@@ -51,8 +51,12 @@ const verifiers: Record<string, Verifier> = {
   blackjack: (input, params) => {
     const decks = params.decks === undefined ? 6 : Number(params.decks);
     if (decks !== 6 && decks !== 8) throw new Error('Number of decks must be 6 or 8');
+    // Show at least every card the round dealt (a round with splits and many
+    // small cards can use more than the default prefix).
+    const requested = params.cards === undefined ? BLACKJACK_DEFAULT_CARDS : Number(params.cards);
+    if (!Number.isInteger(requested) || requested < 4 || requested > 52 * decks) throw new Error(`Cards to show must be between 4 and ${52 * decks}`);
     const shoe = shuffle(Array.from({ length: 52 * decks }, (_, i) => i), createRandomStream(input));
-    const cards = shoe.slice(0, BLACKJACK_PREFIX).map(label);
+    const cards = shoe.slice(0, requested).map(label);
     return {
       outcome: { firstCards: cards, dealOrder: 'player, dealer up, player, dealer hole, then cards in the order they were requested' },
       description: `Shoe begins ${cards.slice(0, 6).join(' ')} …`,

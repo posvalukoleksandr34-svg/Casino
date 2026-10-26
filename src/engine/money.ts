@@ -12,6 +12,21 @@ export const CURRENCY_CODE = 'CHIP';
 /** Upper bound for any single amount handled by the platform (1e14 minor units). */
 export const MAX_AMOUNT = 100_000_000_000_000;
 
+/**
+ * Largest gross multiplier any valid game configuration can produce (Mines
+ * and Crash caps, schema maximum 100,000×; Dice ≤ 9,999×; Roulette 36×;
+ * Blackjack 16× + insurance). Configuration schemas must not exceed it.
+ */
+export const MAX_MULTIPLIER = 100_000;
+
+/**
+ * Upper bound for a single stake accepted by any bet schema (10,000,000 chips).
+ * Chosen so that MAX_STAKE × MAX_MULTIPLIER ≤ MAX_AMOUNT: no payout, exposure
+ * or risk computation for a schema-valid bet can leave the exact integer range.
+ * Table limits (risk_limits) are far lower and are enforced separately.
+ */
+export const MAX_STAKE = MAX_AMOUNT / MAX_MULTIPLIER;
+
 export class MoneyError extends Error {
   constructor(message: string) {
     super(message);

@@ -12,7 +12,7 @@
  */
 import { z } from 'zod';
 import { binomial } from '../../combinatorics';
-import { mulDivFloor } from '../../money';
+import { MAX_MULTIPLIER, mulDivFloor } from '../../money';
 import { shuffle, type RandomSource } from '../../rng/provably-fair';
 import { stakeSchema } from '../shared';
 import { GameRuleError, settled, type GameModule, type RiskProfile, type StepResult } from '../types';
@@ -25,7 +25,7 @@ export const minesConfigSchema = z
     minMines: z.int().min(1).max(24),
     maxMines: z.int().min(1).max(24),
     /** Multiplier cap ×10⁴ (e.g. 100_000_000 = 10,000×). */
-    maxMultiplierE4: z.int().min(20_000).max(1_000_000_000),
+    maxMultiplierE4: z.int().min(20_000).max(MAX_MULTIPLIER * 10_000),
   })
   .refine((c) => c.minMines <= c.maxMines, { message: 'minMines must not exceed maxMines' });
 export type MinesConfig = z.infer<typeof minesConfigSchema>;

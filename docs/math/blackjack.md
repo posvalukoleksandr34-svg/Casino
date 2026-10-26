@@ -28,7 +28,8 @@ drawn in the order actions request them (on a split, both new hands get their
 second card immediately, the first hand first). The whole order is fixed when
 the round starts, so the player's decisions choose *which* cards they take
 but cannot change the order of the shoe. The verifier at `/fairness`
-recomputes the first 24 cards of the shoe from the revealed seed.
+recomputes the shoe order from the revealed seed: by default the first 24 cards, and from a
+round's link exactly as many as the round dealt (any number up to the whole shoe).
 
 Because the shoe is fresh every hand, the composition is the same at the
 start of every round: card counting has no value, and every hand is

@@ -112,7 +112,7 @@ export function Verifier() {
   const [clientSeed, setClientSeed] = useState(params.get('clientSeed') ?? '');
   const [nonce, setNonce] = useState(params.get('nonce') ?? '0');
   const [commitment, setCommitment] = useState('');
-  const [extra, setExtra] = useState<Record<string, string>>(() => ({ mines: params.get('mines') ?? '3', decks: params.get('decks') ?? '6' }));
+  const [extra, setExtra] = useState<Record<string, string>>(() => ({ mines: params.get('mines') ?? '3', decks: params.get('decks') ?? '6', cards: params.get('cards') ?? '24' }));
 
   useEffect(() => {
     if (params.get('game')) document.getElementById('verify')?.scrollIntoView();
@@ -121,7 +121,7 @@ export function Verifier() {
   const result = useMemo(() => {
     if (!serverSeed || !clientSeed) return null;
     try {
-      return { ok: true as const, value: verifyOutcome(game, { serverSeed, clientSeed, nonce: Number(nonce) }, { mines: Number(extra.mines), decks: Number(extra.decks) }) };
+      return { ok: true as const, value: verifyOutcome(game, { serverSeed, clientSeed, nonce: Number(nonce) }, { mines: Number(extra.mines), decks: Number(extra.decks), cards: Number(extra.cards) }) };
     } catch (err) {
       return { ok: false as const, error: (err as Error).message };
     }
@@ -159,6 +159,11 @@ export function Verifier() {
                   <option value="8">8</option>
                 </Select>
               )}
+            </Field>
+          )}
+          {game === 'blackjack' && (
+            <Field label="Cards to show" hint="At least the number of cards dealt in the round (filled in from the round link).">
+              {(p) => <Input {...p} inputMode="numeric" value={extra.cards} onChange={(e) => setExtra((x) => ({ ...x, cards: e.target.value.replace(/\D/g, '') }))} />}
             </Field>
           )}
           <Field label="Commitment shown before play (optional)" hint="Paste the SHA-256 hash to check the seed was not changed.">

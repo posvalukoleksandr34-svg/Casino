@@ -34,6 +34,19 @@ export interface GameContent {
   math: string[];
 }
 
+/** Standard deviation of the gross return per unit staked, for a bet type (exact from the odds table). */
+export function rouletteSd(type: RouletteBetType): number {
+  const p = WINNING_POCKETS[type] / 37;
+  const m = PAYOUT_ODDS[type] + 1;
+  return Math.sqrt(m * m * p - (m * p) ** 2);
+}
+
+/** Variance per unit staked of a crash target x (fraction of stake returned is x with p = (1 − h)/x). */
+export function crashVariance(x: number, houseEdgeBp = 100): number {
+  const p = crashSurvival(Math.round(x * 100), houseEdgeBp);
+  return x * x * p * (1 - p);
+}
+
 const fmtP = (num: number, den: number) => `${num}/${den} (${((num / den) * 100).toFixed(3)}%)`;
 
 const ROULETTE_LABELS: [RouletteBetType, string, string][] = [
@@ -72,7 +85,7 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     math: [
       'For every bet type, P(win) × (odds + 1) = 36/37, so the RTP of every bet — and of any combination of bets — is exactly 97.297% and the house edge is 1/37 = 2.703%.',
       'Example: a 10-chip straight-up bet returns 360 chips with probability 1/37 and 0 otherwise: expected return 360/37 = 9.73 chips, expected loss 0.27 chips.',
-      'Standard deviation per unit staked: straight up ≈ 5.84; even-money bets ≈ 1.00; dozens/columns ≈ 1.39.',
+      `Standard deviation per unit staked: straight up ≈ ${rouletteSd('straight').toFixed(2)}; even-money bets ≈ ${rouletteSd('red').toFixed(2)}; dozens/columns ≈ ${rouletteSd('dozen').toFixed(2)}.`,
     ],
   },
   dice: {
@@ -153,7 +166,7 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     math: [
       'For any target x ≥ 1.01, P(crash ≥ x) = 0.99 / x exactly (up to 2⁻⁵² discretisation), so the expected return is x × 0.99/x = 99%: house edge 1% for every target of at least 1.01×, manual or automatic.',
       'P(crash = 1.00×) = 1 − 0.99/1.01 ≈ 1.98%: those rounds end at take-off. Cashing out at exactly 1.00× would therefore return only 98.02%.',
-      'Variance per unit staked for target x is x² p (1 − p) with p = 0.99/x: 0.99 at 2×, 8.9 at 10×, 98 at 100×.',
+      `Variance per unit staked for target x is x² p (1 − p) with p = 0.99/x: ${crashVariance(2).toFixed(2)} at 2×, ${crashVariance(10).toFixed(1)} at 10×, ${crashVariance(100).toFixed(0)} at 100×.`,
     ],
   },
   blackjack: {

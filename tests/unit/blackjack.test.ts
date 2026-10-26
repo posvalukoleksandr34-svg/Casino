@@ -188,3 +188,62 @@ describe('basic strategy', () => {
     expect(basicStrategy([c('A'), c('7')], c('5'), ['hit', 'stand'], rules)).toBe('stand');
   });
 });
+
+describe('published blackjack estimates correspond to the configured rules', () => {
+  const all: BlackjackConfig[] = [6, 8].flatMap((decks) =>
+    [false, true].flatMap((dealerHitsSoft17) =>
+      (['3:2', '6:5'] as const).flatMap((blackjackPays) => [true, false].map((doubleAfterSplit) => ({ decks: decks as 6 | 8, dealerHitsSoft17, blackjackPays, doubleAfterSplit }))),
+    ),
+  );
+
+  it('every configurable rule set has its own estimate; theoretical() reports it as an estimate with its CI', async () => {
+    const { estimateFor, estimateKey } = await import('@/engine/games/blackjack/estimates');
+    const keys = new Set<string>();
+    for (const c of all) {
+      const est = estimateFor(c);
+      keys.add(estimateKey(c));
+      expect(est.hands).toBeGreaterThanOrEqual(8_000_000);
+      expect(est.ci95[0]).toBeLessThan(est.houseEdge);
+      expect(est.ci95[1]).toBeGreaterThan(est.houseEdge);
+      // CI half-width matches the reported variance and sample size (1.96·σ/√n).
+      expect((est.ci95[1] - est.ci95[0]) / 2).toBeCloseTo(1.96 * Math.sqrt(est.variancePerUnit / est.hands), 5);
+      const t = blackjack.theoretical(c);
+      expect(t.method).toBe('estimate');
+      expect(t.houseEdge).toBe(est.houseEdge);
+      expect(t.rtp).toBeCloseTo(1 - est.houseEdge, 12);
+      expect(t.ci95).toEqual([1 - est.ci95[1], 1 - est.ci95[0]]);
+    }
+    expect(keys.size).toBe(16);
+  });
+
+  it('rule changes move the edge in the known direction (beyond sampling error)', async () => {
+    const { estimateFor } = await import('@/engine/games/blackjack/estimates');
+    const hw = (c: BlackjackConfig) => (estimateFor(c).ci95[1] - estimateFor(c).ci95[0]) / 2;
+    for (const c of all) {
+      if (c.blackjackPays === '3:2') {
+        const worse = { ...c, blackjackPays: '6:5' as const };
+        expect(estimateFor(worse).houseEdge - estimateFor(c).houseEdge).toBeGreaterThan(0.01); // ≈ +1.36 pp
+      }
+      if (!c.dealerHitsSoft17) {
+        const worse = { ...c, dealerHitsSoft17: true };
+        expect(estimateFor(worse).houseEdge).toBeGreaterThan(estimateFor(c).houseEdge - hw(c) - hw(worse));
+      }
+      if (c.doubleAfterSplit) {
+        const worse = { ...c, doubleAfterSplit: false };
+        expect(estimateFor(worse).houseEdge).toBeGreaterThan(estimateFor(c).houseEdge - hw(c) - hw(worse));
+      }
+    }
+  });
+
+  it('insurance: even money for a natural and a dealer ace; push plus insurance when the dealer has blackjack', () => {
+    const r = deal(['A', 'A', 'K', 'K']); // player natural, dealer A + K
+    expect(r.state.phase).toBe('insurance');
+    const taken = act(r, { type: 'insurance', take: true });
+    expect(taken.status).toBe('SETTLED');
+    expect(taken.payout).toBe(1000 + 1500); // main pushes, insurance 500 × 3
+    const declined = act(r, { type: 'insurance', take: false });
+    expect(declined.payout).toBe(1000);
+    const noBj = act(deal(['A', 'A', 'K', '7']), { type: 'insurance', take: true });
+    expect(noBj.payout).toBe(2500); // natural paid 3:2, insurance lost
+  });
+});

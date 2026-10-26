@@ -36,6 +36,16 @@ describe('fairness verifier agrees with the game engine', () => {
     expect(() => verifyOutcome('blackjack', { serverSeed: seed, clientSeed: 'x', nonce: 0 }, { decks: 7 })).toThrow();
   });
 
+  it('blackjack verifier shows every card a long round dealt', () => {
+    const input = { serverSeed: seed, clientSeed: 'verify', nonce: 3 };
+    const engine = blackjack.start(blackjack.defaultConfig, { amount: 100 }, createRandomStream(input));
+    const shown = verifyOutcome('blackjack', input, { decks: 6, cards: 60 }).outcome.firstCards as string[];
+    expect(shown).toHaveLength(60);
+    expect(shown).toEqual(engine.state.shoe.slice(0, 60).map(label));
+    expect(() => verifyOutcome('blackjack', input, { decks: 6, cards: 313 })).toThrow();
+    expect(() => verifyOutcome('blackjack', input, { decks: 6, cards: 2 })).toThrow();
+  });
+
   it('reports the commitment hash for comparison', () => {
     expect(verifyOutcome('dice', { serverSeed: seed, clientSeed: 'x', nonce: 0 }).serverSeedHash).toBe(hashServerSeed(seed));
   });

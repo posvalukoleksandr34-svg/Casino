@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GAME_CONTENT } from '@/content/games';
+import { crashVariance, GAME_CONTENT, rouletteSd } from '@/content/games';
 import { diceRtp, multiplierE4For } from '@/engine/games/dice';
 import { payoutTable } from '@/engine/games/roulette';
 import { blackjack, insuranceEdge } from '@/engine/games/blackjack';
@@ -30,6 +30,16 @@ describe('published rules match the engine', () => {
     expect(t.method).toBe('estimate');
     expect(t.ci95![0]).toBeLessThan(t.rtp);
     expect(t.ci95![1]).toBeGreaterThan(t.rtp);
+  });
+
+  it('published dispersion figures are derived exactly (independent closed forms)', () => {
+    // Var = m²p − (mp)² with gross multiplier m and win probability p.
+    expect(rouletteSd('straight')).toBeCloseTo(Math.sqrt(1296 / 37 - (36 / 37) ** 2), 12); // 5.8378
+    expect(rouletteSd('red')).toBeCloseTo(Math.sqrt(72 / 37 - (36 / 37) ** 2), 12); // 0.9996
+    expect(rouletteSd('dozen')).toBeCloseTo(Math.sqrt(108 / 37 - (36 / 37) ** 2), 12); // 1.4044
+    expect(GAME_CONTENT.roulette!.math.join(' ')).toContain('dozens/columns ≈ 1.40');
+    expect(crashVariance(2)).toBeCloseTo(4 * 0.495 * 0.505, 12); // 0.9999
+    expect(GAME_CONTENT.crash!.math.join(' ')).toContain('1.00 at 2×');
   });
 
   it('every game with content has rules and maths', () => {

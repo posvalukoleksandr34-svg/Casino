@@ -12,7 +12,7 @@ import { and, asc, desc, eq, lt, lte, sql } from 'drizzle-orm';
 import { GameRuleError, type GameModule, type RiskProfile, type StepResult } from '@/engine/games/types';
 import { getGameModule } from '@/engine/games/registry';
 import { createRandomStream } from '@/engine/rng/provably-fair';
-import { sumMinor } from '@/engine/money';
+import { MoneyError, sumMinor } from '@/engine/money';
 import { getDb, withTransaction, type Tx } from '../db/client';
 import { bets, gameRounds, games, payouts, seedPairs } from '../db/schema';
 import { AppError, errors } from '../errors';
@@ -95,6 +95,9 @@ function assessOrThrow(mod: GameModule, config: unknown, bet: unknown): RiskProf
 
 function asRuleError(err: unknown): unknown {
   if (err instanceof GameRuleError) return new AppError('GAME_RULE', err.message, { rule: err.code, ...(err.details ?? {}) });
+  // Defence in depth: schemas bound every amount, but an out-of-range amount must
+  // never surface as an internal error.
+  if (err instanceof MoneyError) return new AppError('VALIDATION_ERROR', 'Amount is outside the supported range');
   return err;
 }
 
@@ -376,6 +379,10 @@ export interface ActInput {
 }
 
 export async function actOnRound(input: ActInput): Promise<IdempotentResult<RoundResponse>> {
+  // Time-sensitive actions (a crash cash-out) are priced at the moment the
+  // server received the request, not after waiting for row locks or a
+  // serialisation retry: the documented rule, and fair under contention.
+  const receivedAt = input.now ?? new Date();
   return withTransaction((tx) =>
     runIdempotent(tx, input.userId, input.idempotencyKey, requestFingerprint(`round:act:${input.roundId}`, input.action), async (respond) => {
       const wallet = await lockWalletAccount(tx, input.userId);
@@ -384,10 +391,9 @@ export async function actOnRound(input: ActInput): Promise<IdempotentResult<Roun
       if (!mod.actionSchema) throw new AppError('GAME_RULE', 'This game does not accept actions');
       const config = await loadConfigById(tx, mod, round.configId);
       const action = parseWith(mod.actionSchema, input.action, 'action');
-      const now = input.now ?? new Date();
       let step: StepResult<unknown>;
       try {
-        step = mod.act(config, round.state, action, { elapsedMs: now.getTime() - round.startedAt.getTime() });
+        step = mod.act(config, round.state, action, { elapsedMs: receivedAt.getTime() - round.startedAt.getTime() });
       } catch (err) {
         throw asRuleError(err);
       }

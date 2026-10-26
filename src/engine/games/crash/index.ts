@@ -15,7 +15,7 @@
  * Every target therefore has RTP = x · (1 − h)/x = 1 − h.
  */
 import { z } from 'zod';
-import { mulDivFloor } from '../../money';
+import { MAX_MULTIPLIER, mulDivFloor } from '../../money';
 import type { RandomSource } from '../../rng/provably-fair';
 import { stakeSchema } from '../shared';
 import { GameRuleError, settled, type GameModule, type RiskProfile, type StepResult } from '../types';
@@ -27,7 +27,7 @@ export const crashConfigSchema = z.object({
   /** Growth rate per millisecond: 6e-5 doubles every ≈11.6 s. */
   growthPerMs: z.number().positive().max(0.01),
   /** Multiplier cap in hundredths (100_000 = 1,000×). */
-  maxMultiplierE2: z.int().min(200).max(10_000_000),
+  maxMultiplierE2: z.int().min(200).max(MAX_MULTIPLIER * 100),
 });
 export type CrashConfig = z.infer<typeof crashConfigSchema>;
 
@@ -35,7 +35,7 @@ export const crashBetSchema = z
   .object({
     amount: stakeSchema,
     /** Optional automatic cash-out target in hundredths (e.g. 200 = 2.00×). */
-    autoCashoutE2: z.int().min(101).max(10_000_000).optional(),
+    autoCashoutE2: z.int().min(101).max(MAX_MULTIPLIER * 100).optional(),
   })
   .strict();
 export type CrashBet = z.infer<typeof crashBetSchema>;

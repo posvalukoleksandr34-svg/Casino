@@ -37,9 +37,14 @@ The crash happens at t(crash) = ln(crash)/r. Settlement rules, in time order:
 
 Time-based events are applied by the expiry job (every 5 s), lazily when the round is read,
 or when a cash-out request arrives — whichever happens first — always using the event's own
-time, never the time it was processed. A request processed after the crash is a bust even if
-the player pressed the button earlier: network latency is the player's risk (documented in
-the UI; the automatic target removes it).
+time, never the time it was processed. A manual cash-out is priced at the moment the server
+**received** the request (`actOnRound` captures the time before taking any lock), so waiting
+for a contended lock or a transaction retry neither raises nor lowers the multiplier
+(regression test: `tests/integration/audit-regressions.test.ts`). A request that reaches the
+server after the crash is a bust even if the player pressed the button earlier: network
+latency to the server is the player's risk (documented in the UI; the automatic target
+removes it). The flight's end time is also stored as `game_rounds.expires_at` for the expiry
+queue; it is server-only and never part of any response.
 
 ## RTP, edge and variance
 
@@ -53,7 +58,7 @@ Variance per unit staked for target x: x²·p(1 − p), p = 0.99/x.
 |---|---|---|---|
 | 1.01× | 98.0198% | 99.00% | 0.0198 |
 | 1.50× | 66.0000% | 99.00% | 0.505 |
-| 2.00× | 49.5000% | 99.00% | 0.990 |
+| 2.00× | 49.5000% | 99.00% | 1.000 |
 | 3.00× | 33.0000% | 99.00% | 1.990 |
 | 10.00× | 9.9000% | 99.00% | 8.92 |
 | 100.00× | 0.9900% | 99.00% | 98.0 |
