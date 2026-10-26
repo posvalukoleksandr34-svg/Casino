@@ -1,0 +1,40 @@
+# Slower verification that does not need to gate every pull request:
+# large Monte Carlo runs of every exactly-specified game (fail if the realised
+# RTP leaves the 4σ band around the analytical value), a fresh blackjack
+# cross-check against the published estimate, and the bankroll risk model.
+name: Extended verification
+
+on:
+  schedule:
+    - cron: '17 3 * * 1' # Mondays 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Exact games — 2,000,000 rounds per scenario
+        run: |
+          for g in roulette dice mines crash; do
+            npm run sim:game -- "$g" --rounds 2000000
+          done
+      - name: Blackjack — independent run vs published estimate (default rules)
+        run: npm run sim:game -- blackjack --rules 6-S17-3:2-DAS --hands 4000000 --check
+      - name: Bankroll / reserve risk model
+        run: npm run sim:risk -- --days 30 --paths 2000
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: simulation-reports
+          path: reports/
+          retention-days: 30

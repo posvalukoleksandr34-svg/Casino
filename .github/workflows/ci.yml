@@ -1,0 +1,124 @@
+# Required checks for every pull request and every push to main.
+# Databases are disposable service containers created per job; no repository
+# secrets are needed (the only credentials are throwaway values below).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  NEXT_TELEMETRY_DISABLED: '1'
+  VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true'
+
+jobs:
+  static:
+    name: Typecheck, lint, unit tests, dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:unit
+      # Fails on any moderate-or-worse advisory in the resolved tree (prod + dev).
+      - run: npm audit --audit-level=moderate
+
+  integration:
+    name: Integration tests (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: casino
+          POSTGRES_PASSWORD: casino
+          POSTGRES_DB: casino_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U casino -d casino_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      # Disposable database; the suite refuses any name not ending in _test.
+      DATABASE_URL_TEST: postgresql://casino:casino@localhost:5432/casino_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Global setup migrates a fresh schema and creates the least-privilege
+      # role casino_app (the service user is a superuser in this container).
+      - run: npm run test:integration
+
+  statistical:
+    name: Statistical tests (RNG, RTP, distributions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      # Fixed seeds and sample sizes (~1–2 min); larger Monte Carlo runs live in
+      # the scheduled "Extended verification" workflow.
+      - run: npm run test:stats
+
+  build-e2e:
+    name: Production build and end-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: casino
+          POSTGRES_PASSWORD: casino
+          POSTGRES_DB: casino_e2e
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U casino -d casino_e2e"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL_E2E: postgresql://casino:casino@localhost:5432/casino_e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Server-only configuration must never reach browser bundles.
+      - run: npm run check:bundle
+      - run: npx playwright install --with-deps chromium
+      # The e2e server runs the standalone production build as casino_app.
+      - run: npm run test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

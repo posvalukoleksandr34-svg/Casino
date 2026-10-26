@@ -108,7 +108,9 @@ export async function simulateGeneric(game: string, rounds: number): Promise<voi
     );
   }
   mkdirSync('reports', { recursive: true });
-  writeFileSync(`reports/${game}-simulation.json`, JSON.stringify({ generatedAt: new Date().toISOString(), simulated: true, game, results }, null, 2) + '\n');
+  writeFileSync(`reports/${game}-simulation-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.json`, JSON.stringify({ generatedAt: new Date().toISOString(), simulated: true, game, results }, null, 2) + '\n');
   const worst = Math.max(...results.map((r) => Math.abs(r.z)));
   console.log(`max |z| = ${worst.toFixed(2)} ${worst > 4 ? '— INVESTIGATE: outside the 4σ band' : '(consistent with theory)'}`);
+  // A 4σ excursion has probability ≈ 6e-5 per scenario under a correct engine.
+  if (worst > 4) process.exitCode = 1;
 }

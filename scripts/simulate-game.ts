@@ -5,6 +5,8 @@
  *
  *   npx tsx scripts/simulate-game.ts blackjack [--hands N] [--rules 6-S17-3:2-DAS]
  *   npx tsx scripts/simulate-game.ts blackjack --all [--hands N] [--write]
+ *   npx tsx scripts/simulate-game.ts blackjack --rules <key> --hands N --check
+ *     (independent run; exit 1 unless the published estimate agrees within 4σ)
  *   npx tsx scripts/simulate-game.ts <roulette|dice|mines|crash|slots> [--rounds N]
  */
 import { execFile } from 'node:child_process';
@@ -91,6 +93,23 @@ async function main() {
       console.log(
         `${key.padEnd(16)} edge ${(r.houseEdge * 100).toFixed(3)}%  95% CI [${(r.ci95[0] * 100).toFixed(3)}, ${(r.ci95[1] * 100).toFixed(3)}]  var ${r.variancePerUnit.toFixed(3)}  hands ${r.hands.toLocaleString()}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`,
       );
+    }
+    if (args.includes('--check')) {
+      const { ESTIMATES } = await import('../src/engine/games/blackjack/estimates');
+      let failed = false;
+      for (const r of out) {
+        const pub = ESTIMATES[r.rules as keyof typeof ESTIMATES];
+        if (!pub) {
+          console.log(`${r.rules}: no published estimate`);
+          failed = true;
+          continue;
+        }
+        const pubSe = (pub.ci95[1] - pub.ci95[0]) / (2 * 1.96);
+        const z = (r.houseEdge - pub.houseEdge) / Math.sqrt(r.standardError ** 2 + pubSe ** 2);
+        console.log(`${r.rules}: published ${(pub.houseEdge * 100).toFixed(3)}%, this run ${(r.houseEdge * 100).toFixed(3)}%, z = ${z.toFixed(2)}`);
+        if (Math.abs(z) > 4) failed = true;
+      }
+      if (failed) process.exitCode = 1;
     }
     mkdirSync('reports', { recursive: true });
     writeFileSync(`reports/blackjack-simulation-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.json`, JSON.stringify({ generatedAt: new Date().toISOString(), method: 'basic strategy, fresh shoe per hand, no insurance', results: out }, null, 2) + '\n');
