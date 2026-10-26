@@ -1,0 +1,61 @@
+{
+  "name": "aurum-casino",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Virtual-currency casino platform: server-authoritative games, double-entry ledger, risk engine, provably fair RNG.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "test": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:stats": "vitest run --project statistical",
+    "test:all": "vitest run",
+    "test:e2e": "playwright test",
+    "sim:game": "tsx scripts/simulate-game.ts",
+    "sim:risk": "tsx scripts/simulate-risk.ts",
+    "job:reconcile": "tsx scripts/reconcile.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.2.8",
+    "@fontsource/cormorant-garamond": "5.2.11",
+    "@noble/hashes": "2.4.0",
+    "drizzle-orm": "0.45.3",
+    "next": "15.5.28",
+    "pg": "8.23.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "server-only": "0.0.1",
+    "zod": "4.6.7"
+  },
+  "overrides": {
+    "postcss": "8.5.29"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "15.5.27",
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "22.19.1",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "postcss": "8.5.29",
+    "tailwindcss": "4.3.3",
+    "tsx": "4.23.14",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "5.0.5"
+  }
+}
