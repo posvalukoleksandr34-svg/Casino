@@ -18,6 +18,7 @@ type Key = `${6 | 8}-${'S17' | 'H17'}-${'3:2' | '6:5'}-${'DAS' | 'NDAS'}`;
 export const ESTIMATES: Partial<Record<Key, EdgeEstimate>> = {
   '6-S17-3:2-DAS': { houseEdge: 0.004191, ci95: [0.003791, 0.004591], variancePerUnit: 1.3316, hands: 32000000 },
   '6-S17-3:2-NDAS': { houseEdge: 0.005445, ci95: [0.004659, 0.006231], variancePerUnit: 1.2868, hands: 8000000 },
+  '6-S17-6:5-DAS': { houseEdge: 0.017591, ci95: [0.016803, 0.018380], variancePerUnit: 1.2942, hands: 8000000 },
 };
 // GENERATED-ESTIMATES-END
 
