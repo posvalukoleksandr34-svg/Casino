@@ -21,6 +21,8 @@ umask 077
 : "${DATABASE_URL:?DATABASE_URL (source database) is required}"
 : "${RESTORE_ADMIN_URL:?RESTORE_ADMIN_URL (a role allowed to CREATE DATABASE) is required}"
 SOURCE_URL="$DATABASE_URL"
+source "$(dirname "$0")/pg-tools.sh"
+use_matching_pg_tools "$SOURCE_URL"
 DB="casino_restore_check_$(date -u +%Y%m%d%H%M%S)_$RANDOM"
 [[ "$DB" =~ ^casino_restore_check_[0-9]+_[0-9]+$ ]] || { echo "unexpected database name" >&2; exit 1; }
 TARGET_URL="$(node -e 'const u = new URL(process.argv[1]); u.pathname = "/" + process.argv[2]; console.log(u.toString())' "$RESTORE_ADMIN_URL" "$DB")"

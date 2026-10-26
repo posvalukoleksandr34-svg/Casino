@@ -180,6 +180,10 @@ BACKUP_RETENTION_DAYS=35 npm run ops:backup
 
 * Writes a custom-format `pg_dump` (no owners/privileges) with `umask 077` and checks
   that the archive is readable.
+* Uses client tools of the **server's major version** (`scripts/ops/pg-tools.sh`) and
+  refuses otherwise. A newer `pg_dump` writes settings that an older server rejects on
+  restore. CI hit exactly this: the runner's default client was newer than the
+  PostgreSQL 16 service, and its `SET transaction_timeout` aborted the restore.
 * With `BACKUP_GPG_RECIPIENT` set, encrypts to that public key and deletes the plaintext,
   so neither the backup host nor the off-site copy can read it. Without it, encrypt at the
   storage layer.

@@ -102,6 +102,12 @@ jobs:
       # role casino_app (the service user is a superuser in this container).
       # Includes the Crash ordering suite (real row-lock concurrency).
       - run: npm run test:integration
+      # The runner's default PostgreSQL client is newer than the 16 service; dumps
+      # must be made and restored with tools of the server's major version.
+      - name: PostgreSQL 16 client tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q --no-install-recommends postgresql-client-16
       # Backup → restore into a fresh database → reconciliation (docs/operations.md §6).
       - name: Backup and restore smoke test
         env:

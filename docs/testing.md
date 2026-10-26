@@ -121,4 +121,9 @@ tree that became the commit following `fa68f7f`.
 * `actionlint`: not downloadable here. The workflow policy check ran, and the YAML parses.
 * A real SMTP provider and real TLS certificates.
 
-The GitHub Actions results for this commit are linked from the final report.
+**GitHub Actions.** On the first push of this pass (CI run 2), everything passed except the
+new restore drill: typecheck, lint, unit tests, `npm audit signatures`, the workflow-policy
+and secret-scan steps, integration, statistical, build, bundle and e2e. The drill failed
+because the runner's newer `pg_dump` wrote a PostgreSQL 17 setting into the archive. The
+ops scripts now require version-matched client tools, and CI installs
+`postgresql-client-16`. Results of the follow-up run are in the final report.

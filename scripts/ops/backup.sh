@@ -22,6 +22,8 @@ BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-}"
 RECIPIENT="${BACKUP_GPG_RECIPIENT:-}"
 
+source "$(dirname "$0")/pg-tools.sh"
+use_matching_pg_tools "$DATABASE_URL"
 mkdir -p "$BACKUP_DIR"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 file="$BACKUP_DIR/casino-$stamp.dump"
