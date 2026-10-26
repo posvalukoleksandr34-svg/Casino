@@ -2,7 +2,6 @@ import { eq, sql } from 'drizzle-orm';
 import type { Executor, Tx } from '../db/client';
 import { platformSettings, riskLimits } from '../db/schema';
 import { errors } from '../errors';
-import { lockAccount, systemAccountIds } from '../ledger/accounts';
 import { evaluateWager, type ExposureSnapshot, type GameLimits, type PlatformLimits, type WagerProposal } from './evaluate';
 
 export async function getPlatformSettings(db: Executor) {
@@ -43,15 +42,20 @@ export async function assertWagerAcceptable(
   tx: Tx,
   gameId: string,
   proposal: WagerProposal,
-  opts: { roundId?: string } = {},
+  opts: { roundId?: string; settings?: Awaited<ReturnType<typeof getPlatformSettings>>; limits?: GameLimits } = {},
 ): Promise<{ netExposure: number }> {
-  const ids = await systemAccountIds(tx);
-  const house = await lockAccount(tx, ids.HOUSE_BANKROLL);
-  // Sequential: a transaction owns a single connection, which runs one query at a time.
-  const settings = await getPlatformSettings(tx);
-  const limits = await getGameLimits(tx, gameId);
-  const exposureGame = await openExposure(tx, { gameId, excludeRoundId: opts.roundId });
-  const exposureTotal = await openExposure(tx, { excludeRoundId: opts.roundId });
+  // Configuration is read before taking the house lock to keep the serialised
+  // section short; the lock then makes the exposure snapshot and reserve check
+  // consistent with every other concurrent wager.
+  const settings = opts.settings ?? (await getPlatformSettings(tx));
+  const limits = opts.limits ?? (await getGameLimits(tx, gameId));
+  const snap = await tx.execute<{ house_balance: number; exposure_game: number; exposure_total: number }>(
+    sql`SELECT house_balance, exposure_game, exposure_total FROM risk_snapshot(${gameId}, ${opts.roundId ?? null}::uuid)`,
+  );
+  const row = snap.rows[0]!;
+  const house = { balance: Number(row.house_balance) };
+  const exposureGame = Number(row.exposure_game);
+  const exposureTotal = Number(row.exposure_total);
   const platform: PlatformLimits = {
     newRoundsEnabled: settings.newRoundsEnabled,
     incidentMessage: settings.incidentMessage,

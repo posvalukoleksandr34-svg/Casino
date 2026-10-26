@@ -28,12 +28,17 @@ export function requestFingerprint(scope: string, payload: unknown): string {
   return sha256Hex(`${scope}\n${canonicalJson(payload)}`);
 }
 
+/**
+ * `fn` may call `respond` early (before the serialised part of its work) to
+ * store its final response; it is written in the same transaction, so it is
+ * discarded if anything later fails.
+ */
 export async function runIdempotent<T>(
   tx: Tx,
   userId: string,
   key: string,
   fingerprint: string,
-  fn: () => Promise<{ status: number; body: T }>,
+  fn: (respond: (status: number, body: T) => Promise<void>) => Promise<{ status: number; body: T }>,
 ): Promise<IdempotentResult<T>> {
   if (!IDEMPOTENCY_KEY_PATTERN.test(key)) {
     throw new AppError('VALIDATION_ERROR', 'Idempotency-Key header must be 8–100 characters of [A-Za-z0-9_-]');
@@ -57,10 +62,15 @@ export async function runIdempotent<T>(
     }
     return { status: existing.responseStatus, body: existing.responseBody as T, replayed: true };
   }
-  const result = await fn();
-  await tx
-    .update(idempotencyKeys)
-    .set({ responseStatus: result.status, responseBody: result.body as unknown })
-    .where(and(eq(idempotencyKeys.userId, userId), eq(idempotencyKeys.key, key)));
+  let stored = false;
+  const respond = async (status: number, body: T) => {
+    await tx
+      .update(idempotencyKeys)
+      .set({ responseStatus: status, responseBody: body as unknown })
+      .where(and(eq(idempotencyKeys.userId, userId), eq(idempotencyKeys.key, key)));
+    stored = true;
+  };
+  const result = await fn(respond);
+  if (!stored) await respond(result.status, result.body);
   return { ...result, replayed: false };
 }

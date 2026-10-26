@@ -51,7 +51,7 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
         <Stat label="Net result" value={<Chips amount={d.stats.totals.net} sign colored />} sub={<>Realised RTP <Pct value={d.stats.totals.wagered ? d.stats.totals.paidOut / d.stats.totals.wagered : null} /></>} />
       </div>
       {d.user.statusReason && <p className="mt-3 text-sm text-ink-400">Status reason: {d.user.statusReason}</p>}
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Recent rounds" actions={<Link href={`/admin/rounds?userId=${userId}`} className="text-xs text-gold-400">All →</Link>} />
           <CardBody>

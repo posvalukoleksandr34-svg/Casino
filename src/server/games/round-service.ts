@@ -13,15 +13,15 @@ import { GameRuleError, type GameModule, type RiskProfile, type StepResult } fro
 import { getGameModule } from '@/engine/games/registry';
 import { createRandomStream } from '@/engine/rng/provably-fair';
 import { sumMinor } from '@/engine/money';
-import { getDb, withTransaction, type Executor, type Tx } from '../db/client';
+import { getDb, withTransaction, type Tx } from '../db/client';
 import { bets, gameRounds, games, payouts, seedPairs } from '../db/schema';
 import { AppError, errors } from '../errors';
 import { requestFingerprint, runIdempotent, type IdempotentResult } from '../idempotency';
-import { getWalletAccount, lockWalletAccount, systemAccountIds } from '../ledger/accounts';
+import { lockWalletAccount, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
 import { recordAdminAction } from '../audit/audit';
 import { assertCanWager } from '../responsible/limits';
-import { assertWagerAcceptable } from '../risk/risk-service';
+import { assertWagerAcceptable, getGameLimits, getPlatformSettings } from '../risk/risk-service';
 import { reserveNonce } from '../fairness/seeds';
 import { maybeFail } from '../testing/faults';
 import { metrics } from '../observability/metrics';
@@ -85,25 +85,20 @@ function asRuleError(err: unknown): unknown {
   return err;
 }
 
-async function walletBalance(db: Executor, userId: string): Promise<number> {
-  return (await getWalletAccount(db, userId))?.balance ?? 0;
-}
-
-/** Posts the settlement and finalises the round. Exactly-once via the ledger idempotency key and payouts.round_id UNIQUE. */
-async function settleRound(
+/**
+ * Posts the settlement: exactly once per round (ledger business key
+ * `round:<id>:settle` and payouts.round_id are both UNIQUE).
+ */
+async function postSettlement(
   tx: Tx,
   round: Pick<RoundRow, 'id' | 'userId' | 'gameId'>,
   walletAccountId: number,
-  step: StepResult<unknown>,
+  stake: number,
+  payout: number,
   gameName: string,
-  actionCount?: number,
-): Promise<RoundRow> {
+): Promise<void> {
   maybeFail('round.beforeSettle');
   const ids = await systemAccountIds(tx);
-  const stake = step.risk.stake;
-  const payout = step.payout;
-  if (!Number.isSafeInteger(payout) || payout < 0) throw new Error(`invalid payout ${payout}`);
-  if (payout > step.risk.maxPayout) throw new Error(`payout ${payout} exceeds declared max payout ${step.risk.maxPayout}`);
   const posted = await postTransaction(tx, {
     type: 'BET_SETTLED',
     idempotencyKey: `round:${round.id}:settle`,
@@ -119,28 +114,15 @@ async function settleRound(
     metadata: { gameId: round.gameId, stake, payout },
   });
   await tx.insert(payouts).values({ roundId: round.id, userId: round.userId, amount: payout, ledgerTransactionId: posted.id });
-  const now = new Date();
-  const [updated] = await tx
-    .update(gameRounds)
-    .set({
-      status: 'SETTLED',
-      payoutTotal: payout,
-      state: step.state,
-      stakeTotal: stake,
-      maxPayout: step.risk.maxPayout,
-      expectedPayout: step.risk.expectedPayout,
-      payoutVariance: step.risk.payoutVariance,
-      ...(actionCount !== undefined ? { actionCount } : {}),
-      settledAt: now,
-      updatedAt: now,
-    })
-    .where(eq(gameRounds.id, round.id))
-    .returning();
   maybeFail('round.afterSettle');
   metrics.inc('casino_rounds_settled_total', { game: round.gameId });
   metrics.inc('casino_stake_minor_total', { game: round.gameId }, stake);
   metrics.inc('casino_payout_minor_total', { game: round.gameId }, payout);
-  return updated!;
+}
+
+function assertPayout(step: StepResult<unknown>): void {
+  if (!Number.isSafeInteger(step.payout) || step.payout < 0) throw new Error(`invalid payout ${step.payout}`);
+  if (step.payout > step.risk.maxPayout) throw new Error(`payout ${step.payout} exceeds declared max payout ${step.risk.maxPayout}`);
 }
 
 async function recordWagers(
@@ -190,7 +172,7 @@ export interface StartRoundInput {
 export async function startRound(input: StartRoundInput): Promise<IdempotentResult<RoundResponse>> {
   const gameId = requireGameId(input.gameId);
   return withTransaction((tx) =>
-    runIdempotent(tx, input.userId, input.idempotencyKey, requestFingerprint(`round:start:${gameId}`, input.bet), async () => {
+    runIdempotent(tx, input.userId, input.idempotencyKey, requestFingerprint(`round:start:${gameId}`, input.bet), async (respond) => {
       const game = await loadActiveGame(tx, gameId);
       if (game.status !== 'ACTIVE') {
         throw errors.gameUnavailable(game.statusReason || `${game.name} is not accepting new rounds right now.`);
@@ -199,25 +181,34 @@ export async function startRound(input: StartRoundInput): Promise<IdempotentResu
       const risk = assessOrThrow(game.mod, game.config, bet);
       const wagers = game.mod.wagers(game.config, bet);
       if (sumMinor(wagers.map((w) => w.amount)) !== risk.stake) throw new Error('wager breakdown does not match stake');
+      const settings = await getPlatformSettings(tx);
+      const limits = await getGameLimits(tx, gameId);
 
       const wallet = await lockWalletAccount(tx, input.userId);
       await assertCanWager(tx, input.userId, risk.stake, { sessionStartedAt: input.sessionStartedAt ?? null });
       if (wallet.balance < risk.stake) throw errors.insufficientFunds({ balance: wallet.balance, stake: risk.stake });
-
       const seed = await reserveNonce(tx, input.userId);
-      await assertWagerAcceptable(tx, gameId, {
-        newRound: true,
-        gameStatus: game.status,
-        initialStake: risk.stake,
-        roundStake: risk.stake,
-        roundMaxPayout: risk.maxPayout,
-        playerBalance: wallet.balance,
-        stakeDelta: risk.stake,
-      });
 
-      // The outcome is fully determined by (server seed, client seed, nonce)
-      // which were committed before this request; it is computed only after
-      // the wager has passed every check.
+      // Acceptance is decided BEFORE any randomness is used, from the wager's
+      // worst case (max payout) only: the decision cannot depend on the
+      // outcome. This takes the house-bankroll lock (serialised section).
+      await assertWagerAcceptable(
+        tx,
+        gameId,
+        {
+          newRound: true,
+          gameStatus: game.status,
+          initialStake: risk.stake,
+          roundStake: risk.stake,
+          roundMaxPayout: risk.maxPayout,
+          playerBalance: wallet.balance,
+          stakeDelta: risk.stake,
+        },
+        { settings, limits },
+      );
+
+      // The outcome is fully determined by (server seed, client seed, nonce),
+      // committed before this request.
       let step: StepResult<unknown>;
       try {
         step = game.mod.start(game.config, bet, createRandomStream(seed));
@@ -225,6 +216,9 @@ export async function startRound(input: StartRoundInput): Promise<IdempotentResu
         throw asRuleError(err);
       }
       if (step.risk.stake !== risk.stake) throw new Error('engine stake mismatch');
+      const settledNow = step.status === 'SETTLED';
+      if (settledNow) assertPayout(step);
+      const now = new Date();
 
       const [round] = await tx
         .insert(gameRounds)
@@ -232,30 +226,39 @@ export async function startRound(input: StartRoundInput): Promise<IdempotentResu
           userId: input.userId,
           gameId,
           configId: game.configId,
-          status: 'OPEN',
+          status: settledNow ? 'SETTLED' : 'OPEN',
           seedPairId: seed.seedPairId,
           nonce: seed.nonce,
           clientSeed: seed.clientSeed,
           serverSeedHash: seed.serverSeedHash,
           stakeTotal: risk.stake,
+          payoutTotal: settledNow ? step.payout : null,
           maxPayout: step.risk.maxPayout,
           expectedPayout: step.risk.expectedPayout,
           payoutVariance: step.risk.payoutVariance,
           state: step.state,
+          startedAt: now,
+          updatedAt: now,
+          settledAt: settledNow ? now : null,
         })
         .returning();
-      await recordWagers(tx, round!, wallet.id, wagers, 0, game.name);
-      metrics.inc('casino_bets_total', { game: gameId });
-
-      const final = step.status === 'SETTLED' ? await settleRound(tx, round!, wallet.id, step, game.name) : round!;
-      return {
-        status: 201,
-        body: { round: toView(game.mod, game.config, final), balance: await walletBalance(tx, input.userId) },
+      const body: RoundResponse = {
+        round: toView(game.mod, game.config, round!),
+        balance: wallet.balance - risk.stake + (settledNow ? step.payout : 0),
       };
+      await respond(201, body);
+      await recordWagers(tx, round!, wallet.id, wagers, 0, game.name);
+      if (settledNow) await postSettlement(tx, round!, wallet.id, risk.stake, step.payout, game.name);
+      metrics.inc('casino_bets_total', { game: gameId });
+      return { status: 201, body };
     }),
   );
 }
 
+/**
+ * Applies an engine step to an open round. Order: player-scoped checks and the
+ * round update first, then the serialised section (risk check and postings).
+ */
 async function applyStep(
   tx: Tx,
   round: RoundRow,
@@ -265,45 +268,28 @@ async function applyStep(
   walletAccount: { id: number; balance: number },
   step: StepResult<unknown>,
   sessionStartedAt: Date | null,
+  respond?: (status: number, body: RoundResponse) => Promise<void>,
 ): Promise<RoundRow> {
   const extra = step.additionalStakes;
-  if (extra.length > 0) {
-    const extraTotal = sumMinor(extra.map((s) => s.amount));
-    if (step.risk.stake !== round.stakeTotal + extraTotal) throw new Error('engine stake accounting mismatch');
+  const extraTotal = extra.length ? sumMinor(extra.map((s) => s.amount)) : 0;
+  if (step.risk.stake !== round.stakeTotal + extraTotal) throw new Error('engine stake accounting mismatch');
+  // Outcome-independent liability bound for the extra wagers (see AdditionalStake).
+  const boundedMaxPayout = round.maxPayout + sumMinor(extra.map((s) => {
+    if (s.maxAddedPayout === undefined) throw new Error(`additional wager ${s.kind} lacks a maxAddedPayout bound`);
+    return s.maxAddedPayout;
+  }));
+  if (extraTotal > 0 && step.risk.maxPayout > boundedMaxPayout) {
+    throw new Error('engine max payout exceeds the declared bound for the additional wager');
+  }
+  if (extraTotal > 0) {
     await assertCanWager(tx, round.userId, extraTotal, { sessionStartedAt });
     if (walletAccount.balance < extraTotal) {
       throw errors.insufficientFunds({ balance: walletAccount.balance, stake: extraTotal });
     }
-    const [{ status: gameStatus } = { status: 'ACTIVE' as const }] = await tx
-      .select({ status: games.status })
-      .from(games)
-      .where(eq(games.id, round.gameId));
-    await assertWagerAcceptable(
-      tx,
-      round.gameId,
-      {
-        newRound: false,
-        gameStatus,
-        initialStake: round.stakeTotal,
-        roundStake: step.risk.stake,
-        roundMaxPayout: step.risk.maxPayout,
-        playerBalance: walletAccount.balance,
-        stakeDelta: extraTotal,
-      },
-      { roundId: round.id },
-    );
-    const [{ n } = { n: 0 }] = await tx
-      .select({ n: sql<number>`count(*)::int` })
-      .from(bets)
-      .where(eq(bets.roundId, round.id));
-    await recordWagers(tx, round, walletAccount.id, extra, n, gameName);
-  } else if (step.risk.stake !== round.stakeTotal) {
-    throw new Error('engine changed the stake without an additional wager');
   }
-
-  if (step.status === 'SETTLED') {
-    return settleRound(tx, round, walletAccount.id, step, gameName, round.actionCount + 1);
-  }
+  const settledNow = step.status === 'SETTLED';
+  if (settledNow) assertPayout(step);
+  const now = new Date();
   const [updated] = await tx
     .update(gameRounds)
     .set({
@@ -313,10 +299,44 @@ async function applyStep(
       expectedPayout: step.risk.expectedPayout,
       payoutVariance: step.risk.payoutVariance,
       actionCount: round.actionCount + 1,
-      updatedAt: new Date(),
+      updatedAt: now,
+      ...(settledNow ? { status: 'SETTLED' as const, payoutTotal: step.payout, settledAt: now } : {}),
     })
     .where(eq(gameRounds.id, round.id))
     .returning();
+  if (respond) {
+    await respond(200, {
+      round: toView(mod, config, updated!),
+      balance: walletAccount.balance - extraTotal + (settledNow ? step.payout : 0),
+    });
+  }
+
+  if (extraTotal > 0) {
+    const [{ status: gameStatus } = { status: 'ACTIVE' as const }] = await tx
+      .select({ status: games.status })
+      .from(games)
+      .where(eq(games.id, round.gameId));
+    const [{ n } = { n: 0 }] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(bets)
+      .where(eq(bets.roundId, round.id));
+    await assertWagerAcceptable(
+      tx,
+      round.gameId,
+      {
+        newRound: false,
+        gameStatus,
+        initialStake: round.stakeTotal,
+        roundStake: step.risk.stake,
+        roundMaxPayout: boundedMaxPayout,
+        playerBalance: walletAccount.balance,
+        stakeDelta: extraTotal,
+      },
+      { roundId: round.id },
+    );
+    await recordWagers(tx, round, walletAccount.id, extra, n, gameName);
+  }
+  if (settledNow) await postSettlement(tx, round, walletAccount.id, step.risk.stake, step.payout, gameName);
   return updated!;
 }
 
@@ -342,7 +362,7 @@ export interface ActInput {
 
 export async function actOnRound(input: ActInput): Promise<IdempotentResult<RoundResponse>> {
   return withTransaction((tx) =>
-    runIdempotent(tx, input.userId, input.idempotencyKey, requestFingerprint(`round:act:${input.roundId}`, input.action), async () => {
+    runIdempotent(tx, input.userId, input.idempotencyKey, requestFingerprint(`round:act:${input.roundId}`, input.action), async (respond) => {
       const wallet = await lockWalletAccount(tx, input.userId);
       const round = await lockOpenRound(tx, input.userId, input.roundId);
       const mod = getGameModule(requireGameId(round.gameId));
@@ -356,8 +376,12 @@ export async function actOnRound(input: ActInput): Promise<IdempotentResult<Roun
       } catch (err) {
         throw asRuleError(err);
       }
-      const updated = await applyStep(tx, round, mod, config, mod.name, wallet, step, input.sessionStartedAt ?? null);
-      return { status: 200, body: { round: toView(mod, config, updated), balance: await walletBalance(tx, input.userId) } };
+      let body: RoundResponse | undefined;
+      await applyStep(tx, round, mod, config, mod.name, wallet, step, input.sessionStartedAt ?? null, async (status, b) => {
+        body = b;
+        await respond(status, b);
+      });
+      return { status: 200, body: body! };
     }),
   );
 }

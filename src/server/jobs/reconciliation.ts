@@ -5,6 +5,7 @@
  * consistent state.
  */
 import { eq, sql } from 'drizzle-orm';
+import type { PoolClient } from 'pg';
 import { getDb, getPool } from '../db/client';
 import { alerts, reconciliationRuns } from '../db/schema';
 import { logger } from '../observability/logger';
@@ -132,16 +133,24 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
   },
 ];
 
+type Queryable = Pick<PoolClient, 'query'>;
+
+/** Runs every check on the given connection (inside whatever transaction it holds). */
+export async function runChecksWith(client: Queryable): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+  for (const check of CHECKS) {
+    const { rows } = await client.query(`${check.sql} LIMIT 20`);
+    const countRes = await client.query<{ n: string }>(`SELECT count(*)::text AS n FROM (${check.sql}) q`);
+    results.push({ name: check.name, description: check.description, mismatches: Number(countRes.rows[0]?.n ?? 0), sample: rows });
+  }
+  return results;
+}
+
 export async function runChecks(): Promise<CheckResult[]> {
   const client = await getPool().connect();
   try {
     await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-    const results: CheckResult[] = [];
-    for (const check of CHECKS) {
-      const { rows } = await client.query(`${check.sql} LIMIT 20`);
-      const countRes = await client.query<{ n: string }>(`SELECT count(*)::text AS n FROM (${check.sql}) q`);
-      results.push({ name: check.name, description: check.description, mismatches: Number(countRes.rows[0]?.n ?? 0), sample: rows });
-    }
+    const results = await runChecksWith(client);
     await client.query('COMMIT');
     return results;
   } catch (err) {

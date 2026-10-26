@@ -16,7 +16,8 @@
  */
 import { minor } from '@/engine/money';
 import { pgConstraint, pgErrorCode, type Tx } from '../db/client';
-import { ledgerEntries, ledgerTransactions, type LedgerTxType } from '../db/schema';
+import { sql } from 'drizzle-orm';
+import type { LedgerTxType } from '../db/schema';
 import { AppError, errors } from '../errors';
 import { accountRank } from './accounts';
 
@@ -74,50 +75,62 @@ export async function postTransaction(tx: Tx, input: PostTransactionInput): Prom
   const postings = input.postings.filter((p) => p.amount !== 0);
   validatePostings(postings);
 
-  const [created] = await tx
-    .insert(ledgerTransactions)
-    .values({
-      type: input.type,
-      idempotencyKey: input.idempotencyKey,
-      userId: input.userId ?? null,
-      roundId: input.roundId ?? null,
-      actorId: input.actorId ?? null,
-      reversesId: input.reversesId ?? null,
-      description: input.description,
-      metadata: {
-        ...(input.metadata ?? {}),
-        ...(postings.some((p) => p.memo) ? { memos: postings.map((p) => p.memo ?? null) } : {}),
-      },
-    })
-    .onConflictDoNothing({ target: ledgerTransactions.idempotencyKey })
-    .returning({ id: ledgerTransactions.id });
-  if (!created) {
-    throw errors.conflict('This transaction has already been recorded', { idempotencyKey: input.idempotencyKey });
-  }
-
   const ordered = postings
     .map((p, i) => ({ p, i }))
     .sort((a, b) => accountRank(a.p.accountId) - accountRank(b.p.accountId) || a.p.accountId - b.p.accountId || a.i - b.i)
     .map(({ p }) => p);
+  const metadata = {
+    ...(input.metadata ?? {}),
+    ...(postings.some((p) => p.memo) ? { memos: postings.map((p) => p.memo ?? null) } : {}),
+  };
+  const values = sql.join(
+    ordered.map((p, i) => sql`(${i}::int, ${p.accountId}::bigint, ${p.amount}::bigint)`),
+    sql`, `,
+  );
 
-  const entries: PostedEntry[] = [];
-  for (const p of ordered) {
-    try {
-      const [row] = await tx
-        .insert(ledgerEntries)
-        .values({ transactionId: created.id, accountId: p.accountId, amount: p.amount })
-        .returning({ balanceAfter: ledgerEntries.balanceAfter });
-      entries.push({ accountId: p.accountId, amount: p.amount, balanceAfter: row!.balanceAfter as number });
-    } catch (err) {
-      throw mapLedgerError(err, p);
-    }
+  // Header and all entries in one statement: one round trip while hot
+  // account rows are locked. Entries are inserted in canonical lock order.
+  let rows: { tx_id: number; account_id: number; amount: number; balance_after: number }[];
+  try {
+    const res = await tx.execute<{ tx_id: number; account_id: number; amount: number; balance_after: number }>(sql`
+      WITH t AS (
+        INSERT INTO ledger_transactions (type, idempotency_key, user_id, round_id, actor_id, reverses_id, description, metadata)
+        VALUES (${input.type}, ${input.idempotencyKey}, ${input.userId ?? null}, ${input.roundId ?? null}, ${input.actorId ?? null},
+                ${input.reversesId ?? null}, ${input.description}, ${JSON.stringify(metadata)}::jsonb)
+        ON CONFLICT (idempotency_key) DO NOTHING
+        RETURNING id
+      ), e AS (
+        INSERT INTO ledger_entries (transaction_id, account_id, amount)
+        SELECT t.id, v.account_id, v.amount FROM t, (VALUES ${values}) AS v(ord, account_id, amount)
+        ORDER BY v.ord
+        RETURNING transaction_id, account_id, amount, balance_after, account_seq
+      )
+      SELECT transaction_id AS tx_id, account_id, amount, balance_after FROM e ORDER BY account_id, account_seq`);
+    rows = res.rows;
+  } catch (err) {
+    throw mapLedgerError(err, ordered);
   }
-  return { id: created.id, entries };
+  if (rows.length === 0) {
+    throw errors.conflict('This transaction has already been recorded', { idempotencyKey: input.idempotencyKey });
+  }
+  // Report entries in posting order with their resulting balances.
+  const queue = new Map<string, { balanceAfter: number }[]>();
+  for (const r of rows) {
+    const k = `${r.account_id}:${r.amount}`;
+    queue.set(k, [...(queue.get(k) ?? []), { balanceAfter: Number(r.balance_after) }]);
+  }
+  const entries: PostedEntry[] = ordered.map((p) => ({
+    accountId: p.accountId,
+    amount: p.amount,
+    balanceAfter: queue.get(`${p.accountId}:${p.amount}`)!.shift()!.balanceAfter,
+  }));
+  return { id: Number(rows[0]!.tx_id), entries };
 }
 
-function mapLedgerError(err: unknown, posting: Posting): unknown {
+function mapLedgerError(err: unknown, postings: Posting[]): unknown {
   if (pgErrorCode(err) === '23514' && pgConstraint(err) === 'ledger_accounts_non_negative') {
-    if (accountRank(posting.accountId) === 0) return errors.insufficientFunds();
+    // A debit to a player wallet is the only way a player-facing posting can overdraw.
+    if (postings.some((p) => p.amount < 0 && accountRank(p.accountId) === 0)) return errors.insufficientFunds();
     return new AppError('SERVICE_UNAVAILABLE', 'The operator reserve cannot cover this transaction right now');
   }
   return err;

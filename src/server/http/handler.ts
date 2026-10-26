@@ -41,14 +41,28 @@ type Ctx<A extends AuthMode, P> = A extends 'public' | 'optional' ? PublicContex
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 const MAX_BODY_BYTES = 64 * 1024;
 
-export function clientIp(req: NextRequest): string | null {
+/**
+ * Client IP for rate limiting and audit hashing.
+ *
+ * Next.js only sets X-Forwarded-For when the client did not send one, so the
+ * header is attacker-controlled unless a trusted reverse proxy sets it.
+ * TRUST_PROXY_HOPS = number of trusted proxies in front of the app, each of
+ * which appends (or overwrites with) the address it received the request
+ * from; the client is the entry that many positions from the right. With 0
+ * (no trusted proxy) forwarded headers are ignored and per-IP limits fall
+ * back to a shared bucket — production must run behind a proxy (see
+ * deploy/nginx.conf and docs/operations.md).
+ */
+export function clientIp(req: Pick<NextRequest, 'headers'>, hops = env().TRUST_PROXY_HOPS): string | null {
+  if (hops <= 0) return null;
   const xff = req.headers.get('x-forwarded-for');
-  if (xff) {
-    const hops = xff.split(',').map((s) => s.trim()).filter(Boolean);
-    const idx = Math.max(0, hops.length - 1 - env().TRUST_PROXY_HOPS);
-    return hops[idx] ?? null;
-  }
-  return req.headers.get('x-real-ip');
+  if (!xff) return null;
+  const list = xff
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const ip = list[list.length - hops];
+  return ip && /^[0-9a-fA-F.:]{2,45}$/.test(ip) ? ip : null;
 }
 
 /**
@@ -148,7 +162,7 @@ export function route<A extends AuthMode, P = Record<string, string>>(
       }
       userId = session?.userId;
       for (const rule of opts.rateLimit ?? []) {
-        const subject = rule.by === 'user' ? session?.userId : ipHash;
+        const subject = rule.by === 'user' ? session?.userId : (ipHash ?? 'unidentified');
         if (subject) await consume(rule, subject);
       }
       const ctx = { req, params, requestId, ipHash, userAgent: req.headers.get('user-agent'), session } as Ctx<A, P>;

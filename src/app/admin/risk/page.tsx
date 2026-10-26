@@ -23,7 +23,7 @@ export default async function AdminRiskPage() {
         title="Risk & platform controls"
         subtitle="The risk engine evaluates every wager before the outcome is drawn: stake limits, max payout per round, per-game and total exposure, the house reserve floor and the player balance cap. It never alters probabilities or payouts, and never uses the player's identity or history."
       />
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Incident controls" />
           <CardBody className="space-y-4 text-sm">

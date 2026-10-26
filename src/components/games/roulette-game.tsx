@@ -141,7 +141,7 @@ export function RouletteGame({ config, limits, status }: { config: RouletteConfi
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card className="overflow-hidden">
           <div className="grid items-center gap-6 border-b border-ink-700/70 bg-[radial-gradient(ellipse_at_center,rgb(27_64_51/0.55),transparent_75%)] p-6 md:grid-cols-[minmax(0,300px)_1fr]">
             <RouletteWheel result={result} spinKey={round?.id ?? null} reduced={reduced} onSettled={onSettled} />
@@ -307,7 +307,7 @@ export function RouletteGame({ config, limits, status }: { config: RouletteConfi
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card>
           <CardHeader title="Provably fair" subtitle="Inputs used for the latest spin" />
           <CardBody>

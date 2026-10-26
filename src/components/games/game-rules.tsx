@@ -7,7 +7,7 @@ export function GameRules({ gameId, theoretical, full = false }: { gameId: strin
   const content = GAME_CONTENT[gameId];
   if (!content) return null;
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr]">
       <Card>
         <CardHeader title="How to play" subtitle={full ? undefined : <Link href={`/rules/${gameId}`} className="text-gold-400">Full rules and mathematics →</Link>} />
         <CardBody>

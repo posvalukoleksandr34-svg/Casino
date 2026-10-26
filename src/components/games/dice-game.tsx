@@ -101,7 +101,7 @@ export function DiceGame({ config, limits, status }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="overflow-hidden">
           <div className="relative px-6 pb-8 pt-10 sm:px-10">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top,rgb(199_163_91/0.10),transparent_70%)]" />
@@ -238,7 +238,7 @@ export function DiceGame({ config, limits, status }: Props) {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardHeader title="Provably fair" subtitle="Inputs used for the latest roll" />
           <CardBody>

@@ -91,7 +91,7 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     math: [
       'With w winning rolls out of 10,000, P(win) = w/10,000 and the multiplier is m = ⌊0.99 × 10,000 / w × 10⁴⌋ / 10⁴. RTP = P(win) × m ≤ 99.00%, house edge ≥ 1.00%.',
       'Rounding the multiplier down lowers RTP by less than 0.0001 (0.01 percentage points); rounding each payout down to 0.01 chip lowers it by less than 0.01 chip per bet.',
-      'Variance per unit staked is m² × p × (1 − p): about 0.98 at 49.5%, 8.8 at 10%, 97 at 1%.',
+      'Variance per unit staked is m² × p × (1 − p): about 1.00 at 49.5%, 8.82 at 10%, 97.0 at 1%.',
     ],
   },
 };

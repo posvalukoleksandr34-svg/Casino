@@ -36,7 +36,7 @@ export function SeedManager({ initial }: { initial: Overview }) {
     }
   }
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader title="Active seed pair" subtitle="Used for your next rounds. The server seed stays secret until you rotate." />
         <CardBody className="space-y-4 text-sm">
@@ -130,7 +130,7 @@ export function Verifier() {
   return (
     <Card id="verify">
       <CardHeader title="Verify a round" subtitle="Computed entirely in your browser with the same open code the server runs — nothing is sent to Aurovane." />
-      <CardBody className="grid gap-6 lg:grid-cols-[1fr_1fr]">
+      <CardBody className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1fr]">
         <div className="space-y-4">
           <Field label="Game">
             {(p) => (

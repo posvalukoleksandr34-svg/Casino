@@ -1,0 +1,65 @@
+# Local / single-host deployment: PostgreSQL + one-shot migrations + app.
+# Secrets come from .env (see .env.example):  docker compose up --build
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: casino
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-casino}
+      POSTGRES_DB: casino
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U casino -d casino"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      target: tools
+    environment: &app-env
+      DATABASE_URL: postgresql://casino:${POSTGRES_PASSWORD:-casino}@db:5432/casino
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SEED_ENCRYPTION_KEY: ${SEED_ENCRYPTION_KEY:?set SEED_ENCRYPTION_KEY in .env}
+      SEED_ENCRYPTION_KEYS_PREVIOUS: ${SEED_ENCRYPTION_KEYS_PREVIOUS:-}
+      IP_HASH_SECRET: ${IP_HASH_SECRET:?set IP_HASH_SECRET in .env}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+      MAIL_TRANSPORT: disabled
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRUST_PROXY_HOPS: "1"
+    command: ["npm", "run", "db:migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build:
+      context: .
+      target: runner
+    environment:
+      <<: *app-env
+      BACKGROUND_JOBS: "true"
+    expose:
+      - "3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # The only published port. Overwrites X-Forwarded-For so per-IP rate limits
+  # cannot be spoofed. Put TLS termination here or in front of it.
+  proxy:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "${APP_PORT:-3000}:8080"
+    depends_on:
+      - app
+    restart: unless-stopped
+
+volumes:
+  pgdata:

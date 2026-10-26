@@ -50,7 +50,7 @@ export default async function AdminRoundPage({ params }: { params: Promise<{ rou
         <Stat label="Max payout (approved)" value={<Chips amount={r.maxPayout} />} />
         <Stat label="Player" value={<Link href={`/admin/users/${r.userId}`} className="text-base text-gold-300">View user →</Link>} />
       </div>
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Outcome" subtitle={r.status === 'OPEN' ? 'Hidden information stays hidden from staff until the round finishes.' : undefined} />
           <CardBody>

@@ -24,7 +24,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const session = await requirePermission('admin:access');
   const items = NAV.filter((n) => hasPermission(session.role, n.permission));
   return (
-    <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <div className="mb-4 hidden lg:block">
           <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold-500">Back office</div>

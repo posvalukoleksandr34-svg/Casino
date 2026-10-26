@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 
 export interface ClientUser {
@@ -25,6 +25,16 @@ const Ctx = createContext<SessionValue | null>(null);
 export function SessionProvider({ initialUser, initialBalance, children }: { initialUser: ClientUser | null; initialBalance: number; children: ReactNode }) {
   const [user, setUser] = useState(initialUser);
   const [balance, setBalance] = useState(initialBalance);
+  // The root layout stays mounted across navigations; when the server
+  // re-renders it (sign-in, sign-out, router.refresh) adopt the new values.
+  const userKey = JSON.stringify(initialUser);
+  useEffect(() => {
+    setUser(initialUser);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userKey]);
+  useEffect(() => {
+    setBalance(initialBalance);
+  }, [initialBalance]);
   const refresh = useCallback(async () => {
     const me = await api<{ user: ClientUser | null; balance?: number }>('/api/auth/me');
     setUser(me.user);

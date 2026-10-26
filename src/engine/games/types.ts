@@ -47,6 +47,13 @@ export interface AdditionalStake {
   amount: number;
   /** Optional per-wager metadata persisted with the bet row. */
   selection?: Record<string, unknown>;
+  /**
+   * For wagers added during a round: an upper bound on how much this wager
+   * can add to the round's gross payout, decided by the rules alone (never by
+   * the hidden outcome). The risk engine accepts or rejects the extra wager
+   * from this bound before the action's result is revealed.
+   */
+  maxAddedPayout?: number;
 }
 
 export interface StepResult<S> {

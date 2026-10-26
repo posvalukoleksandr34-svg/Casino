@@ -61,7 +61,13 @@ export interface RequestMeta {
 const MAX_FAILED_LOGINS = 8;
 const LOCKOUT_MINUTES = 15;
 
-export async function register(input: z.infer<typeof registerSchema>, meta: RequestMeta) {
+export async function register(raw: z.input<typeof registerSchema>, meta: RequestMeta) {
+  // Validate here too (not only at the HTTP edge) so every caller gets normalised input.
+  const parsed = registerSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw errors.validation('Invalid registration', { issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
+  }
+  const input = parsed.data;
   const problems = passwordProblems(input.password, { email: input.email, username: input.username });
   if (problems.length) throw errors.validation('Password does not meet the policy', { password: problems });
   const passwordHash = await hashPassword(input.password);
