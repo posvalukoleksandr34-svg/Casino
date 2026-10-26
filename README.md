@@ -30,7 +30,7 @@ publishes its rules, payouts and house edge.
   background jobs under advisory locks, Docker Compose deployment —
   [docs/operations.md](docs/operations.md).
 
-Architecture: [docs/architecture.md](docs/architecture.md) · API: [docs/api.md](docs/api.md) ·
+Architecture: [docs/architecture.md](docs/architecture.md) · API: [docs/api.md](docs/api.md) · CI: [docs/ci.md](docs/ci.md) ·
 Threat model: [docs/threat-model.md](docs/threat-model.md) · Testing: [docs/testing.md](docs/testing.md) ·
 Dependencies: [docs/dependency-security.md](docs/dependency-security.md) ·
 Product spec: [docs/product-spec.md](docs/product-spec.md).
@@ -96,14 +96,16 @@ npm run typecheck && npm run lint
 npm run test:unit
 npm run test:integration    # needs DATABASE_URL_TEST (…/casino_test)
 npm run test:stats          # ~1 minute
-npm run build && npm run test:e2e   # needs DATABASE_URL_E2E (…/casino_e2e) or the default
-npm run check:docs
+npm run build && npm run check:bundle && npm run test:e2e   # e2e needs DATABASE_URL_E2E (…/casino_e2e) or the default
+npm run check:docs && npm run check:secrets && npm run check:workflows
+DATABASE_URL=… RESTORE_ADMIN_URL=…/postgres npm run ops:restore-check   # backup → restore → reconcile drill
 ```
 
 Results of the latest full run and what each suite covers: [docs/testing.md](docs/testing.md).
 CI (`.github/workflows/ci.yml`) runs all of these on every pull request and every push to
-the default branch (`ccr-c301db4d-y6lhy2`), with a disposable PostgreSQL service;
-`extended.yml` runs large simulations weekly.
+the default branch (`ccr-c301db4d-y6lhy2`), with disposable PostgreSQL services, pinned
+actions and least-privilege tokens; `extended.yml` runs large seeded simulations weekly.
+Policy and procedures: [docs/ci.md](docs/ci.md).
 
 Simulations (results are **simulated** and never mixed with live data):
 
@@ -123,7 +125,7 @@ npm start                   # loads ./.env if present, then serves on PORT (defa
 With `NODE_ENV=production` (set by the build) the server **refuses to start** on an
 unsafe configuration: missing or weak `SEED_ENCRYPTION_KEY`/`IP_HASH_SECRET`, a
 `METRICS_TOKEN` that is set but short or not header-safe, implicit or non-HTTPS public
-`APP_URL`, default database passwords, or `MAIL_TRANSPORT=console`. `METRICS_TOKEN` itself
+`APP_URL`, default database passwords, `SCRYPT_LOG_N` below 17, or `MAIL_TRANSPORT=console`. `METRICS_TOKEN` itself
 is optional: left empty, `/api/metrics` is disabled and refuses every request (there is no
 unauthenticated mode). Readiness additionally fails if the database role is a
 superuser or the schema owner.

@@ -1,4 +1,5 @@
-// Fails if server-only configuration leaks into browser bundles (.next/static).
+// Fails if server-only configuration leaks into browser bundles (.next/static),
+// or if browser source maps are published.
 // Checks variable names always, and values of any of them present in the
 // environment (e.g. CI's test secrets). Run after `npm run build`.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -20,6 +21,8 @@ const hits = [];
 let scanned = 0;
 for (const file of files(root)) {
   scanned += 1;
+  // Browser source maps would publish the original source; production builds must not emit them.
+  if (file.endsWith('.map')) hits.push(`${file}: browser source map`);
   const text = readFileSync(file, 'utf8');
   for (const n of NAMES) if (text.includes(n)) hits.push(`${file}: variable name ${n}`);
   for (const v of values) if (text.includes(v)) hits.push(`${file}: value of a server secret`);

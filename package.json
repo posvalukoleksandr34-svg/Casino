@@ -12,6 +12,8 @@
     "build": "next build && node scripts/prepare-standalone.mjs",
     "check:bundle": "node scripts/check-client-bundle.mjs",
     "check:docs": "node scripts/check-doc-links.mjs",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:workflows": "node scripts/check-workflows.mjs",
     "start": "node --env-file-if-exists=.env .next/standalone/server.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
@@ -28,6 +30,8 @@
     "sim:risk": "tsx scripts/simulate-risk.ts",
     "job:reconcile": "tsx scripts/reconcile.ts",
     "job:expire-rounds": "tsx scripts/expire-rounds.ts",
+    "ops:backup": "bash scripts/ops/backup.sh",
+    "ops:restore-check": "bash scripts/ops/restore-check.sh",
     "start:dev-server": "next start -p 3000"
   },
   "dependencies": {

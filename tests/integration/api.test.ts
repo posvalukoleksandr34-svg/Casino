@@ -178,9 +178,24 @@ describe('API: metrics endpoint policy (optional, fails closed)', () => {
   it('token set: only the exact bearer token is accepted', async () => {
     const token = 'm'.repeat(12) + 'X9_-.~+/=' + 'k'.repeat(10);
     await withToken(token, async () => {
-      for (const p of [...probes, `Bearer ${token}x`, `bearer ${token}`, `Basic ${token}`, token]) {
+      const malformed = [
+        `Bearer ${token}x`,
+        `Bearer ${token.slice(0, -1)}`,
+        `bearer ${token}`,
+        `Basic ${token}`,
+        `Bearer  ${token}`,
+        `Bearer Bearer ${token}`,
+        `Token ${token}`,
+        token,
+      ];
+      for (const p of [...probes, ...malformed]) {
         expect(call(p).status, `authorization=${JSON.stringify(p)}`).toBe(403);
       }
+      // The token is accepted only in the Authorization header: not in the query string or a cookie.
+      expect(metricsRoute(req(`/api/metrics?token=${token}`)).status).toBe(403);
+      expect(metricsRoute(req('/api/metrics', { headers: { cookie: `metrics=${token}`, 'x-metrics-token': token } })).status).toBe(403);
+      const refused = call('Bearer wrong');
+      expect(await refused.text()).not.toContain(token);
       const ok = call(`Bearer ${token}`);
       expect(ok.status).toBe(200);
       expect(ok.headers.get('content-type')).toContain('text/plain');

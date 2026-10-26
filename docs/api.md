@@ -62,7 +62,7 @@ Amounts are integers in minor units (100 = 1 chip).
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | POST | `/api/games/:gameId/rounds` | `{bet}` + `Idempotency-Key` | 201 `{round, balance}` |
-| POST | `/api/rounds/:roundId/actions` | `{action}` + `Idempotency-Key` | interactive games |
+| POST | `/api/rounds/:roundId/actions` | `{action}` + `Idempotency-Key` | interactive games. Time-decided rounds (Crash) add `resolution` to the response; a late cash-out answers 422 `GAME_RULE` (`details.rule: ROUND_ENDED`) and changes nothing; a finished round answers 409 (`details.resolution: already_settled`) — `docs/math/crash.md` § Ordering |
 | GET | `/api/rounds/active` | — | open rounds (recovery after reload) |
 | GET | `/api/rounds?game&before&limit` | — | history |
 | GET | `/api/rounds/:roundId` | — | detail incl. fairness inputs (server seed once revealed) |

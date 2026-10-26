@@ -84,7 +84,27 @@ with live analytics.
 * Not modelled: bonus cost (promotions), staff adjustments, open-round timing (the
   exposure caps bound simultaneous liability and are reported as a deterministic stress
   figure).
-* Reproducible: the same `--seed` and parameters give the same numbers.
+* Reproducible: the same `--seed` and parameters give the same numbers. Reports record the
+  seed, the commit and whether the working tree had uncommitted changes.
+* **Bankroll definition.** The model tracks the house's cumulative game result (stakes
+  collected minus payouts) from zero at the start of each path. "Drawdown" is the largest
+  fall from a running peak of that result. It does not start from, or deplete, the
+  configured bankroll. Compare the drawdown quantiles with the reserve you hold.
+* **Bet sizing.** Each round draws its stake independently from the log-normal above. There
+  is no martingale, loss chasing or progressive staking, and no dependence on past outcomes.
+  Strategy-dependent games use fixed strategies: a fixed Mines cash-out step, a Crash
+  automatic target, and blackjack basic strategy.
+* **Stopping.** Every path runs the full horizon (`--days` × `--rounds-per-day`). There is
+  no ruin barrier, because the house is never stopped by a loss. The probability of the
+  house being down is measured at the horizon, and drawdowns are taken along the path.
+* **Interpretation.** These are estimates under the stated assumptions, with confidence
+  intervals, not guarantees. Real volume, stake distributions, player mix and strategy
+  differ. Tail quantiles are only as reliable as the number of paths beyond them, and the
+  report marks the unresolved ones.
+* **Self-consistency check** (`--check`, run weekly by the extended workflow): the
+  simulated mean P&L must lie within 4 standard errors of the exact expectation for the
+  sampled stakes, and no payout may exceed the largest per-round cap. A failure points to
+  a defect in the simulator or the caps. It does not say whether the reserve is adequate.
 
 ### Reference run (2026-10-26)
 
@@ -115,4 +135,5 @@ exposure cap (500 million chips), which the reserve check keeps covered at all t
 distribution before changing limits; for tail quantiles beyond 99 % use at least
 `10 / (1 − q)` paths (e.g. 10,000 paths for 99.9 %).
 
-The scheduled CI workflow (`.github/workflows/extended.yml`) runs the model weekly.
+The scheduled CI workflow (`.github/workflows/extended.yml`) runs the model weekly with `--check`
+(2,000 paths; local run 2026-10-26: P&L z = 1.20, largest payout 113,347 chips ≤ cap, 171 s).

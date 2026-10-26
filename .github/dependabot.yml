@@ -1,0 +1,24 @@
+# Update proposals for the pinned GitHub Actions (SHA + version comment) and
+# npm dependencies. Every proposal runs the full CI; review release notes
+# before merging (docs/ci.md, docs/dependency-security.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ['*']
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Patch and minor updates of development tooling together; production
+      # dependencies and every major update stay separate, reviewable PRs.
+      dev-minor-patch:
+        dependency-type: development
+        update-types: [minor, patch]

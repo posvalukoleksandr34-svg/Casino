@@ -17,6 +17,7 @@ export const POST = route<'user', { roundId: string }>(
       action: body.action,
       idempotencyKey: key,
       sessionStartedAt: ctx.session.sessionCreatedAt,
+      receivedAt: ctx.receivedAt,
     });
     return NextResponse.json(
       { ...res.body, serverTime: new Date().toISOString() },

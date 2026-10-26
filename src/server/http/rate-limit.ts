@@ -5,6 +5,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb } from '../db/client';
 import { errors } from '../errors';
+import { metrics } from '../observability/metrics';
 
 export interface RateLimitRule {
   /** Logical bucket name, e.g. "login:ip". */
@@ -27,6 +28,7 @@ export async function consume(rule: RateLimitRule, subject: string): Promise<voi
     RETURNING count`);
   const count = Number(res.rows[0]?.count ?? 0);
   if (count > rule.limit) {
+    metrics.inc('casino_rate_limited_total', { rule: rule.name });
     const retryAfter = Math.max(1, Math.ceil((windowStart.getTime() + windowMs - now) / 1000));
     throw errors.rateLimited(retryAfter);
   }
@@ -46,4 +48,6 @@ export const RATE_LIMITS = {
   mutateUser: { name: 'mutate:user', limit: 30, windowSeconds: 60, by: 'user' },
   readUser: { name: 'read:user', limit: 300, windowSeconds: 60, by: 'user' },
   adminUser: { name: 'admin:user', limit: 600, windowSeconds: 60, by: 'user' },
+  /** A manual reconciliation run re-reads every ledger table: a handful per staff member per 10 minutes. */
+  reconcileRun: { name: 'reconcile:user', limit: 5, windowSeconds: 600, by: 'user' },
 } as const satisfies Record<string, RateLimitRule>;

@@ -150,7 +150,7 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     rules: [
       'The crash point is drawn when the round starts: 52 random bits n give crash = max(1.00, ⌊99 / (1 − n/2⁵²)⌋ / 100). It never changes during the round.',
       'The multiplier at t seconds is e^(0.06·t) (2× after ≈11.6 s, 10× after ≈38 s), measured by the server clock.',
-      'A manual cash-out pays the multiplier at the moment the server receives it, provided the crash has not happened yet. Network delay works against you, so the automatic target is the precise option.',
+      'A manual cash-out pays the multiplier at the moment the server receives it, provided the crash has not happened yet. Network delay works against you, so the automatic target is the precise option. A crash is confirmed up to about a second after it happens, once no earlier cash-out can still be in progress.',
       'An automatic target x (1.01×–1,000×) pays x whenever the crash point is at least x, even if you are disconnected.',
       'About 1.98% of rounds crash at take-off (crash point 1.00×), before any cash-out is possible. Multipliers are capped at 1,000×: a round still in flight at the cap cashes out at the cap.',
     ],

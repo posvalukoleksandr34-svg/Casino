@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { getDb } from '@/server/db/client';
+import { getDb, getPool } from '@/server/db/client';
 import { games, platformSettings, riskLimits } from '@/server/db/schema';
 import { register } from '@/server/users/accounts';
 import { runChecks } from '@/server/jobs/reconciliation';
@@ -64,4 +64,28 @@ export async function expectDbError(promise: Promise<unknown>, pattern: RegExp):
   if (!err) throw new Error(`expected database error matching ${pattern}, but the statement succeeded`);
   const text = errorText(err);
   if (!pattern.test(text)) throw new Error(`expected error matching ${pattern}, got: ${text}`);
+}
+
+/** Holds the player's wallet lock in another connection until the returned function is called. */
+export async function holdWalletLock(userId: string): Promise<() => Promise<void>> {
+  const client = await getPool().connect();
+  await client.query('BEGIN');
+  await client.query('SELECT id FROM ledger_accounts WHERE user_id = $1 FOR UPDATE', [userId]);
+  return async () => {
+    await client.query('COMMIT');
+    client.release();
+  };
+}
+
+/** Barrier: resolves once `n` sessions of this database are blocked on a lock (observed, not slept on). */
+export async function lockWaiters(n: number): Promise<void> {
+  for (let i = 0; i < 1_000; i += 1) {
+    const res = await getPool().query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock' AND cardinality(pg_blocking_pids(pid)) > 0`,
+    );
+    if (res.rows[0]!.n >= n) return;
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  throw new Error(`timed out waiting for ${n} blocked session(s)`);
 }

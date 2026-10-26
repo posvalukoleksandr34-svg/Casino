@@ -3,13 +3,11 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { safeNextPath } from '@/lib/safe-next';
 import { Button } from '../ui/button';
 import { Field, Input } from '../ui/form';
 import { Callout } from '../ui/misc';
 
-function safeNext(next: string | null): string {
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/lobby';
-}
 
 export function LoginForm() {
   const router = useRouter();
@@ -25,7 +23,7 @@ export function LoginForm() {
     setError(null);
     try {
       await api('/api/auth/login', { method: 'POST', body: { email, password } });
-      router.push(safeNext(params.get('next')));
+      router.push(safeNextPath(params.get('next'), window.location.origin));
       router.refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Sign-in failed. Please try again.');

@@ -35,27 +35,77 @@ The crash happens at t(crash) = ln(crash)/r. Settlement rules, in time order:
 | Manual cash-out at server time t | t < t(crash), t < t(A), t < t(C) | ⌊stake · c⌋, c = ⌊100·e^{rt}⌋/100 (< crash) |
 | Crash | t ≥ t(crash) and nothing above applied | 0 |
 
-Time-based events are applied by the expiry job (every 5 s), lazily when the round is read,
-or when a cash-out request arrives — whichever happens first — always using the event's own
-time, never the time it was processed. A manual cash-out is priced at the moment the server
-**received** the request (`actOnRound` captures the time before taking any lock), so waiting
-for a contended lock or a transaction retry neither raises nor lowers the multiplier
-(regression test: `tests/integration/audit-regressions.test.ts`). A request that reaches the
-server after the crash is a bust even if the player pressed the button earlier: network
-latency to the server is the player's risk (documented in the UI; the automatic target
-removes it). The flight's end time is also stored as `game_rounds.expires_at` for the expiry
-queue; it is server-only and never part of any response.
+## Ordering: cash-out versus settlement by time
 
-**Known limitation (open).** Receipt-time pricing holds once the cash-out transaction has
-the wallet and round locks. Between receipt and taking those locks (session check, rate
-limit, idempotency key: a few milliseconds), a time-based settlement that starts *after*
-the crash — the expiry job, or the lazy settlement triggered by the client's own 300 ms
-round poll — can take the locks first and settle the round as a bust; the cash-out then
-fails with "round finished". This affects only cash-outs received within those few
-milliseconds before the crash point, and never the payout table or the RTP of the
-automatic target. Closing it needs a product decision: delay time-based settlement by a
-grace period (the crash would be shown later), or have reads report a due crash without
-settling it, leaving settlement to the cash-out path and a delayed job.
+Implemented in `src/server/games/action-timing.ts` (the rule) and
+`src/server/games/round-service.ts` (`actOnRound`, `expireRoundIfDue`).
+
+**Instants.** `t_end` is the engine-declared end of the flight: the crash, the automatic
+target or the cap, whichever applies (`flightEndMs`, rounded up to a whole millisecond).
+The **settlement deadline** is `D = t_end + G`, with grace `G = 1,000 ms`
+(`TIME_SETTLEMENT_GRACE_MS`). Each request has two server-side instants:
+
+* `receivedAt`: the application clock when the HTTP request reached the route wrapper,
+  before authentication, rate limiting or any lock (`BaseContext.receivedAt`). Client
+  timestamps are never used.
+* `processedAt`: the **database** clock (`clock_timestamp()`), read after the player's wallet
+  and the round row are locked. All instances share this one clock.
+
+**Rule.** A manual cash-out is applied, priced at `receivedAt`, iff
+`receivedAt < t_end` **and** `processedAt < D`. Settlement by time (bust, automatic target
+or cap) never happens before `D`, whichever path tries it: the expiry job, lazy settlement
+when the round is read, or a late request. Each of these reads the database clock under the
+same locks.
+
+| Request | Condition | Result |
+|---|---|---|
+| Qualifying | received before `t_end`, processed before `D` | 200, `resolution: "applied"`; pays ⌊stake · c(receivedAt)⌋ |
+| Late | received at or after `t_end`, processed before `D` | 422 `GAME_RULE`, `details.rule = "ROUND_ENDED"`; **nothing changes** (the round settles at `D`) |
+| Late, after the deadline | received at or after `t_end`, processed at or after `D` | 200, `resolution: "received_after_end"`; this request settles the time-based outcome |
+| In time but processed too late | received before `t_end`, processed at or after `D` | 200, `resolution: "processing_deadline_passed"`; settled by time, the cash-out is not applied; logged as a warning and counted |
+| Duplicate (same `Idempotency-Key`) | any | the stored response, `Idempotent-Replayed: true`; a duplicate that arrives while the original is in flight waits for it |
+| Already committed | the round was settled before this request held the lock | 409 `CONFLICT`, `details.resolution = "already_settled"` |
+
+The end instant itself belongs to the end: a request received exactly at `t_end` is late.
+
+**Why scheduling cannot change an outcome.** Every decision is taken under the same two
+locks (wallet, then round) and compares a single clock with the same stored deadline:
+
+* A cash-out that holds the locks with `processedAt < D` cannot find the round settled by
+  time. That would need an earlier settlement reading of at least `D` under the same locks,
+  and the clock does not go back.
+* A cash-out that finds the round already settled therefore has `processedAt ≥ D`, so the
+  rule rejects it anyway. Lock order only decides *which* path writes the settlement, never
+  *what* it is. The regression suite forces both lock orders and gets the same financial
+  outcome.
+
+Before this rule, any time-based settlement that started after `t_end` could take the locks
+first and bust a cash-out received before it. The receipt time was also taken only after the
+session check and the rate limiter. `tests/integration/crash-ordering.test.ts` reproduces
+both on the old code: a settlement started 200 ms after the crash pre-empted an in-time
+cash-out, and a 1.5 s rate-limiter delay raised the price from 1.00× to 1.09×.
+
+**What the grace bounds.** `G` is a budget for the time between receipt and holding the
+locks: session lookup, rate limit, idempotency key and lock waits, normally a few
+milliseconds. A request that exceeds it (an overloaded database, a lock held for over a
+second) is resolved by time, deterministically and visibly
+(`casino_round_actions_total{resolution="processing_deadline_passed"}` plus a warning log
+with the delay), instead of by whichever transaction wins a lock. Retries are new receipts
+unless the original committed; a retry of a committed request replays it.
+
+**Effect on play.** Payouts and probabilities are unchanged: each request's outcome depends
+only on the crash point and its receipt time, exactly as in the table above. What changes is
+*when* a bust becomes visible. It is settled, and shown, from `D`, up to about one second
+after the crash plus the client's 300 ms poll. A request received after the crash was always
+a bust and still is. Network latency to the server is still the player's risk; the
+automatic target removes it. The flight's end time stays server-only: the queue stores `D` in
+`game_rounds.expires_at`, which is never part of any response.
+
+**Assumptions.** Application and database clocks are NTP-synchronised. A skew of δ between
+them shortens or lengthens the effective grace by δ, but cannot reorder decisions, because
+those all use the database clock. On a multi-instance deployment, receipt times come from
+each instance's clock, so instance skew shifts which requests count as received before the
+crash. Keep skew well below network latency.
 
 ## RTP, edge and variance
 

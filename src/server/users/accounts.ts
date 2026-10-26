@@ -21,13 +21,14 @@ import {
 import { env } from '../env';
 import { AppError, errors } from '../errors';
 import { audit } from '../audit/audit';
-import { createWalletAccount, getWalletAccount } from '../ledger/accounts';
+import { createWalletAccount, getWalletAccount, lockWalletAccount } from '../ledger/accounts';
 import { createSeedPair } from '../fairness/seeds';
 import { ensureLimitsRow } from '../responsible/limits';
 import { grantSignupBonus } from '../promotions/bonuses';
 import { dummyVerify, hashPassword, needsRehash, passwordProblems, verifyPassword } from '../auth/password';
 import { createSession, revokeAllSessions } from '../auth/sessions';
 import { logger } from '../observability/logger';
+import { metrics } from '../observability/metrics';
 import { consume, type RateLimitRule } from '../http/rate-limit';
 import { getMailer, runInBackground, sendInBackground } from '../mail/mailer';
 import { listTransactions } from '../wallet/wallet';
@@ -116,6 +117,7 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
   if (!user || !user.passwordHash || user.status === 'DELETED') {
     await dummyVerify(password);
     await audit(db, { actorType: 'ANONYMOUS', action: 'auth.login_failed', ipHash: meta.ipHash, metadata: { reason: 'unknown_account' } });
+    metrics.inc('casino_login_failures_total', { reason: 'unknown_account' });
     throw genericFailure();
   }
   // Reserve this attempt atomically before checking the password: concurrent
@@ -155,6 +157,7 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
       resourceId: user.id,
       ipHash: meta.ipHash,
     });
+    metrics.inc('casino_login_failures_total', { reason: lock ? 'locked_now' : 'wrong_password' });
     throw genericFailure();
   }
   if (user.status === 'SUSPENDED') {
@@ -192,6 +195,11 @@ export async function changePassword(userId: string, sessionId: string, current:
   await withTransaction(async (tx) => {
     await tx.update(users).set({ passwordHash: hash, updatedAt: new Date() }).where(eq(users.id, userId));
     await revokeAllSessions(tx, userId, sessionId);
+    // A reset link requested before the change must not be able to undo it.
+    await tx
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(and(eq(passwordResetTokens.userId, userId), isNull(passwordResetTokens.usedAt)));
     await audit(tx, { actorId: userId, actorType: 'USER', action: 'auth.password_changed', resourceType: 'user', resourceId: userId, ipHash: meta.ipHash });
   });
 }
@@ -400,6 +408,10 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
     throw new AppError('UNAUTHENTICATED', 'Password is incorrect');
   }
   await withTransaction(async (tx) => {
+    // Same lock order as a wager (user row via its idempotency key, then wallet): a wager
+    // already in flight commits first and is counted below; a later one sees DELETED.
+    await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');
+    await lockWalletAccount(tx, userId);
     const [open] = await tx
       .select({ n: sql<number>`count(*)::int` })
       .from(gameRounds)

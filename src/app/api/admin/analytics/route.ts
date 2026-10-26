@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { dailySeries, exposureByGame, platformSummary } from '@/server/analytics/analytics';
 import { parseQuery, route } from '@/server/http/handler';
+import { RATE_LIMITS } from '@/server/http/rate-limit';
 
 const query = z.object({ days: z.coerce.number().int().min(1).max(3650).optional(), series: z.coerce.number().int().min(1).max(365).default(30) });
 
-export const GET = route({ name: 'admin.analytics', auth: 'analytics:read' }, async (ctx) => {
+export const GET = route({ name: 'admin.analytics', auth: 'analytics:read', rateLimit: [RATE_LIMITS.adminUser] }, async (ctx) => {
   const q = parseQuery(ctx.req, query);
   const from = q.days ? new Date(Date.now() - q.days * 86400_000) : undefined;
   return {

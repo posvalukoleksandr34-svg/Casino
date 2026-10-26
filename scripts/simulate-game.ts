@@ -7,15 +7,19 @@
  *   npx tsx scripts/simulate-game.ts blackjack --all [--hands N] [--write]
  *   npx tsx scripts/simulate-game.ts blackjack --rules <key> --hands N --check
  *     (independent run; exit 1 unless the published estimate agrees within 4σ)
- *   npx tsx scripts/simulate-game.ts <roulette|dice|mines|crash|slots> [--rounds N]
+ *   npx tsx scripts/simulate-game.ts <roulette|dice|mines|crash> [--rounds N]
+ *
+ * Every mode accepts --seed <any string>; without it a random seed is drawn.
+ * The seed, the commit and the parameters are written to the report, so any
+ * run (including a failing one) can be reproduced exactly.
  */
 import { execFile } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { promisify } from 'node:util';
 import { simulateBlackjack, type BjSums } from './sim/blackjack';
 import type { BlackjackConfig } from '../src/engine/games/blackjack';
+import { deriveSeed, provenance, resolveSeed, stepSummary } from './sim/provenance';
 
 const run = promisify(execFile);
 const args = process.argv.slice(2);
@@ -23,11 +27,6 @@ const flag = (name: string, def?: string) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 ? args[i + 1] : def;
 };
-
-function seedWords(): [number, number, number, number] {
-  const b = randomBytes(16);
-  return [b.readUInt32LE(0), b.readUInt32LE(4), b.readUInt32LE(8), b.readUInt32LE(12)];
-}
 
 function parseRules(key: string): BlackjackConfig {
   const [decks, soft, pays, das] = key.split('-');
@@ -40,12 +39,12 @@ function merge(a: BjSums, b: BjSums): BjSums {
   return out;
 }
 
-async function parallelBlackjack(rules: string, hands: number): Promise<BjSums> {
+async function parallelBlackjack(rules: string, hands: number, seed: string): Promise<BjSums> {
   const workers = Math.max(1, os.cpus().length);
   const per = Math.ceil(hands / workers);
   const results = await Promise.all(
-    Array.from({ length: workers }, () =>
-      run('npx', ['tsx', 'scripts/simulate-game.ts', 'blackjack-worker', '--rules', rules, '--hands', String(per)], { maxBuffer: 1 << 20 }).then(
+    Array.from({ length: workers }, (_, i) =>
+      run('npx', ['tsx', 'scripts/simulate-game.ts', 'blackjack-worker', '--rules', rules, '--hands', String(per), '--seed', seed, '--worker', String(i)], { maxBuffer: 1 << 20 }).then(
         (r) => JSON.parse(r.stdout.trim().split('\n').pop()!) as BjSums,
       ),
     ),
@@ -77,42 +76,61 @@ function summarise(rules: string, s: BjSums) {
 async function main() {
   const game = args[0];
   if (game === 'blackjack-worker') {
-    const sums = simulateBlackjack(parseRules(flag('rules')!), Number(flag('hands')), seedWords());
+    const sums = simulateBlackjack(parseRules(flag('rules')!), Number(flag('hands')), deriveSeed(flag('seed')!, `blackjack/${flag('rules')}/${flag('worker')}`));
     console.log(JSON.stringify(sums));
     return;
   }
   if (game === 'blackjack') {
     const hands = Number(flag('hands', '4000000'));
+    if (!Number.isInteger(hands) || hands < 1_000) throw new Error('--hands must be an integer ≥ 1000');
+    const { seed } = resolveSeed(flag('seed'));
     const all = [6, 8].flatMap((d) => ['S17', 'H17'].flatMap((h) => ['3:2', '6:5'].flatMap((p) => ['DAS', 'NDAS'].map((x) => `${d}-${h}-${p}-${x}`))));
     const keys = args.includes('--all') ? all : (flag('rules', '6-S17-3:2-DAS')!).split(',');
     const out: ReturnType<typeof summarise>[] = [];
     for (const key of keys) {
       const t0 = Date.now();
-      const r = summarise(key, await parallelBlackjack(key, key === '6-S17-3:2-DAS' && args.includes('--all') ? hands * 4 : hands));
+      const r = summarise(key, await parallelBlackjack(key, key === '6-S17-3:2-DAS' && args.includes('--all') ? hands * 4 : hands, seed));
       out.push(r);
       console.log(
         `${key.padEnd(16)} edge ${(r.houseEdge * 100).toFixed(3)}%  95% CI [${(r.ci95[0] * 100).toFixed(3)}, ${(r.ci95[1] * 100).toFixed(3)}]  var ${r.variancePerUnit.toFixed(3)}  hands ${r.hands.toLocaleString()}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`,
       );
     }
+    let failed = false;
+    const checks: { rules: string; published: number | null; z: number | null }[] = [];
     if (args.includes('--check')) {
       const { ESTIMATES } = await import('../src/engine/games/blackjack/estimates');
-      let failed = false;
       for (const r of out) {
         const pub = ESTIMATES[r.rules as keyof typeof ESTIMATES];
         if (!pub) {
           console.log(`${r.rules}: no published estimate`);
+          checks.push({ rules: r.rules, published: null, z: null });
           failed = true;
           continue;
         }
         const pubSe = (pub.ci95[1] - pub.ci95[0]) / (2 * 1.96);
         const z = (r.houseEdge - pub.houseEdge) / Math.sqrt(r.standardError ** 2 + pubSe ** 2);
         console.log(`${r.rules}: published ${(pub.houseEdge * 100).toFixed(3)}%, this run ${(r.houseEdge * 100).toFixed(3)}%, z = ${z.toFixed(2)}`);
-        if (Math.abs(z) > 4) failed = true;
+        checks.push({ rules: r.rules, published: pub.houseEdge, z });
+        if (!Number.isFinite(z) || Math.abs(z) > 4) failed = true;
       }
       if (failed) process.exitCode = 1;
     }
+    const meta = provenance();
     mkdirSync('reports', { recursive: true });
-    writeFileSync(`reports/blackjack-simulation-${new Date().toISOString().slice(0, 19).replace(/:/g, '')}.json`, JSON.stringify({ generatedAt: new Date().toISOString(), method: 'basic strategy, fresh shoe per hand, no insurance', results: out }, null, 2) + '\n');
+    const report = `reports/blackjack-simulation-${meta.generatedAt.slice(0, 19).replace(/:/g, '')}.json`;
+    writeFileSync(report, JSON.stringify({ ...meta, simulated: true, seed, method: 'basic strategy, fresh shoe per hand, no insurance', handsPerRuleSet: hands, checks, passed: !failed, results: out }, null, 2) + '\n');
+    console.log(`seed ${seed} · ${report}`);
+    stepSummary(
+      [
+        `### blackjack: ${failed ? '❌ failed' : args.includes('--check') ? '✅ passed' : 'estimates only'} (seed \`${seed}\`)`,
+        '| rules | hands | edge (95% CI) | published | z |',
+        '|---|---|---|---|---|',
+        ...out.map((r) => {
+          const c = checks.find((x) => x.rules === r.rules);
+          return `| ${r.rules} | ${r.hands.toLocaleString('en-US')} | ${(r.houseEdge * 100).toFixed(3)}% (${(r.ci95[0] * 100).toFixed(3)}–${(r.ci95[1] * 100).toFixed(3)}) | ${c?.published != null ? `${(c.published * 100).toFixed(3)}%` : '—'} | ${c?.z != null ? c.z.toFixed(2) : '—'} |`;
+        }),
+      ].join('\n'),
+    );
     if (args.includes('--write')) {
       const file = 'src/engine/games/blackjack/estimates.ts';
       const src = readFileSync(file, 'utf8');
@@ -133,7 +151,7 @@ async function main() {
     return;
   }
   const { simulateGeneric } = await import('./sim/generic');
-  await simulateGeneric(game!, Number(flag('rounds', '1000000')));
+  await simulateGeneric(game!, Number(flag('rounds', '1000000')), flag('seed'));
 }
 
 main().catch((err) => {

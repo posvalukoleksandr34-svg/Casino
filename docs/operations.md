@@ -39,6 +39,7 @@ Production refuses to start with missing, short or default values (`src/server/e
 | `DATABASE_URL` | least-privilege role; non-default password ≥ 16 chars for a non-local host |
 | `SEED_ENCRYPTION_KEY` | 32 bytes (base64 or 64 hex) |
 | `IP_HASH_SECRET` | ≥ 32 characters |
+| `SCRYPT_LOG_N` | ≥ 17 (password hashing cost; lower values are for tests only) |
 | `METRICS_TOKEN` | optional (see §7); when set, ≥ 24 characters of `[A-Za-z0-9._~+/=-]` |
 | `MAIL_TRANSPORT` | `smtp` (with `SMTP_URL`, `MAIL_FROM`) or `disabled`; `console` is refused |
 
@@ -138,9 +139,24 @@ docker compose restart app            # safe: sessions, rounds and jobs live in 
   two releases). A migration that must be reversed is reversed by a *new* forward
   migration; restoring a backup is the last resort because it loses every round, wager and
   ledger entry since the backup.
-* **Zero-downtime-ish restarts:** in-flight requests are short; open interactive rounds
-  survive restarts (state is in PostgreSQL); the expiry job resumes and settles any Crash
-  round that ended while the app was down, using the round's own end time.
+* **Restarts and shutdown:** requests are short; open interactive rounds survive restarts
+  because their state is in PostgreSQL. There is no drain hook. A stop (SIGTERM or a
+  crash) interrupts in-flight transactions, and PostgreSQL rolls each one back completely:
+  every wager, action and settlement commits atomically with its ledger postings and its
+  idempotency record. The browser client retries with the same `Idempotency-Key`, which
+  replays a committed result and never repeats one. After the restart, the expiry job
+  settles any Crash round that ended while the app was down, using the round's own end
+  time.
+* **Connection pool:** `DB_POOL_MAX` (default 10) connections per instance, 10 s connect
+  timeout, 15 s statement timeout. Keep `instances × DB_POOL_MAX` plus migration,
+  backup and admin connections below PostgreSQL's `max_connections`, or put PgBouncer in
+  transaction mode in front. Each wager holds one connection for its whole transaction.
+  The single house-bankroll row serialises wagers (about 70–90 per second on one primary,
+  see the README), so a larger pool does not raise throughput.
+* **Retries:** transactions run at READ COMMITTED with explicit row locks in one global
+  order: wallet → round → seed pair → house bankroll → system accounts. Serialisation
+  failures and deadlocks (40001, 40P01) are retried up to 3 times with jittered backoff.
+  The whole transaction is re-run, so a retry cannot apply half an effect.
 * Background jobs (expiry every 5 s, reconciliation, anomaly detection, cleanup) run in the
   app process under PostgreSQL advisory locks, so several app instances never run the same
   job concurrently. Set `BACKGROUND_JOBS=false` to run them elsewhere
@@ -148,28 +164,93 @@ docker compose restart app            # safe: sessions, rounds and jobs live in 
 
 ## 6. Backups and tested restoration
 
-**(external)** Schedule backups off-host (object storage with versioning and retention).
-A logical backup is enough at this scale; for point-in-time recovery use the provider's
-PITR / WAL archiving.
+**(external)** Schedule backups off-host: object storage with versioning, retention and
+access limited to the backup and restore roles. A logical backup is enough at this scale.
+For point-in-time recovery, use the provider's PITR / WAL archiving
+(`archive_mode`, `archive_command` or a managed equivalent). PITR is not configured by
+this repository, because it depends on where PostgreSQL runs.
+
+**Backup** (`scripts/ops/backup.sh`, provider-neutral):
 
 ```bash
-# Backup (any role with read access; the owner role is simplest)
-pg_dump --format=custom --no-owner --no-privileges \
-        --file=casino-$(date +%F).dump "$MIGRATOR_DATABASE_URL"
-
-# Restore into a NEW, empty database owned by casino_migrator
-pg_restore --no-owner --no-privileges --exit-on-error \
-           --dbname="postgresql://casino_migrator:…@host/casino_restore" casino-YYYY-MM-DD.dump
-DATABASE_URL=postgresql://casino_migrator:…@host/casino_restore npm run db:migrate   # verifies checksums, re-applies grants
-DATABASE_URL=postgresql://casino_migrator:…@host/casino_restore npm run job:reconcile # must print "status": "OK"
+DATABASE_URL=<read access, e.g. casino_migrator> \
+BACKUP_DIR=/var/backups/casino BACKUP_GPG_RECIPIENT=<ops public key> \
+BACKUP_RETENTION_DAYS=35 npm run ops:backup
 ```
 
-Tested in this environment on 2026-10-26 with the development database (18,272 rounds,
-91,122 ledger entries, 8 MB custom-format dump, 2 s): the restored copy had identical
-round/entry counts, balances summing to 0, the same escrow balance, all append-only
-triggers present, applied the pending migration cleanly, and reconciliation returned OK.
-Repeat a restore drill after every schema change and at least quarterly; keep the dump's
-checksum with it.
+* Writes a custom-format `pg_dump` (no owners/privileges) with `umask 077` and checks
+  that the archive is readable.
+* With `BACKUP_GPG_RECIPIENT` set, encrypts to that public key and deletes the plaintext,
+  so neither the backup host nor the off-site copy can read it. Without it, encrypt at the
+  storage layer.
+* Writes a `.sha256` file next to every dump, and prunes local copies older than
+  `BACKUP_RETENTION_DAYS`. Off-site retention is the storage provider's lifecycle rule.
+* Run it from cron or a scheduled job, for example hourly or daily, with retention
+  matching your recovery-point objective. `backups/` is gitignored, and the secret scan
+  rejects tracked dumps.
+
+**Restore drill** (`scripts/ops/restore-check.sh`; CI runs it after every integration
+run):
+
+```bash
+DATABASE_URL=<source> RESTORE_ADMIN_URL=<role with CREATEDB>/postgres npm run ops:restore-check
+```
+
+The drill:
+
+1. dumps the source;
+2. creates a **new** database `casino_restore_check_<time>_<random>`. It never restores
+   over an existing database, and drops only the one it created;
+3. restores into it with `--exit-on-error` and runs `db:migrate`, which verifies
+   migration checksums and re-applies grants and reference data;
+4. verifies that append-only row counts lie between the source's counts before and after
+   the dump, that the trigger sets are identical, and that **reconciliation (17 checks)
+   returns OK**;
+5. drops the copy. Set `KEEP_RESTORE_DB=1` to inspect it.
+
+It exits non-zero on any difference.
+
+To restore a real backup, do it into a NEW database first and never over production:
+
+```bash
+gpg --decrypt casino-<stamp>.dump.gpg > casino.dump && sha256sum -c casino-<stamp>.dump.gpg.sha256
+createdb casino_restore      # as an admin; owner casino_migrator
+pg_restore --no-owner --no-privileges --exit-on-error --dbname=<casino_restore URL as casino_migrator> casino.dump
+DATABASE_URL=<casino_restore URL> npm run db:migrate      # checksums, grants, reference data
+DATABASE_URL=<casino_restore URL> npm run job:reconcile   # must print "status": "OK"
+```
+
+Then point the application at the verified copy: update `DATABASE_URL`, then do a rolling
+restart.
+
+**Tested on 2026-10-26** in this environment:
+
+* **Drill:** `npm run ops:restore-check` on the integration database (301 rounds, 1,828
+  ledger entries) passed. Every append-only count matched, 16 user triggers were identical,
+  reconciliation was OK (17 checks, 0 mismatches), and the copy was dropped.
+* **Negative control:** a copy of the source with one ledger entry altered failed the drill
+  ("reconciliation of the restored copy failed", exit 1).
+* **Backup:** `npm run ops:backup` with a throwaway GPG key produced mode-0600 files. The
+  checksum verified, the dump decrypted, and `pg_restore --list` read it.
+* **Earlier drill:** the development database (18,272 rounds, 91,122 ledger entries)
+  restored with identical counts and reconciled OK.
+
+Repeat the drill against a production backup, in an isolated environment, after every
+schema change and at least quarterly.
+
+**Recovery after interrupted settlement.** Each round settles in one transaction
+together with its ledger postings, so a crash or restart never leaves a half-settled
+round. A round is either still OPEN (its stake held in `WAGERS_IN_PLAY`), or settled
+exactly once, enforced by the unique settlement key `round:<id>:settle` and the unique
+`payouts.round_id`. After a restore or restart:
+
+* the expiry job settles OPEN time-decided rounds that are past their deadline (or run
+  `npm run job:expire-rounds`);
+* players finish other OPEN rounds;
+* admins can void OPEN rounds with a full refund.
+
+All of these are idempotent: running them again changes nothing that has already
+committed. Then run `npm run job:reconcile`.
 
 ## 7. Health checks and monitoring
 
@@ -177,17 +258,34 @@ checksum with it.
 |---|---|
 | `GET /api/health` | liveness (process up). Used by the Docker `HEALTHCHECK`. |
 | `GET /api/health/ready` | readiness: least-privilege DB role, DB reachable, migrations applied, reference data present. Public; returns only check names and pass/fail (details are logged server-side). |
-| `GET /api/metrics` | Prometheus text, requires `Authorization: Bearer $METRICS_TOKEN`. **Optional:** with no token configured (unset, empty or blank) the endpoint is disabled and answers 403 to every request — there is no unauthenticated mode. The startup log states which (`metrics endpoint enabled` / `disabled`). |
+| `GET /api/metrics` | Prometheus text, requires `Authorization: Bearer $METRICS_TOKEN`. **Optional:** with no token configured (unset, empty or blank) the endpoint is disabled and answers 403 to every request — there is no unauthenticated mode. The startup log states which (`metrics endpoint enabled` / `disabled`). The public proxy (`deploy/nginx*.conf`) answers 404 for `/api/metrics*`: scrape `app:3000` on the private network. |
 | `/admin/health` | staff view: readiness details, pool, memory, error rate, reconciliation, password-recovery delivery state. |
 
 Metrics are optional so that a deployment without Prometheus does not have to invent a
 token, but the metric-based alerts below need `METRICS_TOKEN` set and a scraper using it.
 Without them, `/admin/health`, the alerts table and the logs are the only signals.
 
-Alert on **(external)**: readiness failing for > 1 min; `casino_round_expiry_failures_total`
-increasing; `casino_mail_failed_total` increasing; any `RECONCILIATION_MISMATCH` alert
-(CRITICAL); 5xx rate; database connection saturation. Logs are JSON lines on
-stdout/stderr — ship them to your log platform.
+Alert on **(external)**:
+
+| Signal | Meaning | First action |
+|---|---|---|
+| readiness failing > 1 min | database unreachable, wrong role, migrations missing | `/admin/health`, app logs |
+| `casino_round_expiry_failures_total` increasing; `error_events` with route `job:expire-rounds` | a time-decided round failed to settle; it is retried with backoff | logs by `roundId`; reconciliation `expiry_queue_not_overdue` |
+| reconciliation `expiry_queue_not_overdue` mismatch | OPEN rounds more than 5 minutes past their deadline (stuck) | check the scheduler is running (`BACKGROUND_JOBS`) or run `npm run job:expire-rounds` |
+| `casino_round_actions_total{resolution="processing_deadline_passed"}` increasing | cash-outs received in time but not processed within the 1 s grace (overloaded database or long locks), settled by time instead (`docs/math/crash.md` § Ordering) | warning logs carry `processingDelayMs`; check database latency and locks |
+| any `RECONCILIATION_MISMATCH` alert (CRITICAL) | ledger, wallet, round or payout records disagree | §8 incident response |
+| `casino_mail_failed_total` increasing; `error_events` route `background:password_reset` | password-reset mail or token issue failed | §9 |
+| `casino_rate_limited_total{rule}` / `http_requests_total{status="429"}` spikes | rate-limit abuse, or a misconfigured proxy (`TRUST_PROXY_HOPS`) putting every client in one bucket | access logs (`requestId`, hashed IP) |
+| `casino_login_failures_total{reason}` spikes (`wrong_password`, `unknown_account`, `locked_now`) | credential stuffing or guessing | `/admin/audit` (`auth.login_failed`, `auth.account_locked` with hashed IPs) |
+| `http_requests_total{status=~"401|403"}` spikes on `/api/admin/*` | authorisation probing | audit log, access logs |
+| 5xx rate; `casino_errors_total` | unexpected errors (stored in `error_events` without request payloads) | `/admin/health` error list; logs by `requestId` |
+| connection saturation | pool exhausted or database overloaded | pool stats in `/admin/health` |
+| Extended verification workflow failed | a Monte Carlo or risk-model check failed | the run's job summary and `simulation-reports` artifact (seed, commit); reproduce with the same seed |
+
+Logs are JSON lines on stdout/stderr; ship them to your log platform. Every request log
+line carries `requestId`, which is also returned as `X-Request-Id`. Passwords, reset
+tokens, cookies, authorisation headers and message bodies are never logged, and keys
+matching password/token/secret/cookie/seed are redacted.
 
 ## 8. Reconciliation alerts and incident response
 
@@ -196,18 +294,53 @@ Reconciliation (every `RECONCILE_INTERVAL_MINUTES`, or `npm run job:reconcile`, 
 snapshot (`docs/database.md` lists them). A mismatch stores the failing checks with
 samples and raises a CRITICAL alert.
 
-1. **Contain.** Engage the platform kill switch (`/admin/risk` → disable new rounds, with
-   an incident message). Open rounds can still be completed; balances stay visible.
-2. **Preserve evidence.** Take a backup now. Do not edit rows: history is append-only and
-   reconciliation output is the evidence.
-3. **Diagnose** with the check's samples (round ids, transaction ids) and the audit log
-   (`/admin/audit`). `expiry_queue_not_overdue` alone means the expiry job is not keeping
-   up (check the scheduler/advisory lock and `error_events`); it is not a money error.
-4. **Correct** only with compensating entries: `ADJUSTMENT` via `/admin/users/<id>` (reason
-   required, audited, visible to the player) or voiding an OPEN round. Settled rounds are
-   immutable by design.
-5. **Verify** with a new reconciliation run, then lift the kill switch and acknowledge the
-   alert with a reason.
+1. **Detect.** Any of these signals a financial inconsistency:
+   * a CRITICAL `RECONCILIATION_MISMATCH` alert;
+   * a failing check in `/admin/reconciliation` (or `npm run job:reconcile` exiting with
+     code 2);
+   * `casino_round_expiry_failures_total` increasing;
+   * a player report of a wrong balance.
+
+   Note the time, the failing check names and their samples (round ids, transaction ids,
+   account ids).
+2. **Pause safely.** Engage the platform kill switch (`/admin/risk` → disable new rounds,
+   with an incident message), or suspend only the affected game (`/admin/games`). Both are
+   audited. They stop *new* wagers only: players can still finish open rounds, and
+   balances and history stay visible. Do not stop the expiry job. It is idempotent and
+   keeps time-decided rounds from piling up.
+3. **Preserve evidence.**
+   * Take a backup now (`npm run ops:backup`) and keep it with its checksum.
+   * Do not edit or delete rows. Ledger, bets, payouts, settled rounds and the audit log
+     are append-only and protected by triggers, and the reconciliation run, with its
+     samples, is itself stored evidence.
+   * Export the relevant `/admin/audit` and `error_events` entries and the app logs by
+     `requestId` and `roundId`.
+4. **Reconcile** ledger, wallet, wager and round records using the failing check's
+   samples. Run the drill on the fresh backup in an isolated environment to experiment
+   safely (`npm run ops:restore-check`, `KEEP_RESTORE_DB=1`). [database.md](database.md)
+   lists what each of the 17 checks compares. `settled_rounds_have_one_payout`,
+   `voided_rounds_refunded_exactly` and `round_transactions_linked` pinpoint which
+   round's postings disagree; `account_balances_match_entries` and
+   `escrow_matches_open_rounds` cover wallets and escrow.
+   `expiry_queue_not_overdue` alone means the expiry job is not keeping up: check the
+   scheduler, advisory lock and `error_events`. It is not a money error.
+5. **Recover interrupted settlements without double payment.**
+   * A round is never half-settled: it is OPEN (stake held in `WAGERS_IN_PLAY`) or settled
+     exactly once (unique `round:<id>:settle` key and unique `payouts.round_id`).
+   * For OPEN time-decided rounds, run `npm run job:expire-rounds`; it only settles rounds
+     past their deadline.
+   * For other OPEN rounds, the player finishes them, or an admin voids them with a full
+     refund.
+   * Re-running any of these is safe: a second settlement or void of the same round is
+     refused by the database.
+   * Correct balances only with compensating entries: an `ADJUSTMENT` via
+     `/admin/users/<id>`, which needs a reason, is audited and is visible to the player,
+     using the original transaction id as `reversesTransactionId`. Settled rounds are
+     immutable by design.
+6. **Restore service after verification.** Run reconciliation again; it must return OK
+   with 0 mismatches. Lift the kill switch or reactivate the game, acknowledge the alert
+   with a reason, and record the incident: cause, affected rounds and players, and the
+   corrections with their transaction ids.
 
 ## 9. Password-recovery e-mail **(external provider)**
 

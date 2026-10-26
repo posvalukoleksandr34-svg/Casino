@@ -141,11 +141,16 @@ Multiplier payouts use exact BigInt `mulDivFloor` (rounding down by < 1 minor un
 
 ### Time-based expiry
 
-The server stores `game_rounds.expires_at = started_at + expiresAfterMs(state)`
-(recomputed after every step; `NULL` for rounds that never settle by time,
-always `NULL` once a round is finished — enforced by a CHECK constraint). The
-`expire-rounds` job (every 5 s, advisory-locked, also `npm run
-job:expire-rounds`) selects only `status = 'OPEN' AND expires_at <= now()`,
+The server stores the settlement deadline
+`game_rounds.expires_at = started_at + expiresAfterMs(state) + 1 s` (the grace
+of `src/server/games/action-timing.ts`; recomputed after every step; `NULL`
+for rounds that never settle by time, always `NULL` once a round is finished —
+enforced by a CHECK constraint). No path settles a round by time before that
+deadline, judged by the database clock read under the round's locks; player
+actions are ordered against settlement by the same rule
+(`docs/math/crash.md` § Ordering). The `expire-rounds` job (every 5 s,
+advisory-locked, also `npm run job:expire-rounds`) selects only
+`status = 'OPEN' AND expires_at <= clock_timestamp()`,
 oldest due first, through the partial index `game_rounds_expiry_due_idx`.
 Non-expiring games (Mines, Blackjack) therefore never occupy the queue. Each
 round is settled in its own transaction under the wallet and round locks with

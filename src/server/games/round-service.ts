@@ -14,7 +14,7 @@ import { getGameModule } from '@/engine/games/registry';
 import { createRandomStream } from '@/engine/rng/provably-fair';
 import { MoneyError, sumMinor } from '@/engine/money';
 import { getDb, withTransaction, type Tx } from '../db/client';
-import { bets, gameRounds, games, payouts, seedPairs } from '../db/schema';
+import { bets, gameRounds, games, payouts, seedPairs, users } from '../db/schema';
 import { AppError, errors } from '../errors';
 import { requestFingerprint, runIdempotent, type IdempotentResult } from '../idempotency';
 import { lockWalletAccount, systemAccountIds } from '../ledger/accounts';
@@ -28,6 +28,7 @@ import { metrics } from '../observability/metrics';
 import { captureError } from '../observability/errors';
 import { logger } from '../observability/logger';
 import { loadActiveGame, loadConfigById, parseWith, requireGameId } from './catalog';
+import { decideTimedAction, settlementDeadline, settlementDue } from './action-timing';
 
 type RoundRow = typeof gameRounds.$inferSelect;
 
@@ -49,7 +50,30 @@ export interface RoundView {
 export interface RoundResponse {
   round: RoundView;
   balance: number;
+  /**
+   * Actions only: `applied`, or why a time-decided round was settled by time
+   * instead (see action-timing.ts).
+   */
+  resolution?: ActionResolution;
 }
+
+export type ActionResolution = 'applied' | 'received_after_end' | 'processing_deadline_passed';
+
+/**
+ * Reads the clock that orders actions against time-based settlement. Called
+ * only after the wallet and round locks are held. Production uses the
+ * database clock, one clock for every application instance; tests inject a
+ * controlled clock.
+ */
+export type RoundClock = (tx: Tx) => Promise<Date>;
+
+export const databaseClock: RoundClock = async (tx) => {
+  // Epoch milliseconds as a number: independent of the server's DateStyle and time zone.
+  const res = await tx.execute<{ ms: number }>(sql`SELECT (extract(epoch FROM clock_timestamp()) * 1000)::float8 AS ms`);
+  const ms = Number(res.rows[0]?.ms);
+  if (!Number.isFinite(ms)) throw new Error('database clock returned no usable time');
+  return new Date(Math.floor(ms));
+};
 
 function toView(mod: GameModule, config: unknown, row: RoundRow, revealedServerSeed: string | null = null): RoundView {
   const isFinal = row.status !== 'OPEN';
@@ -75,14 +99,21 @@ function toView(mod: GameModule, config: unknown, row: RoundRow, revealedServerS
 }
 
 /**
- * Absolute server time at which an open state settles by time alone, from the
- * engine's explicit expiry capability (null: never expires).
+ * Absolute server time at which an open state is decided by time alone (the
+ * crash, an automatic target or the cap), from the engine's explicit expiry
+ * capability (null: never decided by time).
  */
-function expiryFor(mod: GameModule, config: unknown, state: unknown, startedAt: Date): Date | null {
+function timedEnd(mod: GameModule, config: unknown, state: unknown, startedAt: Date): Date | null {
   const ms = mod.expiresAfterMs(config, state);
   if (ms === null) return null;
   if (!Number.isFinite(ms) || ms < 0) throw new Error(`${mod.id}: invalid expiry offset ${ms}`);
   return new Date(startedAt.getTime() + Math.ceil(ms));
+}
+
+/** When the expiry queue settles the round: the settlement deadline (end + grace), or null. */
+function expiryFor(mod: GameModule, config: unknown, state: unknown, startedAt: Date): Date | null {
+  const end = timedEnd(mod, config, state, startedAt);
+  return end && settlementDeadline(end);
 }
 
 function assessOrThrow(mod: GameModule, config: unknown, bet: unknown): RiskProfile {
@@ -201,6 +232,7 @@ export async function startRound(input: StartRoundInput): Promise<IdempotentResu
       const limits = await getGameLimits(tx, gameId);
 
       const wallet = await lockWalletAccount(tx, input.userId);
+      await assertAccountActive(tx, input.userId);
       await assertCanWager(tx, input.userId, risk.stake, { sessionStartedAt: input.sessionStartedAt ?? null });
       if (wallet.balance < risk.stake) throw errors.insufficientFunds({ balance: wallet.balance, stake: risk.stake });
       const seed = await reserveNonce(tx, input.userId);
@@ -358,6 +390,16 @@ async function applyStep(
   return updated!;
 }
 
+/**
+ * The session was checked when the request arrived; a suspension or deletion
+ * may have committed since. Re-checked under the wallet lock, which account
+ * deletion also takes, so no wager or action lands on a closed account.
+ */
+async function assertAccountActive(tx: Tx, userId: string): Promise<void> {
+  const [user] = await tx.select({ status: users.status }).from(users).where(eq(users.id, userId));
+  if (user?.status !== 'ACTIVE') throw errors.unauthenticated('Your session has ended. Please sign in again.');
+}
+
 async function lockOpenRound(tx: Tx, userId: string, roundId: string): Promise<RoundRow> {
   const [round] = await tx
     .select()
@@ -365,7 +407,10 @@ async function lockOpenRound(tx: Tx, userId: string, roundId: string): Promise<R
     .where(and(eq(gameRounds.id, roundId), eq(gameRounds.userId, userId)))
     .for('update');
   if (!round) throw errors.notFound('Round');
-  if (round.status !== 'OPEN') throw errors.conflict('This round has already finished', { status: round.status });
+  if (round.status !== 'OPEN') {
+    metrics.inc('casino_round_actions_total', { game: round.gameId, resolution: 'already_settled' });
+    throw errors.conflict('This round has already finished', { status: round.status, resolution: 'already_settled' });
+  }
   return round;
 }
 
@@ -375,33 +420,74 @@ export interface ActInput {
   action: unknown;
   idempotencyKey: string;
   sessionStartedAt?: Date | null;
-  now?: Date;
+  /** When the application received the request (the route wrapper sets it before any other work). */
+  receivedAt?: Date;
+  /** Ordering clock read under the locks (default: the database clock). */
+  clock?: RoundClock;
 }
 
 export async function actOnRound(input: ActInput): Promise<IdempotentResult<RoundResponse>> {
   // Time-sensitive actions (a crash cash-out) are priced at the moment the
   // server received the request, not after waiting for row locks or a
   // serialisation retry: the documented rule, and fair under contention.
-  const receivedAt = input.now ?? new Date();
+  const receivedAt = input.receivedAt ?? new Date();
+  const clock = input.clock ?? databaseClock;
   return withTransaction((tx) =>
     runIdempotent(tx, input.userId, input.idempotencyKey, requestFingerprint(`round:act:${input.roundId}`, input.action), async (respond) => {
       const wallet = await lockWalletAccount(tx, input.userId);
+      await assertAccountActive(tx, input.userId);
       const round = await lockOpenRound(tx, input.userId, input.roundId);
       const mod = getGameModule(requireGameId(round.gameId));
       if (!mod.actionSchema) throw new AppError('GAME_RULE', 'This game does not accept actions');
       const config = await loadConfigById(tx, mod, round.configId);
       const action = parseWith(mod.actionSchema, input.action, 'action');
-      let step: StepResult<unknown>;
-      try {
-        step = mod.act(config, round.state, action, { elapsedMs: receivedAt.getTime() - round.startedAt.getTime() });
-      } catch (err) {
-        throw asRuleError(err);
+      let step: StepResult<unknown> | null = null;
+      let resolution: ActionResolution = 'applied';
+      const end = timedEnd(mod, config, round.state, round.startedAt);
+      if (end) {
+        // Read under the locks: see action-timing.ts for why this ordering is race-free.
+        const processedAt = await clock(tx);
+        const decision = decideTimedAction({ receivedAt, processedAt, end });
+        if (decision.kind !== 'apply') {
+          metrics.inc('casino_round_actions_total', {
+            game: round.gameId,
+            resolution: decision.kind === 'reject_ended' ? 'received_after_end' : decision.resolution,
+          });
+        }
+        if (decision.kind === 'reject_ended') {
+          // Nothing changes: the round is settled by time from its deadline on.
+          throw new AppError('GAME_RULE', 'The round had already ended when this request reached the server', {
+            rule: 'ROUND_ENDED',
+            resolution: 'received_after_end',
+          });
+        }
+        if (decision.kind === 'settle_by_time') {
+          resolution = decision.resolution;
+          if (resolution === 'processing_deadline_passed') {
+            logger.warn('timed action processed after the settlement deadline; settled by time', {
+              roundId: round.id,
+              gameId: round.gameId,
+              receivedBeforeEndMs: end.getTime() - receivedAt.getTime(),
+              processingDelayMs: processedAt.getTime() - receivedAt.getTime(),
+            });
+          }
+          step = mod.expire(config, round.state, { elapsedMs: processedAt.getTime() - round.startedAt.getTime() });
+          if (!step) throw new Error(`${round.gameId} round ${round.id} is past its settlement deadline but the engine did not settle it`);
+        }
+      }
+      if (!step) {
+        try {
+          step = mod.act(config, round.state, action, { elapsedMs: receivedAt.getTime() - round.startedAt.getTime() });
+        } catch (err) {
+          throw asRuleError(err);
+        }
       }
       let body: RoundResponse | undefined;
       await applyStep(tx, round, mod, config, mod.name, wallet, step, input.sessionStartedAt ?? null, async (status, b) => {
-        body = b;
-        await respond(status, b);
+        body = end ? { ...b, resolution } : b;
+        await respond(status, body);
       });
+      if (end && resolution === 'applied') metrics.inc('casino_round_actions_total', { game: round.gameId, resolution });
       return { status: 200, body: body! };
     }),
   );
@@ -413,11 +499,13 @@ export async function actOnRound(input: ActInput): Promise<IdempotentResult<Roun
  * concurrently: the wallet and round row locks serialise callers, the status
  * is re-checked under the lock, and the settlement ledger key is unique.
  *
- * When the round is not (yet) decidable, its schedule is corrected from the
+ * Never settles before the settlement deadline (end + grace, action-timing.ts),
+ * judged by `clock` read under the locks. A Date is a fixed reading (tests,
+ * scripts). When the round is not yet due, its schedule is corrected from the
  * engine so that a stale or back-filled `expires_at` cannot keep it at the
  * head of the expiry queue.
  */
-export async function expireRoundIfDue(roundId: string, now = new Date()): Promise<boolean> {
+export async function expireRoundIfDue(roundId: string, clock: Date | RoundClock = databaseClock): Promise<boolean> {
   return withTransaction(async (tx) => {
     const [peek] = await tx.select({ userId: gameRounds.userId, status: gameRounds.status }).from(gameRounds).where(eq(gameRounds.id, roundId));
     if (!peek || peek.status !== 'OPEN') return false;
@@ -426,17 +514,17 @@ export async function expireRoundIfDue(roundId: string, now = new Date()): Promi
     if (!round || round.status !== 'OPEN') return false;
     const mod = getGameModule(requireGameId(round.gameId));
     const config = await loadConfigById(tx, mod, round.configId);
-    const step = mod.expire(config, round.state, { elapsedMs: now.getTime() - round.startedAt.getTime() });
-    if (!step) {
-      const next = expiryFor(mod, config, round.state, round.startedAt);
-      if (next && next.getTime() <= now.getTime()) {
-        throw new Error(`${round.gameId} round ${round.id} is due since ${next.toISOString()} but the engine did not settle it`);
-      }
+    const end = timedEnd(mod, config, round.state, round.startedAt);
+    const now = clock instanceof Date ? clock : await clock(tx);
+    if (!end || !settlementDue(end, now)) {
+      const next = end && settlementDeadline(end);
       if ((next?.getTime() ?? null) !== (round.expiresAt?.getTime() ?? null)) {
         await tx.update(gameRounds).set({ expiresAt: next }).where(eq(gameRounds.id, round.id));
       }
       return false;
     }
+    const step = mod.expire(config, round.state, { elapsedMs: now.getTime() - round.startedAt.getTime() });
+    if (!step) throw new Error(`${round.gameId} round ${round.id} is due since ${settlementDeadline(end).toISOString()} but the engine did not settle it`);
     await applyStep(tx, round, mod, config, mod.name, wallet, step, null);
     return true;
   });
@@ -474,19 +562,19 @@ async function deferExpiry(roundId: string, now: Date, err: unknown): Promise<vo
  * expiry time and are never selected; a round that fails is deferred with
  * backoff instead of being retried at the head of the next batch.
  */
-export async function expireDueRounds(now = new Date(), limit = 200): Promise<number> {
+export async function expireDueRounds(now?: Date, limit = 200): Promise<number> {
   const due = await getDb()
     .select({ id: gameRounds.id })
     .from(gameRounds)
-    .where(and(eq(gameRounds.status, 'OPEN'), lte(gameRounds.expiresAt, now)))
+    .where(and(eq(gameRounds.status, 'OPEN'), lte(gameRounds.expiresAt, now ?? sql`clock_timestamp()`)))
     .orderBy(asc(gameRounds.expiresAt), asc(gameRounds.id))
     .limit(limit);
   let settled = 0;
   for (const r of due) {
     try {
-      if (await expireRoundIfDue(r.id, now)) settled += 1;
+      if (await expireRoundIfDue(r.id, now ?? databaseClock)) settled += 1;
     } catch (err) {
-      await deferExpiry(r.id, now, err);
+      await deferExpiry(r.id, now ?? new Date(), err);
     }
   }
   if (settled) metrics.inc('casino_rounds_expired_total', {}, settled);

@@ -12,7 +12,8 @@ export const E2E_ENV = {
   // Test-only key (32 bytes, base64). Never use outside the e2e database.
   SEED_ENCRYPTION_KEY: 'ZTJlLXRlc3Qtc2VlZC1lbmNyeXB0aW9uLWtleS0zMmI=',
   IP_HASH_SECRET: 'e2e-only-ip-hash-secret-not-for-production-use',
-  SCRYPT_LOG_N: '12',
+  // Production hashing cost: the e2e server runs the production build, which refuses less.
+  SCRYPT_LOG_N: '17',
   BACKGROUND_JOBS: 'false',
   MAIL_TRANSPORT: 'disabled',
   LOG_LEVEL: 'warn',

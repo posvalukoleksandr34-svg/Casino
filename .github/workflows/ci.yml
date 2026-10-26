@@ -1,6 +1,8 @@
 # Required checks for every pull request and every push to the default branch.
 # Databases are disposable service containers created per job; no repository
-# secrets are needed (the only credentials are throwaway values below).
+# secrets are used (the only credentials are throwaway values below), so fork
+# pull requests run with the same, read-only, privileges. Policy and update
+# procedure: docs/ci.md (enforced by scripts/check-workflows.mjs).
 name: CI
 
 on:
@@ -8,7 +10,9 @@ on:
   push:
     # The repository's default (development) branch is ccr-c301db4d-y6lhy2.
     # Branch filters cannot use expressions, so it is named explicitly; main is
-    # kept so CI keeps running if the default branch is renamed to main.
+    # kept so CI keeps running if the default branch is renamed to main. The
+    # workflow-policy step checks this list against the repository's actual
+    # default branch on every run.
     branches: [ccr-c301db4d-y6lhy2, main]
   workflow_dispatch:
 
@@ -21,8 +25,13 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-permissions:
-  contents: read
+# Nothing by default; each job states what it needs.
+permissions: {}
+
+defaults:
+  run:
+    # bash -eo pipefail: a failing command anywhere in a step fails the step.
+    shell: bash
 
 env:
   NODE_VERSION: '22'
@@ -31,16 +40,28 @@ env:
 
 jobs:
   static:
-    name: Typecheck, lint, unit tests, dependency audit
+    name: Typecheck, lint, unit tests, supply-chain checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - name: Workflow policy (pinned actions, permissions, default branch)
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node scripts/check-workflows.mjs
+      - name: Secret scan (tracked files)
+        run: node scripts/check-secrets.mjs
       - run: npm ci
+      # Registry signatures (and provenance attestations where published) of every installed package.
+      - run: npm audit signatures
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test:unit
@@ -52,6 +73,8 @@ jobs:
     name: Integration tests (PostgreSQL 16)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:16-alpine
@@ -67,23 +90,36 @@ jobs:
       # Disposable database; the suite refuses any name not ending in _test.
       DATABASE_URL_TEST: postgresql://casino:casino@localhost:5432/casino_test
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       # Global setup migrates a fresh schema and creates the least-privilege
       # role casino_app (the service user is a superuser in this container).
+      # Includes the Crash ordering suite (real row-lock concurrency).
       - run: npm run test:integration
+      # Backup → restore into a fresh database → reconciliation (docs/operations.md §6).
+      - name: Backup and restore smoke test
+        env:
+          DATABASE_URL: postgresql://casino:casino@localhost:5432/casino_test
+          RESTORE_ADMIN_URL: postgresql://casino:casino@localhost:5432/postgres
+        run: npm run ops:restore-check
 
   statistical:
     name: Statistical tests (RNG, RTP, distributions)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -96,6 +132,8 @@ jobs:
     name: Production build and end-to-end tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:16-alpine
@@ -110,24 +148,51 @@ jobs:
     env:
       DATABASE_URL_E2E: postgresql://casino:casino@localhost:5432/casino_e2e
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
       - run: npm ci
       - run: npm run build
-      # Server-only configuration must never reach browser bundles.
+      # Server-only configuration must never reach browser bundles or source maps.
       - run: npm run check:bundle
       - run: npx playwright install --with-deps chromium
       # The e2e server runs the standalone production build as casino_app.
       - run: npm run test:e2e
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-report
+          # Screenshots and the HTML report only: CI records no traces (they would
+          # contain request headers and session cookies; see playwright.config.ts).
           path: |
             playwright-report/
             test-results/
+          include-hidden-files: false
+          if-no-files-found: ignore
           retention-days: 7
+
+  required:
+    # The single check to mark as required in branch protection: it fails unless
+    # every job above succeeded (a skipped or cancelled job is not a pass).
+    name: CI required
+    if: always()
+    needs: [static, integration, statistical, build-e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: All required jobs succeeded
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | node -e '
+            const needs = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const failed = Object.entries(needs).filter(([, v]) => v.result !== "success");
+            for (const [name, v] of Object.entries(needs)) console.log(`${name}: ${v.result}`);
+            if (failed.length) { console.error(`not successful: ${failed.map(([n]) => n).join(", ")}`); process.exit(1); }
+          '

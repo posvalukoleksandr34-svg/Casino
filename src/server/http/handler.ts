@@ -23,6 +23,8 @@ export type AuthMode = 'public' | 'optional' | 'user' | Permission;
 export interface BaseContext<P> {
   req: NextRequest;
   params: P;
+  /** When this process received the request, before any authentication, rate limiting or locking. */
+  receivedAt: Date;
   requestId: string;
   ipHash: string | null;
   userAgent: string | null;
@@ -143,6 +145,7 @@ export function route<A extends AuthMode, P = Record<string, string>>(
   fn: (ctx: Ctx<A, P>) => Promise<unknown>,
 ) {
   return async (req: NextRequest, segment: { params: Promise<P> }): Promise<Response> => {
+    const receivedAt = new Date();
     const started = performance.now();
     const incoming = req.headers.get('x-request-id');
     const requestId = incoming && /^[A-Za-z0-9-]{8,64}$/.test(incoming) ? incoming : randomUUID();
@@ -165,7 +168,7 @@ export function route<A extends AuthMode, P = Record<string, string>>(
         const subject = rule.by === 'user' ? session?.userId : (ipHash ?? 'unidentified');
         if (subject) await consume(rule, subject);
       }
-      const ctx = { req, params, requestId, ipHash, userAgent: req.headers.get('user-agent'), session } as Ctx<A, P>;
+      const ctx = { req, params, receivedAt, requestId, ipHash, userAgent: req.headers.get('user-agent'), session } as Ctx<A, P>;
       const result = await fn(ctx);
       response = result instanceof Response ? result : NextResponse.json(result ?? { ok: true });
     } catch (err) {

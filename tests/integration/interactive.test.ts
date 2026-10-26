@@ -7,6 +7,7 @@ import { decryptSecret } from '@/server/crypto';
 import { getWalletAccount } from '@/server/ledger/accounts';
 import { rotateSeed } from '@/server/fairness/seeds';
 import { actOnRound, openRounds, startRound, voidRound } from '@/server/games/round-service';
+import { TIME_SETTLEMENT_GRACE_MS } from '@/server/games/action-timing';
 import { HmacRandomStream, shuffle } from '@/engine/rng/provably-fair';
 import { expectLedgerConsistent, key, newPlayer } from './helpers';
 
@@ -125,12 +126,19 @@ describe('interactive rounds (crash)', () => {
       const cp = await crashPoint(p.userId, start.body.round.fairness.nonce, start.body.round.fairness.clientSeed);
       const startedAt = new Date(start.body.round.startedAt).getTime();
       if (cp < 150) {
-        const late = await actOnRound({ userId: p.userId, roundId: start.body.round.id, action: { type: 'cashout' }, idempotencyKey: key(), now: new Date(startedAt + timeToReach(cp, 0.00006) + 50) });
+        // Received after the crash: rejected without any change until the settlement
+        // deadline; from the deadline on, the same request settles the bust.
+        const receivedAt = new Date(startedAt + timeToReach(cp, 0.00006) + 50);
+        const cashout = (clockAt: Date) =>
+          actOnRound({ userId: p.userId, roundId: start.body.round.id, action: { type: 'cashout' }, idempotencyKey: key(), receivedAt, clock: async () => clockAt });
+        await expect(cashout(receivedAt)).rejects.toMatchObject({ code: 'GAME_RULE', details: { rule: 'ROUND_ENDED' } });
+        const late = await cashout(new Date(receivedAt.getTime() + TIME_SETTLEMENT_GRACE_MS));
         expect(late.body.round.payout).toBe(0);
+        expect(late.body.resolution).toBe('received_after_end');
         continue;
       }
       const at = new Date(startedAt + timeToReach(150, 0.00006) + 10);
-      const out = await actOnRound({ userId: p.userId, roundId: start.body.round.id, action: { type: 'cashout' }, idempotencyKey: key(), now: at });
+      const out = await actOnRound({ userId: p.userId, roundId: start.body.round.id, action: { type: 'cashout' }, idempotencyKey: key(), receivedAt: at, clock: async () => at });
       expect(out.body.round.status).toBe('SETTLED');
       expect((out.body.round.state as { cashedOutE2: number }).cashedOutE2).toBe(150);
       expect(out.body.round.payout).toBe(1500);

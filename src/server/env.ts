@@ -75,6 +75,8 @@ export function productionProblems(e: Env, raw: Record<string, string | undefine
   const problems: string[] = [];
   if (!e.SEED_ENCRYPTION_KEY) problems.push('SEED_ENCRYPTION_KEY is required');
   else if (decodedKeyLength(e.SEED_ENCRYPTION_KEY) !== 32) problems.push('SEED_ENCRYPTION_KEY must be 32 bytes (base64 or 64 hex characters)');
+  // Lower costs exist for tests only; production keeps the OWASP scrypt setting (N = 2^17, r = 8, p = 1).
+  if (e.SCRYPT_LOG_N < 17) problems.push('SCRYPT_LOG_N must be at least 17 in production (password hashing cost)');
   if (!e.IP_HASH_SECRET) problems.push('IP_HASH_SECRET is required');
   else if (e.IP_HASH_SECRET.length < 32) problems.push('IP_HASH_SECRET must be at least 32 characters');
   // Optional (see the schema comment), but a token that is set must be usable as one.

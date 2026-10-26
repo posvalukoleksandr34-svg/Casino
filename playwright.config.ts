@@ -16,7 +16,9 @@ export default defineConfig({
   globalSetup: './tests/e2e/global-setup.ts',
   use: {
     baseURL: `http://127.0.0.1:${E2E_PORT}`,
-    trace: 'retain-on-failure',
+    // Traces record request headers, including session cookies. Keep them for
+    // local debugging only; CI uploads screenshots and the HTML report.
+    trace: process.env.CI ? 'off' : 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
   projects: [

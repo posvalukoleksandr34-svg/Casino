@@ -3,7 +3,7 @@ import { metricsToken, productionProblems, type Env } from '@/server/env';
 
 const good: Env = {
   NODE_ENV: 'production',
-  DATABASE_URL: 'postgresql://casino_app:Zq8!kLm2_Rt5vWx9yAb3@db.internal:5432/casino',
+  DATABASE_URL: 'postgresql://casino_app:Zq8!kLm2_Rt5vWx9yAb3@db.internal:5432/casino', // secret-scan: fixture (fake)
   APP_URL: 'https://casino.example.org',
   SEED_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
   IP_HASH_SECRET: 'x'.repeat(40),
@@ -32,9 +32,10 @@ describe('production configuration fails closed', () => {
     ['missing IP hash secret', { IP_HASH_SECRET: undefined }, /IP_HASH_SECRET is required/],
     ['weak IP hash secret', { IP_HASH_SECRET: 'e2e-ip-hash-secret' }, /at least 32/],
     ['short metrics token', { METRICS_TOKEN: 'local-metrics-token' }, /METRICS_TOKEN/],
+    ['weak password hashing cost', { SCRYPT_LOG_N: 12 }, /SCRYPT_LOG_N/],
     ['plain http on a public host', { APP_URL: 'http://casino.example.org' }, /https/],
     ['default database password', { DATABASE_URL: 'postgresql://casino:casino@db.internal:5432/casino' }, /strong, non-default password/],
-    ['short database password', { DATABASE_URL: 'postgresql://app:Sh0rt-pw@db.internal:5432/casino' }, /strong, non-default password/],
+    ['short database password', { DATABASE_URL: 'postgresql://app:Sh0rt-pw@db.internal:5432/casino' }, /strong, non-default password/], // secret-scan: fixture (fake)
   ] as const)('rejects %s', (_name, patch, pattern) => {
     const problems = productionProblems({ ...good, ...patch } as Env, { APP_URL: (patch as { APP_URL?: string }).APP_URL ?? good.APP_URL });
     expect(problems.join('; ')).toMatch(pattern);

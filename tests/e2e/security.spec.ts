@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
-import { ADMIN } from './env';
+import { ADMIN, PASSWORD } from './env';
 import { login, registerPlayer } from './helpers';
 
 test.describe('invalid, duplicate and unauthorised requests', () => {
@@ -62,6 +62,25 @@ test.describe('invalid, duplicate and unauthorised requests', () => {
     await admin.goto('/admin/analytics');
     await expect(admin.getByRole('heading', { name: 'Actual vs theoretical performance' })).toBeVisible();
     await adminContext.close();
+  });
+
+  test('the post-login redirect never leaves the site', async ({ page, baseURL }) => {
+    const { email } = await registerPlayer(page);
+    for (const [next, expectedPath] of [
+      ['/\\evil.example/', '/lobby'], // browsers read "\" as "/": this used to leave the site
+      ['/\t/evil.example/', '/lobby'],
+      ['https://evil.example/', '/lobby'],
+      ['/wallet', '/wallet'],
+    ] as const) {
+      await page.context().clearCookies();
+      await page.goto(`/login?next=${encodeURIComponent(next)}`);
+      await page.getByLabel('E-mail').fill(email);
+      await page.getByLabel('Password').fill(PASSWORD);
+      await page.getByRole('button', { name: 'Sign in' }).click();
+      await page.waitForURL((url) => url.pathname === expectedPath || url.origin !== new URL(baseURL!).origin);
+      expect(new URL(page.url()).origin).toBe(new URL(baseURL!).origin);
+      expect(new URL(page.url()).pathname).toBe(expectedPath);
+    }
   });
 
   test('signed-out visitors are redirected away from account pages', async ({ page }) => {

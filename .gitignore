@@ -16,3 +16,5 @@ npm-debug.log*
 # Simulation run outputs (reproducible); committed evidence lives in reports/evidence/
 /reports/*.json
 /reports/tmp/
+# Database dumps (npm run ops:backup) never belong in the repository
+/backups/

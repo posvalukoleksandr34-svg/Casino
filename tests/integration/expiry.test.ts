@@ -5,6 +5,7 @@ import { getDb, getPool } from '@/server/db/client';
 import { gameRounds, ledgerEntries, ledgerTransactions, payouts } from '@/server/db/schema';
 import { getWalletAccount, systemAccountIds } from '@/server/ledger/accounts';
 import { expireDueRounds, expireRoundIfDue, expiryBackoffMs, startRound } from '@/server/games/round-service';
+import { TIME_SETTLEMENT_GRACE_MS } from '@/server/games/action-timing';
 import { armFault, clearFaults } from '@/server/testing/faults';
 import { expectLedgerConsistent, key, newPlayer } from './helpers';
 
@@ -57,7 +58,8 @@ describe('time-based round expiry', () => {
     const p = await newPlayer('sched');
     const crashRound = await flyingCrash(p.userId, { amount: 1000 });
     const s = crashRound.state as CrashState;
-    expect(crashRound.expiresAt!.getTime()).toBe(crashRound.startedAt.getTime() + flightEndMs(s));
+    // Queued for the settlement deadline: the flight end plus the grace (action-timing.ts).
+    expect(crashRound.expiresAt!.getTime()).toBe(crashRound.startedAt.getTime() + flightEndMs(s) + TIME_SETTLEMENT_GRACE_MS);
     const [mines] = await openMinesBacklog(1);
     expect((await roundRow(mines!)).expiresAt).toBeNull();
     const dice = await startRound({ userId: p.userId, gameId: 'dice', bet: { amount: 100, target: 5000, direction: 'under' }, idempotencyKey: key() });

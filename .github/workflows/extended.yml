@@ -1,40 +1,78 @@
-# Slower verification that does not need to gate every pull request:
-# large Monte Carlo runs of every exactly-specified game (fail if the realised
-# RTP leaves the 4σ band around the analytical value), a fresh blackjack
-# cross-check against the published estimate, and the bankroll risk model.
+# Slower verification that does not need to gate every pull request (docs/ci.md):
+#   * 2,000,000-round Monte Carlo runs of every exactly-specified game scenario,
+#     compared with RTPs derived independently from the published rules
+#     (scripts/sim/independent-rtp.ts); a scenario fails beyond 4σ;
+#   * a fresh blackjack run checked against the published estimate (4σ);
+#   * the bankroll risk model with its self-consistency checks (--check).
+# Every step fails the job on a failed check. The seed, commit, parameters and
+# results of each run are written to reports/ (uploaded) and the job summary.
 name: Extended verification
 
 on:
   schedule:
-    - cron: '17 3 * * 1' # Mondays 03:17 UTC
+    - cron: '17 3 * * 1' # Mondays 03:17 UTC (default branch only, as for every scheduled workflow)
   workflow_dispatch:
+    inputs:
+      rounds:
+        description: Rounds per exact-game scenario
+        default: '2000000'
+      seed:
+        description: Seed (any string); empty = derived from the run id
+        default: ''
 
-permissions:
-  contents: read
+concurrency:
+  group: extended-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   simulations:
+    name: Monte Carlo and risk model
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      # Inputs reach the scripts through the environment, never by template
+      # expansion inside a shell command; the scripts validate them.
+      ROUNDS: ${{ inputs.rounds || '2000000' }}
+      SEED_INPUT: ${{ inputs.seed }}
+      RUN_SEED: run-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Exact games — 2,000,000 rounds per scenario
+      - name: Seed and commit
+        run: |
+          SEED="${SEED_INPUT:-$RUN_SEED}"
+          echo "SEED=$SEED" >> "$GITHUB_ENV"
+          { echo "## Extended verification"; echo "commit \`$GITHUB_SHA\` · seed \`$SEED\` · $ROUNDS rounds per scenario"; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Exact games — Monte Carlo vs published rules
         run: |
           for g in roulette dice mines crash; do
-            npm run sim:game -- "$g" --rounds 2000000
+            npm run sim:game -- "$g" --rounds "$ROUNDS" --seed "$SEED"
           done
       - name: Blackjack — independent run vs published estimate (default rules)
-        run: npm run sim:game -- blackjack --rules 6-S17-3:2-DAS --hands 4000000 --check
-      - name: Bankroll / reserve risk model
-        run: npm run sim:risk -- --days 30 --paths 2000
-      - uses: actions/upload-artifact@v4
+        run: npm run sim:game -- blackjack --rules 6-S17-3:2-DAS --hands 4000000 --check --seed "$SEED"
+      - name: Bankroll / reserve risk model (self-consistency)
+        run: npm run sim:risk -- --days 30 --paths 2000 --seed "$SEED" --check
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
+          # Simulation reports only: parameters, seeds, aggregates. No user data exists here.
           name: simulation-reports
-          path: reports/
+          path: reports/*.json
+          include-hidden-files: false
+          if-no-files-found: warn
           retention-days: 30
