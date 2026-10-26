@@ -4,9 +4,11 @@
  * see: the revealed server seed, the client seed, the nonce and the game
  * parameters chosen for the round.
  */
+import { drawCrashPoint } from './games/crash';
 import { DICE_OUTCOMES } from './games/dice';
+import { MINES_TILES } from './games/mines';
 import { pocketColor } from './games/roulette/rules';
-import { createRandomStream, hashServerSeed, isValidClientSeed, type FairnessInput } from './rng/provably-fair';
+import { createRandomStream, hashServerSeed, isValidClientSeed, shuffle, type FairnessInput } from './rng/provably-fair';
 
 export interface VerificationResult {
   serverSeedHash: string;
@@ -26,6 +28,21 @@ const verifiers: Record<string, Verifier> = {
   dice: (input) => {
     const roll = createRandomStream(input).nextInt(DICE_OUTCOMES);
     return { outcome: { roll, display: (roll / 100).toFixed(2) }, description: `Roll ${(roll / 100).toFixed(2)}` };
+  },
+  crash: (input, params) => {
+    const edge = params.houseEdgeBp === undefined ? 100 : Number(params.houseEdgeBp);
+    const crashE2 = drawCrashPoint(createRandomStream(input), edge);
+    return { outcome: { crashPoint: (crashE2 / 100).toFixed(2), crashE2 }, description: `Crash at ${(crashE2 / 100).toFixed(2)}×` };
+  },
+  mines: (input, params) => {
+    const count = Number(params.mines);
+    if (!Number.isInteger(count) || count < 1 || count > 24) throw new Error('Number of mines must be between 1 and 24');
+    const order = shuffle(Array.from({ length: MINES_TILES }, (_, i) => i), createRandomStream(input));
+    const positions = order.slice(0, count).sort((a, b) => a - b);
+    const grid = Array.from({ length: 5 }, (_, r) =>
+      Array.from({ length: 5 }, (_, c) => (positions.includes(r * 5 + c) ? '✹' : '·')).join(' '),
+    ).join('\n');
+    return { outcome: { mines: positions, grid }, description: `Mines at ${positions.join(', ')}` };
   },
 };
 

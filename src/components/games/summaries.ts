@@ -16,9 +16,9 @@ export function summarizeRound(gameId: string, state: unknown, status: string): 
       return `Rolled ${roll} · ${s.direction === 'under' ? 'under' : 'over'} ${target}`;
     }
     case 'crash': {
-      if (s.crashPoint === undefined) return status === 'OPEN' ? 'In flight' : '';
-      const cp = ((s.crashPoint as number) / 100).toFixed(2);
-      return s.cashedOutAt ? `Cashed out ${((s.cashedOutAt as number) / 100).toFixed(2)}× · crashed ${cp}×` : `Crashed at ${cp}×`;
+      if (s.crashE2 === null || s.crashE2 === undefined) return status === 'OPEN' ? 'In flight' : '';
+      const cp = ((s.crashE2 as number) / 100).toFixed(2);
+      return s.cashedOutE2 ? `Cashed out ${((s.cashedOutE2 as number) / 100).toFixed(2)}× · crash ${cp}×` : `Crashed at ${cp}×`;
     }
     case 'mines': {
       const picks = (s.revealed as number[] | undefined)?.length ?? 0;

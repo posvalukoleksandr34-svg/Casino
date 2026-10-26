@@ -22,6 +22,9 @@ export const POST = route<'user', { gameId: string }>(
       idempotencyKey: key,
       sessionStartedAt: ctx.session.sessionCreatedAt,
     });
-    return NextResponse.json(res.body, { status: res.status, headers: res.replayed ? { 'Idempotent-Replayed': 'true' } : {} });
+    return NextResponse.json(
+      { ...res.body, serverTime: new Date().toISOString() },
+      { status: res.status, headers: res.replayed ? { 'Idempotent-Replayed': 'true' } : {} },
+    );
   },
 );

@@ -36,6 +36,20 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
     tagline: 'Pick your odds. 1% house edge, multipliers up to 99×.',
     limits: { minStake: 10, maxStake: 10_000 * CHIP, maxPayoutPerRound: 100_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
   },
+  mines: {
+    id: 'mines',
+    sortOrder: 30,
+    initialStatus: 'ACTIVE',
+    tagline: 'Uncover safe tiles, cash out whenever you like. Exact odds at every step.',
+    limits: { minStake: 10, maxStake: 1_000 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  crash: {
+    id: 'crash',
+    sortOrder: 40,
+    initialStatus: 'ACTIVE',
+    tagline: 'Watch the multiplier climb and cash out before it crashes.',
+    limits: { minStake: 10, maxStake: 1_000 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
 };
 
 export function catalogEntries(): CatalogEntry[] {

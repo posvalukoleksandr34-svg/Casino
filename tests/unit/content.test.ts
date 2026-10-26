@@ -1,0 +1,27 @@
+import { describe, expect, it } from 'vitest';
+import { GAME_CONTENT } from '@/content/games';
+import { diceRtp, multiplierE4For } from '@/engine/games/dice';
+import { payoutTable } from '@/engine/games/roulette';
+
+/** Player-facing tables must match the engine exactly. */
+describe('published rules match the engine', () => {
+  it('roulette table: every RTP is 97.297%', () => {
+    for (const row of GAME_CONTENT.roulette!.payoutTable!.rows) expect(row[4]).toBe('97.297%');
+    expect(payoutTable([{ type: 'straight', number: 1, amount: 1 }]).reduce((a, b) => a + b, 0)).toBe(36);
+  });
+
+  it('dice table multipliers and RTPs', () => {
+    for (const row of GAME_CONTENT.dice!.payoutTable!.rows) {
+      const w = Math.round(Number(row[0]!.replace('%', '')) * 100);
+      expect(row[2]).toBe(`${(multiplierE4For(w, 100) / 10_000).toFixed(4)}×`);
+      expect(row[3]).toBe(`${(diceRtp(w, 100) * 100).toFixed(4)}%`);
+    }
+  });
+
+  it('every game with content has rules and maths', () => {
+    for (const c of Object.values(GAME_CONTENT)) {
+      expect(c.rules.length).toBeGreaterThan(2);
+      expect(c.math.length).toBeGreaterThan(1);
+    }
+  });
+});

@@ -2,11 +2,15 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DiceGame } from '@/components/games/dice-game';
 import { RouletteGame } from '@/components/games/roulette-game';
+import { MinesGame } from '@/components/games/mines-game';
+import { CrashGame } from '@/components/games/crash-game';
 import { GameRules } from '@/components/games/game-rules';
 import { Badge } from '@/components/ui/badge';
 import { Callout, Chips, PageHeader } from '@/components/ui/misc';
 import type { DiceConfig } from '@/engine/games/dice';
 import type { RouletteConfig } from '@/engine/games/roulette';
+import type { MinesConfig } from '@/engine/games/mines';
+import type { CrashConfig } from '@/engine/games/crash';
 import { getGameSummary } from '@/server/games/lobby';
 import { currentSession } from '@/server/auth/current';
 
@@ -29,6 +33,12 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
       break;
     case 'dice':
       screen = <DiceGame {...props} config={game.config as DiceConfig} />;
+      break;
+    case 'mines':
+      screen = <MinesGame {...props} config={game.config as MinesConfig} />;
+      break;
+    case 'crash':
+      screen = <CrashGame {...props} config={game.config as CrashConfig} />;
       break;
     default:
       notFound();

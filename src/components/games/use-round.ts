@@ -21,6 +21,7 @@ export interface RoundView<S = unknown> {
 interface RoundResponse<S> {
   round: RoundView<S>;
   balance: number;
+  serverTime?: string;
 }
 
 interface PendingRequest {
@@ -64,6 +65,11 @@ export function useRound<S>(gameId: string, opts: { deferBalance?: boolean } = {
   const [error, setError] = useState<ApiError | null>(null);
   const [pending, setPending] = useState<PendingRequest | null>(null);
   const [pendingBalance, setPendingBalance] = useState<number | null>(null);
+  // server clock − client clock (ms), learned from responses; used by time-based games.
+  const [clockOffset, setClockOffset] = useState(0);
+  const syncClock = useCallback((serverTime?: string) => {
+    if (serverTime) setClockOffset(Date.parse(serverTime) - Date.now());
+  }, []);
 
   useEffect(() => {
     setPending(readPending(gameId));
@@ -78,6 +84,7 @@ export function useRound<S>(gameId: string, opts: { deferBalance?: boolean } = {
         const res = await api<RoundResponse<S>>(req.path, { method: 'POST', body: req.body, idempotencyKey: req.key, retries: 3 });
         writePending(gameId, null);
         setPending(null);
+        syncClock(res.serverTime);
         setRound(res.round);
         if (opts.deferBalance && res.round.status === 'SETTLED') setPendingBalance(res.balance);
         else setBalance(res.balance);
@@ -94,7 +101,7 @@ export function useRound<S>(gameId: string, opts: { deferBalance?: boolean } = {
         setBusy(false);
       }
     },
-    [gameId, opts.deferBalance, refresh, setBalance],
+    [gameId, opts.deferBalance, refresh, setBalance, syncClock],
   );
 
   const start = useCallback(
@@ -124,11 +131,27 @@ export function useRound<S>(gameId: string, opts: { deferBalance?: boolean } = {
   }, [pendingBalance, setBalance]);
 
   const loadActive = useCallback(async () => {
-    const res = await api<{ rounds: RoundView<S>[] }>('/api/rounds/active').catch(() => null);
+    const res = await api<{ rounds: RoundView<S>[]; serverTime?: string }>('/api/rounds/active').catch(() => null);
+    syncClock(res?.serverTime);
     const mine = res?.rounds.find((r) => r.gameId === gameId) ?? null;
     if (mine) setRound(mine);
     return mine;
-  }, [gameId]);
+  }, [gameId, syncClock]);
 
-  return { round, setRound, busy, error, setError, start, act, pending, retryPending, discardPending, commitBalance, loadActive };
+  /** Re-reads a round (the server settles time-based outcomes lazily on read). */
+  const reload = useCallback(
+    async (roundId: string) => {
+      const res = await api<{ round: RoundView<S>; serverTime?: string }>(`/api/rounds/${roundId}`).catch(() => null);
+      if (!res) return null;
+      syncClock(res.serverTime);
+      setRound(res.round);
+      if (res.round.status !== 'OPEN') void refresh();
+      return res.round;
+    },
+    [refresh, syncClock],
+  );
+
+  const serverNow = useCallback(() => Date.now() + clockOffset, [clockOffset]);
+
+  return { round, setRound, busy, error, setError, start, act, pending, retryPending, discardPending, commitBalance, loadActive, reload, serverNow };
 }
