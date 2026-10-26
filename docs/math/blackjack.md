@@ -111,4 +111,23 @@ rules), and the UI prints the figure with “≈” and the CI.
 See `src/engine/games/blackjack/estimates.ts` for the authoritative generated
 values (copied here at generation time):
 
-<!-- BJ-TABLE -->
+| Rules | House edge (est.) | 95% CI | Variance / unit | Hands |
+|---|---|---|---|---|
+| `6-S17-3:2-DAS` | 0.419% | 0.379–0.459% | 1.332 | 32,000,000 |
+| `6-S17-3:2-NDAS` | 0.544% | 0.466–0.623% | 1.287 | 8,000,000 |
+| `6-S17-6:5-DAS` | 1.759% | 1.680–1.838% | 1.294 | 8,000,000 |
+| `6-S17-6:5-NDAS` | 1.925% | 1.847–2.002% | 1.250 | 8,000,000 |
+| `6-H17-3:2-DAS` | 0.572% | 0.492–0.653% | 1.347 | 8,000,000 |
+| `6-H17-3:2-NDAS` | 0.770% | 0.691–0.849% | 1.300 | 8,000,000 |
+| `6-H17-6:5-DAS` | 1.915% | 1.836–1.994% | 1.309 | 8,000,000 |
+| `6-H17-6:5-NDAS` | 2.223% | 2.145–2.301% | 1.263 | 8,000,000 |
+| `8-S17-3:2-DAS` | 0.427% | 0.347–0.507% | 1.333 | 8,000,000 |
+| `8-S17-3:2-NDAS` | 0.666% | 0.588–0.745% | 1.287 | 8,000,000 |
+| `8-S17-6:5-DAS` | 1.786% | 1.707–1.865% | 1.296 | 8,000,000 |
+| `8-S17-6:5-NDAS` | 1.900% | 1.823–1.978% | 1.251 | 8,000,000 |
+| `8-H17-3:2-DAS` | 0.622% | 0.542–0.703% | 1.347 | 8,000,000 |
+| `8-H17-3:2-NDAS` | 0.822% | 0.743–0.901% | 1.301 | 8,000,000 |
+| `8-H17-6:5-DAS` | 1.986% | 1.907–2.065% | 1.311 | 8,000,000 |
+| `8-H17-6:5-NDAS` | 2.143% | 2.065–2.221% | 1.264 | 8,000,000 |
+
+Non-default rule sets used 8M hands (CI ±0.08 pp), so differences smaller than about 0.1 pp between them (e.g. 6 vs 8 decks) are not resolved by this table; rerun with more hands before relying on them. The default rule set used 32M hands (±0.04 pp).

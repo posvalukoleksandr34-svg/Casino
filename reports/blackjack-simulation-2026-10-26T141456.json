@@ -1,0 +1,23 @@
+{
+  "generatedAt": "2026-10-26T14:14:56.283Z",
+  "method": "basic strategy, fresh shoe per hand, no insurance",
+  "results": [
+    {
+      "rules": "6-H17-6:5-DAS",
+      "hands": 8000000,
+      "houseEdge": 0.019149699999999884,
+      "ci95": [
+        0.018356745231476488,
+        0.01994265476852328
+      ],
+      "standardError": 0.0004045687594507118,
+      "variancePerUnit": 1.3094070489879033,
+      "winRate": 0.432911625,
+      "pushRate": 0.086996875,
+      "lossRate": 0.4800915,
+      "blackjackRate": 0.04534775,
+      "doublesPerHand": 0.10837775,
+      "splitsPerHand": 0.02793025
+    }
+  ]
+}
