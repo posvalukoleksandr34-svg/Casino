@@ -299,7 +299,15 @@ describe('reconciliation catches tampering (rolled back)', () => {
     try {
       await client.query('BEGIN');
       expect((await runChecksWith(client)).filter((c) => c.mismatches > 0)).toEqual([]);
-      await client.query('UPDATE sports_tickets SET payout = potential_return, status = $2 WHERE id = $1', [t!.id, 'WON']);
+      // Flip the settled outcome (the demo result is random, so the ticket may have won or lost).
+      const tampered = await client.query(
+        `UPDATE sports_tickets
+            SET status = (CASE WHEN status = 'WON' THEN 'LOST' ELSE 'WON' END)::sports_ticket_status,
+                payout = CASE WHEN status = 'WON' THEN 0 ELSE potential_return END
+          WHERE id = $1 AND status IN ('WON', 'LOST')`,
+        [t!.id],
+      );
+      expect(tampered.rowCount).toBe(1);
       const flagged = (await runChecksWith(client)).filter((c) => c.mismatches > 0).map((c) => c.name);
       expect(flagged).toEqual(expect.arrayContaining(['sports_ticket_ledger', 'sports_settlements_consistent']));
       await client.query('ROLLBACK');

@@ -116,6 +116,13 @@ New games, lobby, profile and achievements, and the sports simulator (migrations
 | `npm audit` | 0 vulnerabilities |
 | `npm run ops:restore-check` (on the development database, which holds sports tickets and settlements) | pass: counts identical incl. `sports_tickets`, `sports_result_log`, `sports_settlements`; 24 triggers identical; reconciliation OK (22 checks, 0 mismatches); copy dropped |
 
+**CI defect found and fixed:** CI run 22 failed one integration test, "a payout edited
+behind the ledger … is flagged". The test bet on the home side and then set the ticket to
+`WON` with its full return. When the random demo result was a home win, that update changed
+nothing, so no check could fire. Locally the old test failed 3 of 6 runs. The tamper now
+always flips the settled outcome and asserts that a row changed; it then passed 8 of 8 runs.
+The reconciliation checks themselves were not at fault.
+
 **Not run in this pass:** the negative control of the restore drill (unchanged script logic
 apart from the table list), a clean `npm ci`, Docker Compose (no daemon here), the
 extended 2M-round simulations locally (the new games' scenarios run in `extended.yml`), and
