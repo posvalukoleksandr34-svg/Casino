@@ -18,7 +18,7 @@ interface Job {
   run: () => Promise<unknown>;
 }
 
-async function withAdvisoryLock(lockId: number, fn: () => Promise<unknown>): Promise<boolean> {
+export async function withAdvisoryLock(lockId: number, fn: () => Promise<unknown>): Promise<boolean> {
   const client = await getPool().connect();
   try {
     const { rows } = await client.query<{ ok: boolean }>('SELECT pg_try_advisory_lock($1) AS ok', [lockId]);

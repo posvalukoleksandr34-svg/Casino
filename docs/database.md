@@ -53,6 +53,17 @@ erDiagram
 | `audit_logs` | Security and business events | append-only, no TRUNCATE |
 | `admin_actions` | State-changing staff actions with reason, before/after | reason ≥ 5 chars; append-only |
 | `reconciliation_runs`, `alerts`, `error_events` | Operations | alert `dedupe_key` unique |
+| `user_favorites` (0005) | A player's favourite games | PK `(user_id, game_id)`; the runtime role may delete its rows |
+| `user_achievements` (0005) | Cosmetic badges with the fact that earned them | PK `(user_id, achievement_id)`; append-only; no balance or value |
+| `users.display_name`, `users.avatar` (0005) | Optional profile fields | shape CHECKs (2–32 trimmed printable characters; preset id) |
+| `sports_competitions`, `sports_teams` (0006) | Catalogue rows, demo or provider-namespaced ids | `is_demo` flag |
+| `sports_events` (0006) | Fixtures, status, score, result version; demo seed hash/encrypted seed/model | unique `(source, external_id)`; demo ⇒ commitment and model present |
+| `sports_external_refs` (0006) | Odds-provider event id → event | PK `(provider, external_id)` |
+| `sports_markets`, `sports_selections` (0006) | 1X2 market (status, odds source, `odds_updated_at`, version) and prices | odds 1.01–1000 or NULL (not offered) |
+| `sports_odds_history` (0006) | Every price change | append-only |
+| `sports_tickets` (0006) | One prediction: odds snapshot, stake, potential return, status, credited payout, settlement source/version, idempotency key | unique `(user_id, idempotency_key, leg)`; rejected ⇔ reason; open/rejected ⇔ no payout; payout ≤ potential return |
+| `sports_result_log`, `sports_settlements` (0006) | Result versions; per-ticket settlement per version (outcome, entitlement, credited, ledger tx) | append-only; unique `(event_id, version)` / `(ticket_id, version)` |
+| `user_sports_favorites`, `sports_provider_status` (0006) | Followed teams/competitions; provider health | — |
 
 ## Ledger design (double entry)
 
@@ -84,7 +95,7 @@ transaction sums to zero, so the sum of all balances is always zero (closed syst
 | 8 | Reject invalid / unauthorised transactions | CHECKs, FKs | Zod, RBAC, risk engine | API/e2e tests |
 | 9 | History never silently modified | append-only triggers | no update paths | tamper test |
 | 10 | Corrections via compensating entries | — | `ADJUSTMENT` only | admin tests |
-| 11 | Settled rounds reconcile | — | — | 17 reconciliation checks (below) |
+| 11 | Settled rounds reconcile | — | — | 22 reconciliation checks (below) |
 | 12 | No partial settlement | deferred balance check, one transaction | — | fault-injection tests |
 
 ## Reconciliation checks

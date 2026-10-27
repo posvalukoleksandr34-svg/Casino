@@ -42,6 +42,16 @@ Production refuses to start with missing, short or default values (`src/server/e
 | `SCRYPT_LOG_N` | ≥ 17 (password hashing cost; lower values are for tests only) |
 | `METRICS_TOKEN` | optional (see §7); when set, ≥ 24 characters of `[A-Za-z0-9._~+/=-]` |
 | `MAIL_TRANSPORT` | `smtp` (with `SMTP_URL`, `MAIL_FROM`) or `disabled`; `console` is refused |
+| `SPORTS_MODE` | `demo` (default), `off`, or `live`; `live` is refused unless both `FOOTBALL_DATA_API_KEY` and `THE_ODDS_API_KEY` are set |
+
+**Sports providers** (only with `SPORTS_MODE=live`; see [sports.md](sports.md)):
+`FOOTBALL_DATA_API_KEY` and `FOOTBALL_DATA_COMPETITIONS` (comma-separated competition codes),
+`THE_ODDS_API_KEY`, `THE_ODDS_API_SPORTS` (sport keys), `THE_ODDS_API_REGIONS`,
+`THE_ODDS_API_BOOKMAKER` (optional), `SPORTS_SYNC_MINUTES` (provider refresh interval) and
+`SPORTS_ODDS_MAX_AGE_MINUTES` (older prices refuse predictions). The keys stay server-side:
+they are read only by `src/server/sports/providers`, never logged (errors carry the URL path
+only) and never sent to the browser. The providers' terms, quotas and costs are the
+operator's responsibility; the adapters have **not** been run against the real services.
 
 Generate values locally, never in a shared terminal log:
 
@@ -157,10 +167,11 @@ docker compose restart app            # safe: sessions, rounds and jobs live in 
   order: wallet → round → seed pair → house bankroll → system accounts. Serialisation
   failures and deadlocks (40001, 40P01) are retried up to 3 times with jittered backoff.
   The whole transaction is re-run, so a retry cannot apply half an effect.
-* Background jobs (expiry every 5 s, reconciliation, anomaly detection, cleanup) run in the
-  app process under PostgreSQL advisory locks, so several app instances never run the same
-  job concurrently. Set `BACKGROUND_JOBS=false` to run them elsewhere
-  (`npm run job:expire-rounds`, `npm run job:reconcile` from cron).
+* Background jobs (expiry every 5 s, reconciliation, anomaly detection, cleanup, sports
+  sync every minute) run in the app process under PostgreSQL advisory locks, so several app
+  instances never run the same job concurrently. Set `BACKGROUND_JOBS=false` to run them
+  elsewhere (`npm run job:expire-rounds`, `npm run job:reconcile`, `npm run job:sports-sync`
+  from cron).
 
 ## 6. Backups and tested restoration
 
@@ -208,7 +219,7 @@ The drill:
 3. restores into it with `--exit-on-error` and runs `db:migrate`, which verifies
    migration checksums and re-applies grants and reference data;
 4. verifies that append-only row counts lie between the source's counts before and after
-   the dump, that the trigger sets are identical, and that **reconciliation (17 checks)
+   the dump, that the trigger sets are identical, and that **reconciliation (22 checks)
    returns OK**;
 5. drops the copy. Set `KEEP_RESTORE_DB=1` to inspect it.
 
@@ -231,7 +242,7 @@ restart.
 
 * **Drill:** `npm run ops:restore-check` on the integration database (301 rounds, 1,828
   ledger entries) passed. Every append-only count matched, 16 user triggers were identical,
-  reconciliation was OK (17 checks, 0 mismatches), and the copy was dropped.
+  reconciliation was OK (22 checks, 0 mismatches), and the copy was dropped.
 * **Negative control:** a copy of the source with one ledger entry altered failed the drill
   ("reconciliation of the restored copy failed", exit 1).
 * **Backup:** `npm run ops:backup` with a throwaway GPG key produced mode-0600 files. The
@@ -284,6 +295,8 @@ Alert on **(external)**:
 | `http_requests_total{status=~"401|403"}` spikes on `/api/admin/*` | authorisation probing | audit log, access logs |
 | 5xx rate; `casino_errors_total` | unexpected errors (stored in `error_events` without request payloads) | `/admin/health` error list; logs by `requestId` |
 | connection saturation | pool exhausted or database overloaded | pool stats in `/admin/health` |
+| `sports_provider_status` last error, or `/admin/sports` showing a provider not refreshed within twice `SPORTS_SYNC_MINUTES` (live mode) | fixtures, results or odds are not being refreshed; stale markets refuse predictions automatically | provider status page and quota in `/admin/sports`; app logs for `job:sports-sync` |
+| reconciliation `sports_results_settled` mismatch | a prediction is more than 10 minutes behind its event's result | check the `sports-sync` job; settlement catches up idempotently |
 | Extended verification workflow failed | a Monte Carlo or risk-model check failed | the run's job summary and `simulation-reports` artifact (seed, commit); reproduce with the same seed |
 
 Logs are JSON lines on stdout/stderr; ship them to your log platform. Every request log
@@ -294,7 +307,7 @@ matching password/token/secret/cookie/seed are redacted.
 ## 8. Reconciliation alerts and incident response
 
 Reconciliation (every `RECONCILE_INTERVAL_MINUTES`, or `npm run job:reconcile`, or
-*Run now* in `/admin/reconciliation`) re-derives 17 invariants from raw rows in one
+*Run now* in `/admin/reconciliation`) re-derives 22 invariants from raw rows in one
 snapshot (`docs/database.md` lists them). A mismatch stores the failing checks with
 samples and raises a CRITICAL alert.
 
@@ -322,12 +335,16 @@ samples and raises a CRITICAL alert.
 4. **Reconcile** ledger, wallet, wager and round records using the failing check's
    samples. Run the drill on the fresh backup in an isolated environment to experiment
    safely (`npm run ops:restore-check`, `KEEP_RESTORE_DB=1`). [database.md](database.md)
-   lists what each of the 17 checks compares. `settled_rounds_have_one_payout`,
+   lists what each of the 22 checks compares. `settled_rounds_have_one_payout`,
    `voided_rounds_refunded_exactly` and `round_transactions_linked` pinpoint which
    round's postings disagree; `account_balances_match_entries` and
    `escrow_matches_open_rounds` cover wallets and escrow.
    `expiry_queue_not_overdue` alone means the expiry job is not keeping up: check the
    scheduler, advisory lock and `error_events`. It is not a money error.
+   The `sports_*` checks cover predictions: escrow (`sports_escrow_matches_open_tickets`),
+   per-ticket postings (`sports_ticket_ledger`), settlements versus payouts
+   (`sports_settlements_consistent`) and the `sports-sync` job keeping up
+   (`sports_results_settled`).
 5. **Recover interrupted settlements without double payment.**
    * A round is never half-settled: it is OPEN (stake held in `WAGERS_IN_PLAY`) or settled
      exactly once (unique `round:<id>:settle` key and unique `payouts.round_id`).
@@ -337,6 +354,11 @@ samples and raises a CRITICAL alert.
      refund.
    * Re-running any of these is safe: a second settlement or void of the same round is
      refused by the database.
+   * Sports predictions: the `sports-sync` job brings every ticket up to its event's latest
+     result version; a second settlement of the same (ticket, version) and a second escrow
+     release are refused by unique keys. To stop new predictions only, suspend the event in
+     `/admin/sports` or set `SPORTS_MODE=off` and restart (open tickets stay visible; settle
+     or void them before turning the section off for good).
    * Correct balances only with compensating entries: an `ADJUSTMENT` via
      `/admin/users/<id>`, which needs a reason, is audited and is visible to the player,
      using the original transaction id as `reversesTransactionId`. Settled rounds are

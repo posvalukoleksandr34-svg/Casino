@@ -38,10 +38,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-APPEND_ONLY="ledger_transactions ledger_entries bets payouts audit_logs"
-counts() { # url → "table=n …" for the append-only tables (and rounds, which only grow)
+APPEND_ONLY="ledger_transactions ledger_entries bets payouts audit_logs sports_result_log sports_settlements"
+counts() { # url → "table=n …" for the append-only tables (and rounds and predictions, which only grow)
   local sql="" t
-  for t in $APPEND_ONLY game_rounds; do sql+="SELECT '$t', count(*) FROM $t UNION ALL "; done
+  for t in $APPEND_ONLY game_rounds sports_tickets; do sql+="SELECT '$t', count(*) FROM $t UNION ALL "; done
   psql -X -At -F= -v ON_ERROR_STOP=1 --dbname="$1" -c "${sql% UNION ALL }"
 }
 triggers() {
@@ -68,7 +68,7 @@ DATABASE_URL="$TARGET_URL" npx tsx scripts/migrate.ts
 echo "== 4. verify"
 restored="$(counts "$TARGET_URL")"
 fail=0
-for t in $APPEND_ONLY game_rounds; do
+for t in $APPEND_ONLY game_rounds sports_tickets; do
   b="$(grep "^$t=" <<<"$before" | cut -d= -f2)"; a="$(grep "^$t=" <<<"$after" | cut -d= -f2)"; r="$(grep "^$t=" <<<"$restored" | cut -d= -f2)"
   if (( r < b || r > a )); then echo "MISMATCH $t: restored $r, source $b..$a"; fail=1; else echo "ok $t: $r rows"; fi
 done

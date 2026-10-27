@@ -44,6 +44,7 @@ test.describe('interrupted requests, access control and honest states', () => {
       ['POST', `/api/admin/users/${randomUUID()}/role`],
       ['POST', '/api/admin/house/fund'],
       ['PATCH', '/api/admin/platform'],
+      ['POST', `/api/admin/sports/events/${randomUUID()}`],
     ];
     const call = (method: string, url: string) =>
       page.request.fetch(url, { method, data: method === 'GET' ? undefined : {}, headers: { Origin: baseURL!, 'Idempotency-Key': randomUUID() } });

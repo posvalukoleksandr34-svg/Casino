@@ -78,6 +78,19 @@ Tests: `tests/unit/rng.test.ts` (stream equals Node's HMAC, rejection sampling),
 `tests/unit/verify.test.ts` (verifier ≡ engine), `tests/integration/fairness.test.ts`
 (commit → play → rotate → verify every round), `tests/statistical/*` (uniformity).
 
+**Per-game inputs.** Limbo uses the Crash mapping; Keno takes the first 10 of a
+Fisher–Yates shuffle of 1–40; Plinko takes one `int(2)` per row; Hi-Lo draws every card as
+`int(52)` in order (the whole sequence is drawn when the round starts and only turned-over
+cards are sent to the browser). The verifier on `/fairness` recomputes all of them.
+
+**Server-side check.** `POST /api/fairness/verify-round` (button "Check this round on the
+server" on a round page) recomputes one of the player's own settled rounds with the same
+verifier from the revealed seed and compares it with the stored result; it reports a
+mismatch rather than hiding it.
+
+**Demo sports results** use a per-event seed committed (SHA-256 published) before
+predictions open and revealed with the result; see [sports.md](sports.md#demo-model-and-fairness).
+
 ## What this proves — and what it does not
 
 It proves that each outcome was fixed by a seed committed before the wager and was not

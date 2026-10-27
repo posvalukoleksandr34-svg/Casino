@@ -1,9 +1,10 @@
 # Aurovane
 
 A casino website played with **non-redeemable virtual chips**: European Roulette, Dice,
-Mines, Crash and Blackjack. Outcomes are decided on the server from provably fair seeds,
-every chip movement is recorded in an append-only double-entry ledger, and every game
-publishes its rules, payouts and house edge.
+Mines, Crash, Blackjack, Limbo, Keno, Plinko and Hi-Lo, plus a football **prediction
+simulator** (pre-match 1X2, demo fixtures by default). Outcomes are decided on the server
+from provably fair seeds, every chip movement is recorded in an append-only double-entry
+ledger, and every game publishes its rules, payouts and house edge.
 
 > **Virtual currency only.** Chips have no monetary value. They cannot be bought, sold,
 > transferred, withdrawn or exchanged for anything. There are no deposits, payments,
@@ -15,11 +16,24 @@ publishes its rules, payouts and house edge.
 ## What is in the box
 
 * **Games** with documented, tested mathematics ([docs/math](docs/math/)): Roulette
-  (97.30 % RTP, exact), Dice, Mines and Crash (99 %, exact), Blackjack (house edge
-  ≈ 0.42 % under basic strategy — a **simulation estimate** with a 95 % CI, labelled as such).
+  (97.30 % RTP, exact), Dice, Mines, Crash, Limbo and Plinko (99 %, exact), Keno (98.98–99 %
+  by number of picks, exact), Hi-Lo (≤ 99 % for every strategy, exact), Blackjack (house
+  edge ≈ 0.42 % under basic strategy — a **simulation estimate** with a 95 % CI, labelled
+  as such).
+* **Lobby**: search, categories, favourites, recently played, "new" badges and a details
+  view for each game; every card opens a playable game.
+* **Profile**: preset avatars, display name, balance, rounds, wins/losses/pushes, staked,
+  returned and net per game (turnover is never shown as profit), recent activity,
+  favourites, cosmetic achievements (awarded only by the server, never for losses or
+  volume), and a server-side re-check of any settled round.
+* **Sports prediction simulator** (virtual chips): fixtures, 1X2 prices, a bet slip with
+  potential return and confirmation, open/settled predictions, stats and followed teams.
+  **Demo mode** (default, no credentials) uses fictional teams, a published 6 %-margin house
+  model and results drawn from committed seeds; optional **live mode** reads
+  football-data.org and The Odds API with server-side keys — [docs/sports.md](docs/sports.md).
 * **Provably fair RNG** (HMAC-SHA256, committed seeds, in-browser verifier) — [docs/fairness.md](docs/fairness.md).
 * **Ledger and wallet**: integer minor units, append-only tables, database-enforced
-  invariants, 17-check independent reconciliation — [docs/database.md](docs/database.md).
+  invariants, 22-check independent reconciliation (casino and sports) — [docs/database.md](docs/database.md).
 * **Risk engine**: decides from the worst case *before* randomness is used; never sees the
   player's identity or history — [docs/risk.md](docs/risk.md).
 * **Responsible play**: loss/wager/session limits, cool-off, self-exclusion, delayed
@@ -33,7 +47,8 @@ publishes its rules, payouts and house edge.
 Architecture: [docs/architecture.md](docs/architecture.md) · API: [docs/api.md](docs/api.md) · CI: [docs/ci.md](docs/ci.md) ·
 Threat model: [docs/threat-model.md](docs/threat-model.md) · Testing: [docs/testing.md](docs/testing.md) ·
 Dependencies: [docs/dependency-security.md](docs/dependency-security.md) ·
-Product spec: [docs/product-spec.md](docs/product-spec.md).
+Product spec: [docs/product-spec.md](docs/product-spec.md) · Sports: [docs/sports.md](docs/sports.md) ·
+Market research: [docs/research.md](docs/research.md).
 
 ## Technology
 
@@ -77,7 +92,17 @@ openssl rand -hex 32                                                         # I
 Set `MAIL_TRANSPORT=console` locally if you want password-reset links printed in the
 server console.
 
-**Schema, reference data and demo accounts:**
+**Sports.** `SPORTS_MODE=demo` (the default) needs nothing else: the background job
+creates fictional fixtures every 20 minutes for the next 24 hours and settles them ten
+minutes after kick-off. `SPORTS_MODE=off` hides the section. `SPORTS_MODE=live` needs
+`FOOTBALL_DATA_API_KEY` and `THE_ODDS_API_KEY` (plus the competition, sport and region
+lists in `.env.example`); without both keys the section shows that it is unavailable and
+production refuses to start. Keys are read only on the server. Live mode has not been run
+against the real providers ([docs/sports.md](docs/sports.md#live-providers)).
+
+**Schema, reference data and demo accounts** (migrations are forward-only SQL files in
+`migrations/`, applied in order and checksummed; `0005` adds favourites, profile fields and
+achievements, `0006` the sports tables):
 
 ```bash
 npm run db:migrate          # migrations + reference data (games, limits, house bankroll)
@@ -125,7 +150,7 @@ npm start                   # loads ./.env if present, then serves on PORT (defa
 With `NODE_ENV=production` (set by the build) the server **refuses to start** on an
 unsafe configuration: missing or weak `SEED_ENCRYPTION_KEY`/`IP_HASH_SECRET`, a
 `METRICS_TOKEN` that is set but short or not header-safe, implicit or non-HTTPS public
-`APP_URL`, default database passwords, `SCRYPT_LOG_N` below 17, or `MAIL_TRANSPORT=console`. `METRICS_TOKEN` itself
+`APP_URL`, default database passwords, `SCRYPT_LOG_N` below 17, or `MAIL_TRANSPORT=console`, or `SPORTS_MODE=live` without both provider keys. `METRICS_TOKEN` itself
 is optional: left empty, `/api/metrics` is disabled and refuses every request (there is no
 unauthenticated mode). Readiness additionally fails if the database role is a
 superuser or the schema owner.
@@ -181,6 +206,12 @@ each defect.
 * An external penetration test.
 
 ### Known limitations / optional enhancements
+
+* Sports: singles only (no accumulators), one market (1X2), football only; live mode is
+  untested against the real providers and trusts one results source (corrections are
+  credit-only, so a provider error cannot take chips back from players).
+* Not implemented yet (planned): Baccarat, slots, further sports markets.
+* Achievements are cosmetic badges only; there are no rewards of any kind.
 
 * No e-mail address verification and no TOTP 2FA (recommended for staff accounts).
 * CSP still allows `'unsafe-inline'` scripts (Next.js bootstrap); a nonce-based CSP is a

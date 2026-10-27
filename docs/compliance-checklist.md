@@ -18,6 +18,9 @@ organisation · **Open** = not implemented.
 | No real-money deposits, crypto, purchases or prizes of value | Done | Same; nothing in the codebase accepts payment details |
 | Clear disclosure on landing page, registration and footer | Done | `src/app/page.tsx`, registration form, `site-footer` |
 | Review whether "social casino" rules apply (e.g. if chips are ever sold) | Operator | Selling chips would change the legal analysis entirely |
+| Sports predictions use virtual chips only; no real-money wagering, no cash prizes | Done | `docs/sports.md`; same ledger, no external accounts |
+| Achievements are cosmetic only (no value, no rewards, nothing for losses or volume) | Done | `src/server/achievements/achievements.ts`, `tests/integration/profile-achievements.test.ts` |
+| Review whether a sports *prediction* product (even free-to-play) is regulated or needs provider licences for data display | Operator | depends on jurisdiction and on the providers' terms |
 
 ## Players
 
@@ -39,6 +42,8 @@ organisation · **Open** = not implemented.
 | Provably fair RNG, browser verifier, server seed revealed only after use | Done | `docs/fairness.md`, `/fairness` |
 | No per-player odds, no outcome-dependent acceptance | Done | `src/server/risk/evaluate.ts` takes no player identity; risk decided before randomness |
 | No deceptive UI (fake wins, near-miss effects, fake activity) | Done | design rules in `docs/product-spec.md`; no such components exist |
+| Sports odds never taken from the client; demo fixtures and odds labelled as demo; no fabricated live data | Done | `src/server/sports/tickets.ts`, `tests/integration/sports.test.ts`, `docs/sports.md` |
+| Sports data provider terms (display rights, attribution, quotas) | Operator | live mode is off by default |
 | Independent RNG / game-math certification by an accredited lab | Operator | required before any regulated use |
 
 ## Responsible play
@@ -47,7 +52,7 @@ See `docs/responsible-play.md` for exactly what each control enforces.
 
 | Item | Status |
 |---|---|
-| Loss, wager and session limits; cool-off; self-exclusion; delayed loosening | Done (server-enforced, tested) |
+| Loss, wager and session limits; cool-off; self-exclusion; delayed loosening | Done (server-enforced, tested; casino and sports together) |
 | Reality checks and session time display | Done |
 | Help resources and signposting appropriate to the jurisdiction | Operator |
 

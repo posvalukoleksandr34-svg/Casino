@@ -30,6 +30,7 @@
     "sim:risk": "tsx scripts/simulate-risk.ts",
     "job:reconcile": "tsx scripts/reconcile.ts",
     "job:expire-rounds": "tsx scripts/expire-rounds.ts",
+    "job:sports-sync": "tsx scripts/sports-sync.ts",
     "ops:backup": "bash scripts/ops/backup.sh",
     "ops:restore-check": "bash scripts/ops/restore-check.sh",
     "start:dev-server": "next start -p 3000"

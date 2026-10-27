@@ -13,7 +13,7 @@ test('mobile layout: no horizontal page scroll and dice playable', async ({ page
 
 test('mobile layout: key pages fit the screen without horizontal scrolling', async ({ page }) => {
   await registerPlayer(page);
-  for (const path of ['/', '/lobby', '/games/blackjack', '/games/mines', '/games/crash', '/games/roulette', '/wallet', '/history', '/responsible-play', '/fairness', '/rules/blackjack', '/settings']) {
+  for (const path of ['/', '/lobby', '/games/blackjack', '/games/mines', '/games/crash', '/games/roulette', '/games/limbo', '/games/keno', '/games/plinko', '/games/hilo', '/profile', '/sports', '/sports/tickets', '/wallet', '/history', '/responsible-play', '/fairness', '/rules/blackjack', '/settings']) {
     await page.goto(path);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, path).toBeLessThanOrEqual(1);

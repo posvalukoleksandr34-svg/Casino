@@ -27,18 +27,28 @@ what the tests exercise.
   `step-invariants` (property tests for interactive games), `verify`, `content`
   (published figures derived exactly), `admin-guards`, `contrast`, `risk-model`,
   `action-timing` (cash-out ordering rule), `independent-rtp` (engine theory vs published
-  rules), `safe-next` (post-login redirect).
+  rules), `safe-next` (post-login redirect), `limbo`, `keno`, `plinko`, `hilo` (tables,
+  exact RTP, strategy bound, hidden card sequence), `catalog` (categories, "new" window,
+  limits), `sports` (price model and its RTP bound, committed demo results, settlement
+  and correction maths, provider payload mapping, rate-limit and error sanitising).
 * **Integration** (`tests/integration`): `ledger-invariants`, `rounds`, `interactive`,
   `blackjack`, `expiry`, `reconciliation-faults`, `schema-and-reconciliation`,
   `privileges`, `auth`, `password-recovery`, `responsible`, `responsible-hardening`,
   `fairness`, `admin`, `api`, `audit-regressions`, `crash-ordering` (13 required
   cash-out/settlement scenarios incl. both lock orders), `financial-integrity`
   (account-state races, void vs payout, bonus claims, cross-user access),
-  `auth-hardening` (route-level rate limits, sessions, reset-link invalidation).
-* **Statistical** (`tests/statistical`): `roulette-dice`, `mines`, `crash`, `blackjack`.
+  `auth-hardening` (route-level rate limits, sessions, reset-link invalidation),
+  `new-games` (Limbo, Keno, Plinko, Hi-Lo through the round service and HTTP, incl.
+  verifier replay), `lobby` (favourites, recently played), `profile-achievements`
+  (profile validation and audit, idempotent server-awarded badges, server-side round
+  verification), `sports` (placement, idempotency, stale/changed odds, limits, settlement,
+  void refunded once, credit-only corrections, reconciliation and a ledger tamper test).
+* **Statistical** (`tests/statistical`): `roulette-dice`, `mines`, `crash`, `blackjack`,
+  `new-games`.
 * **E2E** (`tests/e2e`): `player-journey`, `blackjack`, `security`, `resilience-access`
   (interrupted request recovery, admin API authorisation, honest states),
-  `fairness-admin`, `accessibility`, `mobile`.
+  `fairness-admin`, `accessibility`, `mobile`, `expansion` (lobby search and favourites,
+  one round of each new game, profile save, a demo sports prediction).
 
 ## Regression tests for defects fixed in the production-readiness pass
 
@@ -88,6 +98,29 @@ Hardening without a prior failure:
   their provenance.
 * The backup and restore scripts are tested by the restore drill.
 * New `casino_rate_limited_total` and `casino_login_failures_total` metrics.
+
+## Results of the expansion run (2026-10-27, this repository's environment)
+
+New games, lobby, profile and achievements, and the sports simulator (migrations 0005 and
+0006). Node 22, PostgreSQL 16, on the working tree committed after `18a7afb`.
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` | pass / 0 problems |
+| `npm run test:unit` | **246 passed** (27 files) |
+| `npm run test:integration` | **196 passed** (23 files, 41 s) |
+| `npm run test:stats` | **24 passed** (5 files, 82 s) |
+| `npm run build` / `npm run check:bundle` | pass / 120 files, no server secrets |
+| `npm run test:e2e` | **24 passed** (chromium desktop + Pixel 7 mobile, 1.3 min) |
+| `npm run check:docs` / `check:secrets` / `check:workflows` | 39 links OK / 397 tracked files, no findings / 2 workflows OK |
+| `npm audit` | 0 vulnerabilities |
+| `npm run ops:restore-check` (on the development database, which holds sports tickets and settlements) | pass: counts identical incl. `sports_tickets`, `sports_result_log`, `sports_settlements`; 24 triggers identical; reconciliation OK (22 checks, 0 mismatches); copy dropped |
+
+**Not run in this pass:** the negative control of the restore drill (unchanged script logic
+apart from the table list), a clean `npm ci`, Docker Compose (no daemon here), the
+extended 2M-round simulations locally (the new games' scenarios run in `extended.yml`), and
+the sports live mode against the real providers (no network access to them here; see
+[sports.md](sports.md#live-providers)).
 
 ## Results of the final run (2026-10-26, this repository's environment)
 

@@ -70,6 +70,10 @@ Amounts are integers in minor units (100 = 1 chip).
 Bet payloads per game are defined by the engine schemas, e.g.
 * roulette `{"bets":[{"type":"straight","number":17,"amount":500},{"type":"red","amount":1000},{"type":"dozen","index":2,"amount":300}]}`
 * dice `{"amount":1000,"target":4950,"direction":"under"}`
+* limbo `{"amount":1000,"targetE2":250}` (target 2.50×)
+* keno `{"amount":1000,"picks":[3,7,19,22,31]}` (1–10 distinct numbers from 1–40)
+* plinko `{"amount":1000,"rows":16,"risk":"high"}` (rows 8/12/16; risk low/medium/high)
+* hilo `{"amount":1000}`; actions `{"type":"guess","direction":"higher"|"lower"}`, `{"type":"skip"}`, `{"type":"cashout"}`
 
 A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settledAt, actionCount, state, fairness: {serverSeedHash, clientSeed, nonce, serverSeed|null}}`.
 `state` is the game's client-safe view (secrets hidden while the round is open).
@@ -82,7 +86,26 @@ A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settled
 | GET/PUT | `/api/responsible` | limits `{dailyLossLimit, weeklyLossLimit, dailyWagerLimit, sessionLimitMinutes, realityCheckMinutes}` (null = none) |
 | POST | `/api/responsible/cool-off` | `{hours: 24 \| 72 \| 168 \| 720}` |
 | POST | `/api/responsible/self-exclusion` | `{months: 6 \| 12 \| 60 \| null, confirm: "EXCLUDE"}` |
-| GET | `/api/stats` | realised results per game |
+| GET | `/api/stats` | realised results per game (wins, losses, pushes, staked, returned, net) |
+| POST | `/api/fairness/verify-round` | `{roundId}` → the server recomputes one of your settled rounds from its revealed seed and compares it with the stored result |
+
+## Lobby, profile, achievements
+| Method | Path | Body / notes |
+|---|---|---|
+| GET | `/api/favorites` | `{favorites: gameId[], recent: [{gameId, lastPlayedAt}]}` |
+| PUT / DELETE | `/api/favorites/:gameId` | idempotent; unknown or disabled games → 404 |
+| PATCH | `/api/account/profile` | `{displayName?: string \| null, avatar?: presetId \| null}`; audited |
+| GET | `/api/achievements` | re-derives cosmetic badges from recorded facts and lists them |
+
+## Sports predictions (virtual chips; see docs/sports.md)
+| Method | Path | Body / notes |
+|---|---|---|
+| GET | `/api/sports/events` | public; `{mode, upcoming[], recent[], favorites}` for the configured mode |
+| GET | `/api/sports/events/:eventId` | public; market, provenance, demo fairness data, result history |
+| POST | `/api/sports/tickets` | `{selections: [{selectionId, stake, oddsE2}], acceptOddsChanges?}` + `Idempotency-Key`; 201 `{slipId, tickets[], balance}`; refused picks come back as `REJECTED` with `rejectReason` and move no chips |
+| GET | `/api/sports/tickets?status=open\|settled\|all&before&limit` | own tickets |
+| GET | `/api/sports/stats` | own ticket counts, staked, returned, net |
+| PUT / DELETE | `/api/sports/favorites/:kind/:refId` | `kind` = `team` or `competition` |
 
 ## Admin (permission in brackets; all writes require `reason` and are audited)
 | Method | Path | |
@@ -105,5 +128,6 @@ A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settled
 | GET/POST | `/api/admin/alerts`, `/api/admin/alerts/:id/ack` | [system:read] / [system:operate] |
 | GET/POST | `/api/admin/reconciliation` | [system:read] / [system:operate] run now |
 | GET | `/api/admin/health` | [system:read] |
+| POST | `/api/admin/sports/events/:id` | [sports:manage] `{action: "suspend"\|"resume"\|"void", reason}` or `{action: "result", home, away, reason}` (after kick-off; corrections only credit players) |
 
 Role → permission matrix: `src/server/auth/rbac.ts`.

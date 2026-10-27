@@ -31,12 +31,12 @@ async function unnamed(page: Page) {
 }
 
 test('interactive elements have accessible names and form controls have labels', async ({ page }) => {
-  for (const path of ['/', '/login', '/register', '/forgot-password', '/rules']) {
+  for (const path of ['/', '/login', '/register', '/forgot-password', '/rules', '/sports', '/sports/how-it-works']) {
     await page.goto(path);
     expect(await unnamed(page), path).toEqual([]);
   }
   await registerPlayer(page);
-  for (const path of ['/lobby', '/games/dice', '/games/roulette', '/games/mines', '/games/crash', '/games/blackjack', '/wallet', '/responsible-play', '/settings', '/fairness']) {
+  for (const path of ['/lobby', '/games/dice', '/games/roulette', '/games/mines', '/games/crash', '/games/blackjack', '/games/limbo', '/games/keno', '/games/plinko', '/games/hilo', '/wallet', '/responsible-play', '/settings', '/fairness', '/profile', '/sports', '/sports/tickets']) {
     await page.goto(path);
     expect(await unnamed(page), path).toEqual([]);
   }

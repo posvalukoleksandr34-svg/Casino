@@ -21,6 +21,9 @@ async function main() {
   await bootstrap();
   const res = await register({ email: ADMIN.email, username: 'e2e_admin', password: ADMIN.password, ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'e2e' });
   await getDb().update(users).set({ role: 'ADMIN' }).where(eq(users.id, res.user.id));
+  // Background jobs are off for the server under test; create the demo sports fixtures once.
+  const { syncSports } = await import('../../src/server/sports/sync');
+  await syncSports();
   await closeDb();
 }
 

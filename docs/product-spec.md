@@ -62,9 +62,12 @@ Phase 5 adds Crash, Mines, Blackjack and Slots with the same guarantees.
 | F6 | Games can be suspended/disabled; a platform kill switch blocks new rounds |
 | F7 | Open rounds survive disconnects and can be resumed (`/api/rounds/active`) |
 | F8 | Analytics compare realised with theoretical results using stored per-round expectation and variance |
-| F9 | Reconciliation verifies 17 ledger/round/operational invariants on a schedule and on demand |
+| F9 | Reconciliation verifies 22 ledger/round/operational invariants on a schedule and on demand |
 | F10 | All state-changing staff actions require a reason and are audited with before/after |
 | F11 | Players can export their data and delete their account (financial records retained, pseudonymised) |
+| F12 | Lobby search, categories, favourites, recently played and game details; no card without a playable game |
+| F13 | Profile with preset avatar, display name, per-game staked/returned/net and W/L/push counts; achievements are cosmetic, awarded only by the server from recorded facts, never for losses or volume |
+| F14 | Sports predictions (virtual chips): server-priced 1X2 singles with odds snapshot, idempotent placement and settlement, void refunded at most once, credit-only corrections, escrow reconciled; demo mode needs no credentials and is labelled as demo; live data only from configured APIs (no scraping) |
 
 ## 5. Non-functional requirements
 
@@ -101,6 +104,10 @@ Phase 5 adds Crash, Mines, Blackjack and Slots with the same guarantees.
 Authentication, wallet, ledger, European roulette, dice, game and transaction history,
 statistics, fairness verification, responsible play, admin dashboard, analytics,
 reconciliation, automated tests, Docker. (Delivered — see README "Status".)
+
+Expansion (delivered): Mines, Crash, Blackjack, Limbo, Keno, Plinko, Hi-Lo; lobby;
+profile and achievements; sports prediction simulator ([sports.md](sports.md)).
+Planned: Baccarat, slots, more sports markets.
 
 ## 8. Assumptions and constraints
 

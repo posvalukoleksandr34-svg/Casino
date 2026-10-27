@@ -9,8 +9,9 @@ All checks run **on the server** in `assertCanWager` (`src/server/responsible/li
 inside the wager transaction, **after the player's wallet row is locked** — so parallel
 requests, stale browser state and alternative endpoints cannot get around them. Every path
 that moves chips out of a player's wallet into play goes through it: starting a round
-(`startRound`) and every additional stake inside a round (blackjack double / split /
-insurance, via `applyStep`). There is no other wagering endpoint.
+(`startRound`), every additional stake inside a round (blackjack double / split /
+insurance, via `applyStep`) and placing sports predictions (`placeSlip`, whose stakes are
+checked together). There is no other wagering endpoint.
 
 | Control | What it enforces | Applies |
 |---|---|---|
@@ -24,8 +25,9 @@ insurance, via `applyStep`). There is no other wagering endpoint.
 | **Tightening vs loosening** | Adding or lowering a limit applies immediately. Raising or removing one is queued and applies only after 24 hours; each loosening request waits its own full 24 hours (a later request does not inherit an earlier one's time). | — |
 
 **Window definitions** (`playTotals`): net loss = stakes placed in the window − payouts
-received in the window. Stakes of rounds that were voided (and therefore refunded in full)
-are excluded. The stake of a round that is still open counts as lost until it settles,
+received in the window, over casino rounds and sports predictions together. Stakes of rounds
+and predictions that were voided (and therefore refunded in full) are excluded, as are
+rejected predictions (no chips moved). An open prediction counts as lost until it settles. The stake of a round that is still open counts as lost until it settles,
 which errs on the side of the limit.
 
 **Finishing open rounds.** Limits, breaks and the platform kill switch block *new*
