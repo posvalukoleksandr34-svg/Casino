@@ -112,7 +112,12 @@ export function Verifier() {
   const [clientSeed, setClientSeed] = useState(params.get('clientSeed') ?? '');
   const [nonce, setNonce] = useState(params.get('nonce') ?? '0');
   const [commitment, setCommitment] = useState('');
-  const [extra, setExtra] = useState<Record<string, string>>(() => ({ mines: params.get('mines') ?? '3', decks: params.get('decks') ?? '6', cards: params.get('cards') ?? '24' }));
+  const [extra, setExtra] = useState<Record<string, string>>(() => ({
+    mines: params.get('mines') ?? '3',
+    decks: params.get('decks') ?? '6',
+    cards: params.get('cards') ?? '24',
+    rows: params.get('rows') ?? '16',
+  }));
 
   useEffect(() => {
     if (params.get('game')) document.getElementById('verify')?.scrollIntoView();
@@ -121,7 +126,8 @@ export function Verifier() {
   const result = useMemo(() => {
     if (!serverSeed || !clientSeed) return null;
     try {
-      return { ok: true as const, value: verifyOutcome(game, { serverSeed, clientSeed, nonce: Number(nonce) }, { mines: Number(extra.mines), decks: Number(extra.decks), cards: Number(extra.cards) }) };
+      const p = { mines: Number(extra.mines), decks: Number(extra.decks), cards: Number(extra.cards), rows: Number(extra.rows) };
+      return { ok: true as const, value: verifyOutcome(game, { serverSeed, clientSeed, nonce: Number(nonce) }, p) };
     } catch (err) {
       return { ok: false as const, error: (err as Error).message };
     }
@@ -161,7 +167,18 @@ export function Verifier() {
               )}
             </Field>
           )}
-          {game === 'blackjack' && (
+          {game === 'plinko' && (
+            <Field label="Rows">
+              {(p) => (
+                <Select {...p} value={extra.rows} onChange={(e) => setExtra((x) => ({ ...x, rows: e.target.value }))}>
+                  <option value="8">8</option>
+                  <option value="12">12</option>
+                  <option value="16">16</option>
+                </Select>
+              )}
+            </Field>
+          )}
+          {(game === 'blackjack' || game === 'hilo') && (
             <Field label="Cards to show" hint="At least the number of cards dealt in the round (filled in from the round link).">
               {(p) => <Input {...p} inputMode="numeric" value={extra.cards} onChange={(e) => setExtra((x) => ({ ...x, cards: e.target.value.replace(/\D/g, '') }))} />}
             </Field>

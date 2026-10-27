@@ -6,20 +6,24 @@
  * Expected values come from scripts/sim/independent-rtp.ts (the published
  * rules, implemented without engine code); the engine's own theory function
  * must agree with them too. Acceptance: |z| ≤ 4 per scenario (two-sided
- * α ≈ 6.3·10⁻⁵); over the 17 scenarios of an extended run the family-wise
- * false-alarm probability is ≤ 17 · 6.3·10⁻⁵ ≈ 1.1·10⁻³ (Bonferroni), i.e. about
- * one spurious failure in 18 years of weekly runs. Each report also states the
+ * α ≈ 6.3·10⁻⁵); over the 31 scenarios of an extended run the family-wise
+ * false-alarm probability is ≤ 31 · 6.3·10⁻⁵ ≈ 2.0·10⁻³ (Bonferroni), i.e. about
+ * one spurious failure in 10 years of weekly runs. Each report also states the
  * smallest RTP bias the run could detect (4 standard errors).
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { crash, survivalAt, timeToReach, type CrashState } from '../../src/engine/games/crash';
 import { dice, diceRtp as engineDiceRtp } from '../../src/engine/games/dice';
+import { hilo, hiloStrategyRtp, likelierSide, rankOf, type HiloState } from '../../src/engine/games/hilo';
+import { keno, kenoRowRtp } from '../../src/engine/games/keno';
+import { limbo, limboWinProbability } from '../../src/engine/games/limbo';
 import { mines, strategyRtp, type MinesState } from '../../src/engine/games/mines';
+import { plinko, plinkoKey, plinkoRtp as enginePlinkoRtp, type PlinkoRisk, type PlinkoRows } from '../../src/engine/games/plinko';
 import { roulette } from '../../src/engine/games/roulette';
 import { RunningStats } from '../../src/engine/stats';
 import { SimulationRandom } from '../../src/engine/rng/sim-random';
 import type { RandomSource } from '../../src/engine/rng/provably-fair';
-import { crashAutoRtp, diceRtp, minesRtp, rouletteRtp } from './independent-rtp';
+import { crashAutoRtp, diceRtp, hiloRtp, kenoRtp, limboRtp, minesRtp, plinkoRtp, rouletteRtp } from './independent-rtp';
 import { deriveSeed, provenance, resolveSeed, stepSummary } from './provenance';
 
 interface Scenario {
@@ -86,6 +90,59 @@ function scenarios(game: string): Scenario[] {
           if (step.status !== 'OPEN') return step.payout;
           const end = crash.expire(c, step.state as CrashState, { elapsedMs: timeToReach(c.maxMultiplierE2, c.growthPerMs) + 1 });
           return end ? end.payout : 0;
+        },
+      }));
+    }
+    case 'limbo': {
+      const c = limbo.defaultConfig;
+      return [101, 200, 1000, 10000].map((t) => ({
+        name: `target ${(t / 100).toFixed(2)}×`,
+        rtp: limboRtp(t, c.houseEdgeBp),
+        engineRtp: limboWinProbability(t, c.houseEdgeBp) * (t / 100),
+        play: (r: RandomSource) => limbo.start(c, { amount: STAKE, targetE2: t }, r).payout,
+      }));
+    }
+    case 'keno': {
+      const c = keno.defaultConfig;
+      return [1, 4, 7, 10].map((n) => {
+        const row = c.table[String(n)]!;
+        // Which numbers are picked is irrelevant (the draw is uniform): pick 1…n.
+        const picks = Array.from({ length: n }, (_, i) => i + 1);
+        return {
+          name: `${n} pick${n === 1 ? '' : 's'}`,
+          rtp: kenoRtp(n, row),
+          engineRtp: kenoRowRtp(n, row),
+          play: (r: RandomSource) => keno.start(c, { amount: STAKE, picks }, r).payout,
+        };
+      });
+    }
+    case 'plinko': {
+      const c = plinko.defaultConfig;
+      const cases: [PlinkoRows, PlinkoRisk][] = [[8, 'low'], [12, 'medium'], [16, 'high']];
+      return cases.map(([rows, risk]) => {
+        const table = c.tables[plinkoKey(rows, risk)]!;
+        return {
+          name: `${rows} rows, ${risk} risk`,
+          rtp: plinkoRtp(rows, table),
+          engineRtp: enginePlinkoRtp(rows, table),
+          play: (r: RandomSource) => plinko.start(c, { amount: STAKE, rows, risk }, r).payout,
+        };
+      });
+    }
+    case 'hilo': {
+      const c = hilo.defaultConfig;
+      return [1, 3, 6].map((k) => ({
+        name: `likelier side, cash out after ${k}`,
+        rtp: hiloRtp(k, c.houseEdgeBp, c.maxMultiplierE4),
+        engineRtp: hiloStrategyRtp(c, k),
+        play: (r: RandomSource) => {
+          let step = hilo.start(c, { amount: STAKE }, r);
+          while (step.status === 'OPEN' && (step.state as HiloState).factors.length < k) {
+            const s = step.state as HiloState;
+            step = hilo.act(c, s, { type: 'guess', direction: likelierSide(rankOf(s.sequence[s.position]!)) }, { elapsedMs: 0 });
+          }
+          if (step.status === 'OPEN') step = hilo.act(c, step.state as HiloState, { type: 'cashout' }, { elapsedMs: 0 });
+          return step.payout;
         },
       }));
     }

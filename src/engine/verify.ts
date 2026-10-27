@@ -7,7 +7,10 @@
 import { label } from './games/blackjack/cards';
 import { drawCrashPoint } from './games/crash';
 import { DICE_OUTCOMES } from './games/dice';
+import { cardLabel, hilo, HILO_CARDS, sequenceLength } from './games/hilo';
+import { drawKeno } from './games/keno';
 import { MINES_TILES } from './games/mines';
+import { dropPath, PLINKO_ROWS } from './games/plinko';
 import { pocketColor } from './games/roulette/rules';
 import { createRandomStream, hashServerSeed, isValidClientSeed, shuffle, type FairnessInput } from './rng/provably-fair';
 
@@ -47,6 +50,37 @@ const verifiers: Record<string, Verifier> = {
       Array.from({ length: 5 }, (_, c) => (positions.includes(r * 5 + c) ? '✹' : '·')).join(' '),
     ).join('\n');
     return { outcome: { mines: positions, grid }, description: `Mines at ${positions.join(', ')}` };
+  },
+  limbo: (input, params) => {
+    const edge = params.houseEdgeBp === undefined ? 100 : Number(params.houseEdgeBp);
+    const resultE2 = drawCrashPoint(createRandomStream(input), edge);
+    return { outcome: { result: (resultE2 / 100).toFixed(2), resultE2 }, description: `Result ${(resultE2 / 100).toFixed(2)}×` };
+  },
+  keno: (input) => {
+    const drawn = drawKeno(createRandomStream(input));
+    return { outcome: { drawn }, description: `Drawn: ${drawn.join(', ')}` };
+  },
+  plinko: (input, params) => {
+    const rows = Number(params.rows);
+    if (!(PLINKO_ROWS as readonly number[]).includes(rows)) throw new Error(`Rows must be one of ${PLINKO_ROWS.join(', ')}`);
+    const path = dropPath(rows, createRandomStream(input));
+    const slot = path.reduce((a, b) => a + b, 0);
+    return {
+      outcome: { path: path.map((b) => (b ? 'R' : 'L')).join(''), slot },
+      description: `Path ${path.map((b) => (b ? 'R' : 'L')).join('')} → slot ${slot} of 0–${rows}`,
+    };
+  },
+  hilo: (input, params) => {
+    // Every card the round could use, in order (the defaults' bound unless a count is given).
+    const max = sequenceLength(hilo.defaultConfig);
+    const requested = params.cards === undefined ? max : Number(params.cards);
+    if (!Number.isInteger(requested) || requested < 1 || requested > max) throw new Error(`Cards to show must be between 1 and ${max}`);
+    const rng = createRandomStream(input);
+    const cards = Array.from({ length: requested }, () => cardLabel(rng.nextInt(HILO_CARDS)));
+    return {
+      outcome: { cards, order: 'first card, then one card per guess or skip, in the order you made them' },
+      description: `Cards begin ${cards.slice(0, 8).join(' ')} …`,
+    };
   },
   blackjack: (input, params) => {
     const decks = params.decks === undefined ? 6 : Number(params.decks);

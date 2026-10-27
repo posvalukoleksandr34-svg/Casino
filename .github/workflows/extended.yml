@@ -60,7 +60,7 @@ jobs:
           { echo "## Extended verification"; echo "commit \`$GITHUB_SHA\` · seed \`$SEED\` · $ROUNDS rounds per scenario"; } >> "$GITHUB_STEP_SUMMARY"
       - name: Exact games — Monte Carlo vs published rules
         run: |
-          for g in roulette dice mines crash; do
+          for g in roulette dice mines crash limbo keno plinko hilo; do
             npm run sim:game -- "$g" --rounds "$ROUNDS" --seed "$SEED"
           done
       - name: Blackjack — independent run vs published estimate (default rules)

@@ -7,6 +7,7 @@ import { Chips, PageHeader } from '@/components/ui/misc';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { cn } from '@/lib/cn';
 import { requirePermission } from '@/server/auth/current';
+import { catalogEntries } from '@/server/games/catalog';
 import { listRounds } from '@/server/games/round-service';
 
 export const metadata = { title: 'Rounds' };
@@ -24,7 +25,7 @@ export default async function AdminRoundsPage({ searchParams }: { searchParams: 
     <>
       <PageHeader eyebrow="Admin" title="Game rounds" subtitle="Settled rounds are immutable. Open rounds can be voided (full refund) during incidents." />
       <div className="mb-4 flex flex-wrap gap-2">
-        {[undefined, 'roulette', 'dice', 'crash', 'mines', 'blackjack', 'slots'].map((g) => (
+        {[undefined, ...catalogEntries().map((e) => e.id)].map((g) => (
           <Link key={g ?? 'all'} href={link({ game: g })} className={cn('rounded-lg border px-3 py-1.5 text-sm', sp.game === g ? 'border-gold-500 text-gold-200' : 'border-ink-700 text-ink-300')}>
             {g ? GAME_NAMES[g] : 'All games'}
           </Link>

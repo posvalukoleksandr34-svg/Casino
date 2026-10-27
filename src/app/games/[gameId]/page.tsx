@@ -5,6 +5,10 @@ import { RouletteGame } from '@/components/games/roulette-game';
 import { MinesGame } from '@/components/games/mines-game';
 import { CrashGame } from '@/components/games/crash-game';
 import { BlackjackGame } from '@/components/games/blackjack-game';
+import { HiloGame } from '@/components/games/hilo-game';
+import { KenoGame } from '@/components/games/keno-game';
+import { LimboGame } from '@/components/games/limbo-game';
+import { PlinkoGame } from '@/components/games/plinko-game';
 import { GameRules } from '@/components/games/game-rules';
 import { Badge } from '@/components/ui/badge';
 import { Callout, Chips, PageHeader } from '@/components/ui/misc';
@@ -13,6 +17,10 @@ import type { RouletteConfig } from '@/engine/games/roulette';
 import type { MinesConfig } from '@/engine/games/mines';
 import type { CrashConfig } from '@/engine/games/crash';
 import type { BlackjackConfig } from '@/engine/games/blackjack';
+import type { HiloConfig } from '@/engine/games/hilo';
+import type { KenoConfig } from '@/engine/games/keno';
+import type { LimboConfig } from '@/engine/games/limbo';
+import type { PlinkoConfig } from '@/engine/games/plinko';
 import { getGameSummary } from '@/server/games/lobby';
 import { currentSession } from '@/server/auth/current';
 import { rtpText } from '@/lib/format';
@@ -45,6 +53,18 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
       break;
     case 'blackjack':
       screen = <BlackjackGame {...props} config={game.config as BlackjackConfig} />;
+      break;
+    case 'limbo':
+      screen = <LimboGame {...props} config={game.config as LimboConfig} />;
+      break;
+    case 'keno':
+      screen = <KenoGame {...props} config={game.config as KenoConfig} />;
+      break;
+    case 'plinko':
+      screen = <PlinkoGame {...props} config={game.config as PlinkoConfig} />;
+      break;
+    case 'hilo':
+      screen = <HiloGame {...props} config={game.config as HiloConfig} />;
       break;
     default:
       notFound();

@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { crash, survivalAt } from '@/engine/games/crash';
 import { dice, diceRtp as engineDiceRtp } from '@/engine/games/dice';
 import { mines, strategyRtp } from '@/engine/games/mines';
+import { hilo, hiloStrategyRtp } from '@/engine/games/hilo';
+import { keno, kenoRowRtp } from '@/engine/games/keno';
+import { limboWinProbability } from '@/engine/games/limbo';
+import { plinko, PLINKO_RISKS, PLINKO_ROWS, plinkoKey, plinkoRtp as enginePlinkoRtp } from '@/engine/games/plinko';
 import { roulette } from '@/engine/games/roulette';
-import { crashAutoRtp, diceRtp, minesRtp, rouletteRtp } from '../../scripts/sim/independent-rtp';
+import { crashAutoRtp, diceRtp, hiloRtp, kenoRtp, limboRtp, minesRtp, plinkoRtp, rouletteRtp } from '../../scripts/sim/independent-rtp';
 
 /**
  * The engine's theory functions must equal the published rules implemented
@@ -37,6 +41,34 @@ describe('published-rule RTPs agree with the engine', () => {
       const exact = crashAutoRtp(x, h);
       expect(Math.abs(exact - survivalAt(x, h) * (x / 100))).toBeLessThan((x / 100) * 2 ** -50);
       expect(exact).toBeLessThanOrEqual(1 - h / 10_000 + 1e-15);
+    }
+  });
+
+  it('limbo: every target 1.01×–100.00× and a sample above', () => {
+    for (let t = 101; t <= 10_000; t += 1) expect(limboWinProbability(t, 100) * (t / 100)).toBeCloseTo(limboRtp(t, 100), 13);
+    for (const t of [50_000, 1_000_000]) expect(limboWinProbability(t, 100) * (t / 100)).toBeCloseTo(limboRtp(t, 100), 13);
+  });
+
+  it('keno: every pick count', () => {
+    for (let n = 1; n <= 10; n += 1) {
+      const row = keno.defaultConfig.table[String(n)]!;
+      expect(kenoRowRtp(n, row)).toBeCloseTo(kenoRtp(n, row), 14);
+    }
+  });
+
+  it('plinko: every rows × risk table', () => {
+    for (const r of PLINKO_ROWS) {
+      for (const k of PLINKO_RISKS) {
+        const t = plinko.defaultConfig.tables[plinkoKey(r, k)]!;
+        expect(enginePlinkoRtp(r, t)).toBeCloseTo(plinkoRtp(r, t), 14);
+      }
+    }
+  });
+
+  it('hi-lo: likelier-side strategies cashing out after 1–6 guesses, default and low caps', () => {
+    for (const cap of [hilo.defaultConfig.maxMultiplierE4, 30_000]) {
+      const c = { ...hilo.defaultConfig, maxMultiplierE4: cap };
+      for (let k = 1; k <= 6; k += 1) expect(hiloStrategyRtp(c, k)).toBeCloseTo(hiloRtp(k, c.houseEdgeBp, cap), 14);
     }
   });
 

@@ -14,4 +14,8 @@ export const GAME_NAMES: Record<string, string> = {
   mines: 'Mines',
   blackjack: 'Blackjack',
   slots: 'Slots',
+  limbo: 'Limbo',
+  keno: 'Keno',
+  plinko: 'Plinko',
+  hilo: 'Hi-Lo',
 };

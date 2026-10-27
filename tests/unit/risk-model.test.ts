@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { crash, survivalAt } from '@/engine/games/crash';
 import { diceRtp } from '@/engine/games/dice';
 import { mines, strategyRtp } from '@/engine/games/mines';
+import { hilo, hiloStrategyRtp } from '@/engine/games/hilo';
+import { keno, kenoRowRtp } from '@/engine/games/keno';
+import { limboWinProbability } from '@/engine/games/limbo';
+import { plinko, plinkoKey, plinkoRtp } from '@/engine/games/plinko';
 import { SimulationRandom } from '@/engine/rng/sim-random';
 import { chiSquareCritical, chiSquareStatistic } from '@/engine/stats';
 import { Alias, defaultScenarios, quantile, simulate, type RunConfig } from '../../scripts/sim/risk-model';
@@ -21,6 +25,13 @@ describe('risk model inputs come from the engine', () => {
     expect(rtp('mines:3 mines, 3 picks')).toBeCloseTo(strategyRtp(mines.defaultConfig, 3, 3), 12);
     expect(rtp('crash:auto 2×')).toBeCloseTo(survivalAt(200, crash.defaultConfig.houseEdgeBp) * 2, 12);
     for (const s of scenarios) expect(s.outcomes.reduce((a, o) => a + o.p, 0)).toBeCloseTo(1, 9);
+  });
+
+  it('new-game scenarios reproduce the engine RTPs', () => {
+    expect(rtp('limbo:target 2×')).toBeCloseTo(limboWinProbability(200, 100) * 2, 12);
+    expect(rtp('keno:5 picks')).toBeCloseTo(kenoRowRtp(5, keno.defaultConfig.table['5']!), 12);
+    expect(rtp('plinko:16 rows high')).toBeCloseTo(plinkoRtp(16, plinko.defaultConfig.tables[plinkoKey(16, 'high')]!), 12);
+    for (const k of [1, 2, 4]) expect(rtp(`hilo:likelier side, cash out after ${k}`)).toBeCloseTo(hiloStrategyRtp(hilo.defaultConfig, k), 12);
   });
 
   it('the blackjack histogram is labelled empirical with its sample size', () => {

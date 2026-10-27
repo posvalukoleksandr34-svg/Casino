@@ -58,6 +58,38 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
     // A hand can grow to 4 split hands, each doubled: worst case 16× the initial stake (+ insurance 1.5×).
     limits: { minStake: 100, maxStake: 5_000 * CHIP, maxPayoutPerRound: 100_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
   },
+  limbo: {
+    id: 'limbo',
+    sortOrder: 60,
+    initialStatus: 'ACTIVE',
+    tagline: 'Set a target multiplier; win it if the result reaches it. 1% house edge at every target.',
+    // Targets up to 10,000×: the per-round cap limits the stake on the highest targets.
+    limits: { minStake: 10, maxStake: 1_000 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  keno: {
+    id: 'keno',
+    sortOrder: 70,
+    initialStatus: 'ACTIVE',
+    tagline: 'Pick 1–10 numbers from 40; ten are drawn. Published payout table for every pick count.',
+    // Top prize 3,509.94× (10 of 10): 250 chips × 3,509.94 stays under the per-round cap.
+    limits: { minStake: 10, maxStake: 250 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  plinko: {
+    id: 'plinko',
+    sortOrder: 80,
+    initialStatus: 'ACTIVE',
+    tagline: 'Drop a ball through 8, 12 or 16 rows. Risk changes the spread, not the return.',
+    // Top multiplier 187.64× (16 rows, high risk).
+    limits: { minStake: 10, maxStake: 1_000 * CHIP, maxPayoutPerRound: 200_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  hilo: {
+    id: 'hilo',
+    sortOrder: 90,
+    initialStatus: 'ACTIVE',
+    tagline: 'Higher or lower? Exact odds on every card, cash out after any correct guess.',
+    // Multiplier cap 1,000× cashes out automatically.
+    limits: { minStake: 10, maxStake: 1_000 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
 };
 
 export function catalogEntries(): CatalogEntry[] {

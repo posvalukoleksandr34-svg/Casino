@@ -28,12 +28,17 @@ import { blackjack, allowedActions, applyAction, dealFromShoe, type BlackjackSta
 import { basicStrategy } from '../../src/engine/games/blackjack/strategy';
 import { crash, survivalAt } from '../../src/engine/games/crash';
 import { dice, multiplierE4For } from '../../src/engine/games/dice';
+import { hilo, hiloMultiplierE4, likelierSide, successNumerator } from '../../src/engine/games/hilo';
+import { keno, kenoHitProbability } from '../../src/engine/games/keno';
+import { limbo, limboWinProbability } from '../../src/engine/games/limbo';
 import { mines, multiplierE4 as minesMultiplierE4, survivalProbability } from '../../src/engine/games/mines';
+import { plinko, plinkoKey, plinkoSlotProbability, type PlinkoRisk } from '../../src/engine/games/plinko';
 import { PAYOUT_ODDS, WINNING_POCKETS, type RouletteBetType } from '../../src/engine/games/roulette/rules';
 import type { StepResult } from '../../src/engine/games/types';
 import { SimulationRandom } from '../../src/engine/rng/sim-random';
 
-export type GameId = 'roulette' | 'dice' | 'mines' | 'crash' | 'blackjack';
+export const RISK_GAMES = ['roulette', 'dice', 'mines', 'crash', 'blackjack', 'limbo', 'keno', 'plinko', 'hilo'] as const;
+export type GameId = (typeof RISK_GAMES)[number];
 
 /** One possible result per unit of initial stake: total stake multiple and gross payout multiple (×10⁴). */
 export interface Outcome {
@@ -98,6 +103,34 @@ function binary(p: number, multE4: number): Outcome[] {
 
 function exact(game: GameId, name: string, weight: number, outcomes: Outcome[]): Scenario {
   return { game, name, weight, outcomes, maxPayoutE4: Math.max(...outcomes.map((o) => o.payoutE4)), source: 'exact' };
+}
+
+/** Merges outcomes with the same payout multiple. */
+function grouped(pairs: { p: number; payoutE4: number }[]): Outcome[] {
+  const m = new Map<number, number>();
+  for (const o of pairs) if (o.p > 0) m.set(o.payoutE4, (m.get(o.payoutE4) ?? 0) + o.p);
+  return [...m.entries()].map(([payoutE4, p]) => ({ p, stakeX: 1, payoutE4 }));
+}
+
+/** Hi-Lo "guess the likelier side, cash out after k correct guesses (or at the cap)": exact path distribution. */
+function hiloOutcomes(k: number): Outcome[] {
+  const c = hilo.defaultConfig;
+  const out: { p: number; payoutE4: number }[] = [];
+  const walk = (rank: number, factors: number[], prob: number) => {
+    const m = factors.length ? Math.min(hiloMultiplierE4(c.houseEdgeBp, factors), c.maxMultiplierE4) : 0;
+    if (factors.length === k || (factors.length && m >= c.maxMultiplierE4)) {
+      out.push({ p: prob, payoutE4: m });
+      return;
+    }
+    const side = likelierSide(rank);
+    for (let next = 1; next <= 13; next += 1) {
+      const win = side === 'higher' ? next > rank : next < rank;
+      if (win) walk(next, [...factors, successNumerator(rank, side)], prob / 13);
+      else out.push({ p: prob / 13, payoutE4: 0 });
+    }
+  };
+  for (let first = 1; first <= 13; first += 1) walk(first, [], 1 / 13);
+  return grouped(out);
 }
 
 /** Empirical blackjack histogram under basic strategy (no insurance), via the production engine. */
@@ -166,6 +199,32 @@ export function defaultScenarios(blackjackHands = 200_000, seed: [number, number
       [10_000, 0.1],
     ].map(([x, weight]) => exact('crash', `auto ${x! / 100}×`, weight!, binary(survivalAt(x!, c.houseEdgeBp), x! * 100))),
     blackjackScenario(blackjackHands, seed),
+    ...[
+      [150, 0.3],
+      [200, 0.4],
+      [1000, 0.2],
+      [10_000, 0.1],
+    ].map(([t, weight]) => exact('limbo', `target ${t! / 100}×`, weight!, binary(limboWinProbability(t!, limbo.defaultConfig.houseEdgeBp), t! * 100))),
+    ...[
+      [2, 0.3],
+      [5, 0.3],
+      [8, 0.2],
+      [10, 0.2],
+    ].map(([n, weight]) =>
+      exact('keno', `${n} picks`, weight!, grouped(keno.defaultConfig.table[String(n)]!.map((m, k) => ({ p: kenoHitProbability(n!, k), payoutE4: m * 100 })))),
+    ),
+    ...([
+      [8, 'low', 0.3],
+      [12, 'medium', 0.4],
+      [16, 'high', 0.3],
+    ] as [number, PlinkoRisk, number][]).map(([rows, risk, weight]) =>
+      exact('plinko', `${rows} rows ${risk}`, weight, grouped(plinko.defaultConfig.tables[plinkoKey(rows, risk)]!.map((m, k) => ({ p: plinkoSlotProbability(rows, k), payoutE4: m * 100 })))),
+    ),
+    ...[
+      [1, 0.4],
+      [2, 0.3],
+      [4, 0.3],
+    ].map(([k, weight]) => exact('hilo', `likelier side, cash out after ${k}`, weight!, hiloOutcomes(k!))),
   ];
 }
 
@@ -176,8 +235,9 @@ export interface RunConfig {
   /** Median stake in minor units and log-normal sigma. */
   stakeMedian: number;
   stakeSigma: number;
-  mix: Record<GameId, number>;
-  limits: Record<GameId, Limits>;
+  /** Volume share per game; games left out get none. */
+  mix: Partial<Record<GameId, number>>;
+  limits: Partial<Record<GameId, Limits>>;
   seed: [number, number, number, number];
 }
 
@@ -209,8 +269,9 @@ export function expectedEdgePerUnit(scenarios: Scenario[]): Map<string, number> 
 
 export function simulate(cfg: RunConfig, scenarios: Scenario[]): { paths: PathResult[]; theoreticalPnl: number } {
   const rng = new SimulationRandom(cfg.seed);
-  const games = (Object.keys(cfg.mix) as GameId[]).filter((g) => cfg.mix[g] > 0);
-  const gameAlias = new Alias(games.map((g) => cfg.mix[g]));
+  const games = (Object.keys(cfg.mix) as GameId[]).filter((g) => (cfg.mix[g] ?? 0) > 0);
+  for (const g of games) if (!cfg.limits[g]) throw new Error(`no limits configured for ${g}`);
+  const gameAlias = new Alias(games.map((g) => cfg.mix[g]!));
   const byGame = games.map((g) => scenarios.filter((s) => s.game === g));
   const scenarioAlias = byGame.map((list) => new Alias(list.map((s) => s.weight)));
   const outcomeAlias = byGame.map((list) => list.map((s) => new Alias(s.outcomes.map((o) => o.p))));
@@ -218,7 +279,7 @@ export function simulate(cfg: RunConfig, scenarios: Scenario[]): { paths: PathRe
   const edge = byGame.map((list) => list.map((s) => s.outcomes.reduce((a, o) => a + o.p * (o.stakeX - o.payoutE4 / 10_000), 0)));
   // Largest stake each scenario accepts under its game's limits (the risk engine rejects larger ones).
   const stakeCap = byGame.map((list, gi) => {
-    const l = cfg.limits[games[gi]!];
+    const l = cfg.limits[games[gi]!]!;
     return list.map((s) => Math.max(l.minStake, Math.min(l.maxStake, Math.floor((l.maxPayoutPerRound * 10_000) / s.maxPayoutE4))));
   });
 
@@ -238,7 +299,7 @@ export function simulate(cfg: RunConfig, scenarios: Scenario[]): { paths: PathRe
         const gi = gameAlias.sample(rng);
         const si = scenarioAlias[gi]!.sample(rng);
         const sc = byGame[gi]![si]!;
-        const l = cfg.limits[games[gi]!];
+        const l = cfg.limits[games[gi]!]!;
         const stake = Math.min(stakeCap[gi]![si]!, Math.max(l.minStake, Math.round(lognormal(rng, cfg.stakeMedian, cfg.stakeSigma))));
         const o = sc.outcomes[outcomeAlias[gi]![si]!.sample(rng)]!;
         const staked = stake * o.stakeX;

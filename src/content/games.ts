@@ -8,6 +8,10 @@ import { mines as minesModule, multiplierE4 as minesMultiplier, survivalProbabil
 import { survivalAt as crashSurvival } from '@/engine/games/crash';
 import { blackjack as blackjackModule, insuranceEdge } from '@/engine/games/blackjack';
 import { ESTIMATES, estimateKey } from '@/engine/games/blackjack/estimates';
+import { limbo as limboModule, limboWinProbability } from '@/engine/games/limbo';
+import { keno as kenoModule, kenoHitProbability, kenoRowRtp, KENO_MAX_PICKS } from '@/engine/games/keno';
+import { plinko as plinkoModule, plinkoKey, plinkoRtp, PLINKO_RISKS, PLINKO_ROWS } from '@/engine/games/plinko';
+import { hilo as hiloModule, hiloMultiplierE4, sequenceLength, successNumerator } from '@/engine/games/hilo';
 
 const minesConfig = minesModule.defaultConfig;
 const bjConfig = blackjackModule.defaultConfig;
@@ -45,6 +49,26 @@ export function rouletteSd(type: RouletteBetType): number {
 export function crashVariance(x: number, houseEdgeBp = 100): number {
   const p = crashSurvival(Math.round(x * 100), houseEdgeBp);
   return x * x * p * (1 - p);
+}
+
+const limboConfig = limboModule.defaultConfig;
+const kenoConfig = kenoModule.defaultConfig;
+const plinkoConfig = plinkoModule.defaultConfig;
+const hiloConfig = hiloModule.defaultConfig;
+const mult2 = (e2: number) => `${(e2 / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`;
+const mult4 = (e4: number) => `${(e4 / 10_000).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}×`;
+const HILO_RANK_NAMES = ['Ace', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'Jack', 'Queen', 'King'];
+
+/** Keno row as "hits → multiplier" for every paying hit count. */
+export function kenoPays(picks: number): string {
+  const row = kenoConfig.table[String(picks)]!;
+  return row.flatMap((m, k) => (m > 0 ? [`${k} → ${mult2(m)}`] : [])).join(', ');
+}
+
+/** P(any paying result) for a Keno pick count. */
+export function kenoWinChance(picks: number): number {
+  const row = kenoConfig.table[String(picks)]!;
+  return row.reduce((acc, m, k) => acc + (m > 0 ? kenoHitProbability(picks, k) : 0), 0);
 }
 
 const fmtP = (num: number, den: number) => `${num}/${den} (${((num / den) * 100).toFixed(3)}%)`;
@@ -201,6 +225,119 @@ export const GAME_CONTENT: Record<string, GameContent> = {
       'Any deviation from basic strategy raises the house edge. Card counting does not help: every hand starts from a new shuffled shoe.',
       `Insurance has a house edge of about ${pct(insuranceEdge(bjConfig.decks))} with a fresh ${bjConfig.decks}-deck shoe: given the dealer's ace, the hole card is a ten with probability ${16 * bjConfig.decks}/${52 * bjConfig.decks - 1} before accounting for your own two cards. Basic strategy never takes it.`,
       bjEstimate ? `Variance per unit of initial stake is about ${bjEstimate.variancePerUnit.toFixed(2)} (doubles and splits make it larger than an even-money bet).` : 'Variance per unit of initial stake is about 1.3.',
+    ],
+  },
+  limbo: {
+    id: 'limbo',
+    name: 'Limbo',
+    short: 'Choose a target multiplier; win it if the result reaches it.',
+    description:
+      'Set a target multiplier, then the server draws a result multiplier from your provably fair seed. If the result is at least your target, you win stake × target. Higher targets win less often, with the same 1% house edge at every target.',
+    rules: [
+      `Targets run from ${mult2(limboConfig.minTargetE2)} to ${mult2(limboConfig.maxTargetE2)} in steps of 0.01×.`,
+      'The result uses the same formula as Crash: 52 random bits n give result = max(1.00, ⌊99 / (1 − n/2⁵²)⌋ / 100).',
+      'You win if the result is at least your target (equal counts as a win). A win pays stake × target, rounded down to 0.01 chip, including your stake; otherwise nothing is returned.',
+      'The result is drawn once, before anything is shown, and never depends on your target.',
+      'High targets are limited by the per-round payout cap: the stake you can use falls as the target rises.',
+    ],
+    payoutTable: {
+      columns: ['Target', 'Win probability', 'Pays', 'RTP'],
+      rows: [101, 150, 200, 500, 1000, 10_000, 100_000, 1_000_000].map((t) => [
+        mult2(t),
+        `${(limboWinProbability(t, limboConfig.houseEdgeBp) * 100).toFixed(4)}%`,
+        `${(t / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })} × stake`,
+        `${(limboWinProbability(t, limboConfig.houseEdgeBp) * (t / 100) * 100).toFixed(2)}%`,
+      ]),
+    },
+    math: [
+      'For every target T ≥ 1.01×, P(result ≥ T) = ⌊0.99 × 2⁵² / T⌋ / 2⁵², so RTP = T × P(result ≥ T) is 99% minus less than one part in 2⁵²: house edge 1% at every target.',
+      `Variance per unit staked for target T is T² p (1 − p) with p ≈ 0.99/T: ${crashVariance(2).toFixed(2)} at 2×, ${crashVariance(10).toFixed(2)} at 10×, ${crashVariance(100).toFixed(1)} at 100×. Higher targets swing far more.`,
+      'P(result = 1.00×) ≈ 1.98%: below every allowed target, so those rounds always lose.',
+    ],
+  },
+  keno: {
+    id: 'keno',
+    name: 'Keno',
+    short: 'Pick up to 10 numbers from 40; ten are drawn.',
+    description:
+      'Choose between 1 and 10 numbers from 1 to 40. The server then draws 10 different numbers. The more of your numbers are drawn, the more you win, according to the published table for the number of picks.',
+    rules: [
+      'The 10 numbers are the first 10 of a Fisher–Yates shuffle of 1–40 using your seed pair and nonce. They do not depend on the numbers you pick.',
+      `Pick 1 to ${KENO_MAX_PICKS} different numbers. Order does not matter.`,
+      'The payout is stake × the table multiplier for your number of picks and hits, rounded down to 0.01 chip, including your stake. Results without a multiplier return nothing.',
+      'Choosing numbers at random (the "Random pick" button) is just a shortcut; it uses your browser, not the game seed, and changes nothing about the odds.',
+    ],
+    payoutTable: {
+      columns: ['Picks', 'Hits → multiplier', 'Chance of any win', 'RTP'],
+      rows: Array.from({ length: KENO_MAX_PICKS }, (_, i) => i + 1).map((n) => [
+        String(n),
+        kenoPays(n),
+        `${(kenoWinChance(n) * 100).toFixed(2)}%`,
+        `${(kenoRowRtp(n, kenoConfig.table[String(n)]!) * 100).toFixed(3)}%`,
+      ]),
+    },
+    math: [
+      'With n picks, the chance of exactly k hits is C(n, k) · C(40 − n, 10 − k) / C(40, 10) (hypergeometric). RTP for n picks is the sum over k of that chance × the multiplier.',
+      `Every row returns between ${(Math.min(...Array.from({ length: KENO_MAX_PICKS }, (_, i) => kenoRowRtp(i + 1, kenoConfig.table[String(i + 1)]!))) * 100).toFixed(3)}% and 99.000% (exact rational values, computed in the test suite). The house edge is at least 1% for every pick count.`,
+      'More picks mean rarer, larger wins: 10 of 10 has a chance of 1 in 847,660,528. Which numbers you pick makes no difference.',
+    ],
+  },
+  plinko: {
+    id: 'plinko',
+    name: 'Plinko',
+    short: 'Drop a ball through rows of pegs into a multiplier slot.',
+    description:
+      'Choose 8, 12 or 16 rows and a risk level, then drop a ball. At every row it bounces left or right with equal chance; the slot it lands in sets your multiplier. Outer slots pay more and are rarer. Risk changes how spread out the results are, not the average return.',
+    rules: [
+      'The whole path is decided by the server before the ball is shown: one fair left/right bit per row from your seed pair and nonce. The animation only replays that path.',
+      'With R rows the ball lands in slot k (0–R) where k is the number of right bounces.',
+      'The payout is stake × the slot multiplier, rounded down to 0.01 chip, including your stake. Slots below 1× return part of the stake.',
+      'Tables are symmetric: slot k and slot R − k pay the same.',
+    ],
+    payoutTable: {
+      columns: ['Rows', 'Risk', 'Multipliers from edge to centre', 'RTP'],
+      rows: PLINKO_ROWS.flatMap((r) =>
+        PLINKO_RISKS.map((risk) => {
+          const t = plinkoConfig.tables[plinkoKey(r, risk)]!;
+          return [String(r), risk, t.slice(0, r / 2 + 1).map((m) => (m / 100).toFixed(2)).join(' · '), `${(plinkoRtp(r, t) * 100).toFixed(3)}%`];
+        }),
+      ),
+    },
+    math: [
+      'The landing slot follows a binomial distribution: P(k) = C(R, k) / 2^R. For 16 rows the outermost slot has a chance of 1 in 65,536 on each side.',
+      `RTP = Σ P(k) × multiplier(k). Every table returns at most 99.00% (exact rational values, checked in the test suite); house edge at least 1%.`,
+      'Higher risk moves value from the centre to the edges: same average, much wider swings. The centre slots of the high-risk tables pay 0.20×.',
+    ],
+  },
+  hilo: {
+    id: 'hilo',
+    name: 'Hi-Lo',
+    short: 'Guess whether the next card is higher or lower.',
+    description:
+      'A card is turned over. Guess whether the next card will be strictly higher or strictly lower. Each correct guess raises your multiplier by exactly the odds against it, less a 1% edge applied once. Cash out after any correct guess, or skip a card you do not like.',
+    rules: [
+      'Every card is drawn independently from a full 52-card deck (as if the deck were reshuffled before each card). Ace is low (1), King is high (13); suits do not matter.',
+      'Higher wins only if the next card is strictly higher, lower only if strictly lower. An equal rank loses. You cannot guess higher on a King or lower on an Ace.',
+      'After k correct guesses with success chances p₁ … p_k, the multiplier is 0.99 ÷ (p₁ × … × p_k), rounded down to 4 decimals.',
+      `You can cash out after at least one correct guess; the payout is stake × multiplier, rounded down to 0.01 chip. You can skip up to ${hiloConfig.maxSkips} cards per round; a skip never changes the multiplier.`,
+      `The multiplier is capped at ${(hiloConfig.maxMultiplierE4 / 10_000).toLocaleString('en-US')}×; reaching the cap cashes out automatically. An open round never expires.`,
+      `The full card sequence (${sequenceLength(hiloConfig)} cards, enough for any round) is fixed by your seed when the round starts. You see each card only when it is turned over.`,
+    ],
+    payoutTable: {
+      columns: ['Current card', 'Higher: chance', 'Higher: multiplier', 'Lower: chance', 'Lower: multiplier'],
+      rows: HILO_RANK_NAMES.map((name, i) => {
+        const r = i + 1;
+        const cell = (d: 'higher' | 'lower') => {
+          const a = successNumerator(r, d);
+          return a === 0 ? ['—', '—'] : [`${a}/13 (${((a / 13) * 100).toFixed(2)}%)`, mult4(hiloMultiplierE4(hiloConfig.houseEdgeBp, [a]))];
+        };
+        return [name, ...cell('higher'), ...cell('lower')];
+      }),
+    },
+    math: [
+      `Each guess pays exactly the inverse of its probability, and the 1% edge is applied once, at the first guess. Later guesses multiply in, e.g. two 12/13 guesses: 0.99 × (13/12)² = ${mult4(hiloMultiplierE4(hiloConfig.houseEdgeBp, [12, 12]))} (rounded down).`,
+      'Whatever you do — any guesses, any skips, any cash-out point — your expected return is at most 99%: the value of your position (multiplier × chance it is still alive) cannot grow on average with any guess. Rounding down and the cap can only lower it. House edge ≥ 1%.',
+      'A tie loses: the next card has the same rank with chance 1/13 (4 of 52 cards), whatever you guess. Guessing the likelier side is safer per step, but does not change the 99% expected return.',
     ],
   },
 };

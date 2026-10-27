@@ -34,6 +34,25 @@ export function summarizeRound(gameId: string, state: unknown, status: string): 
       const scatter = (s.scatterCount as number | undefined) ?? 0;
       return wins || scatter >= 3 ? `${wins} line win${wins === 1 ? '' : 's'}${scatter >= 3 ? ` · ${scatter} scatters` : ''}` : 'No win';
     }
+    case 'limbo': {
+      const result = ((s.resultE2 as number) / 100).toFixed(2);
+      const target = ((s.targetE2 as number) / 100).toFixed(2);
+      return `Result ${result}× · target ${target}×`;
+    }
+    case 'keno': {
+      const hits = (s.hits as number[] | undefined)?.length ?? 0;
+      const picks = (s.picks as number[] | undefined)?.length ?? 0;
+      return `${hits} of ${picks} hit · ${((s.multiplierE2 as number) / 100).toFixed(2)}×`;
+    }
+    case 'plinko':
+      return `${s.rows} rows, ${s.risk} risk · slot ${s.slot} · ${((s.multiplierE2 as number) / 100).toFixed(2)}×`;
+    case 'hilo': {
+      const correct = (s.factors as number[] | undefined)?.length ?? 0;
+      if (status === 'OPEN') return `${correct} correct guess${correct === 1 ? '' : 'es'} so far`;
+      return s.status === 'busted'
+        ? `Wrong guess after ${correct} correct`
+        : `Cashed out at ${((s.multiplierE4 as number) / 10_000).toFixed(4)}× after ${correct} correct`;
+    }
     default:
       return '';
   }

@@ -55,6 +55,42 @@ export function GameGlyph({ id, className }: { id: string; className?: string })
           <path d="M57 42c3-4 9-2 6 3l-6 6-6-6c-3-5 3-7 6-3z" fill="#d9bb76" stroke="none" />
         </g>
       )}
+      {id === 'limbo' && (
+        <g {...common}>
+          <line x1="14" y1="80" x2="84" y2="80" opacity="0.5" />
+          <path d="M22 80V58M38 80V44M54 80V30M70 80V16" />
+          <path d="M14 38h70" strokeDasharray="4 4" opacity="0.8" />
+          <circle cx="54" cy="30" r="3" fill="#d9bb76" stroke="none" />
+        </g>
+      )}
+      {id === 'keno' && (
+        <g {...common}>
+          {Array.from({ length: 16 }, (_, i) => (
+            <circle key={i} cx={24 + (i % 4) * 16} cy={24 + Math.floor(i / 4) * 16} r="6" opacity={[1, 6, 11, 13].includes(i) ? 1 : 0.45} />
+          ))}
+          {[1, 6, 11, 13].map((i) => (
+            <circle key={i} cx={24 + (i % 4) * 16} cy={24 + Math.floor(i / 4) * 16} r="2.6" fill="#d9bb76" stroke="none" />
+          ))}
+        </g>
+      )}
+      {id === 'plinko' && (
+        <g {...common}>
+          {[0, 1, 2, 3, 4].flatMap((r) =>
+            Array.from({ length: r + 2 }, (_, j) => <circle key={`${r}-${j}`} cx={48 + (j - (r + 1) / 2) * 12} cy={22 + r * 11} r="1.6" fill="#d9bb76" stroke="none" />),
+          )}
+          <path d="M48 14 C 46 26, 40 30, 42 38 S 50 52, 54 62" strokeDasharray="2 3" opacity="0.8" />
+          <rect x="14" y="74" width="68" height="8" rx="2" />
+        </g>
+      )}
+      {id === 'hilo' && (
+        <g {...common}>
+          <rect x="18" y="24" width="32" height="46" rx="5" />
+          <rect x="46" y="26" width="32" height="46" rx="5" opacity="0.6" />
+          <path d="M34 40l-6 7h12z" fill="#d9bb76" stroke="none" />
+          <path d="M34 60l-6-7h12z" fill="#d9bb76" stroke="none" opacity="0.6" />
+          <path d="M62 44v14M57 49l5-5 5 5" />
+        </g>
+      )}
       {id === 'slots' && (
         <g {...common}>
           <rect x="14" y="24" width="68" height="48" rx="8" />

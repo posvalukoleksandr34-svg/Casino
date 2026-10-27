@@ -15,5 +15,7 @@ export function verifyQueryForRound(round: { gameId: string; state: unknown; fai
     const dealt = hands.reduce((n, h) => n + (h.cards?.length ?? 0), 0) + (Array.isArray(s.dealer) ? s.dealer.length : 0);
     if (dealt > 0) q.set('cards', String(Math.max(dealt, 24)));
   }
+  if (round.gameId === 'plinko' && s && typeof s.rows === 'number') q.set('rows', String(s.rows));
+  if (round.gameId === 'hilo' && s && Array.isArray(s.steps)) q.set('cards', String(Math.max(1, s.steps.length)));
   return q.toString();
 }

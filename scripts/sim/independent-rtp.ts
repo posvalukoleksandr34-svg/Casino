@@ -55,3 +55,59 @@ export function crashAutoRtp(xE2: number, houseEdgeBp: number): number {
   const p = Number(count < TWO_52 ? count : TWO_52) / 2 ** 52;
   return p * (xE2 / 100);
 }
+
+/**
+ * Limbo (docs/math/limbo.md), target T (hundredths): the result uses the Crash
+ * mapping, the target wins when result ≥ T, so P(win) is the Crash survival
+ * count ⌊(10000 − h) · 2⁵² / (100 · T)⌋ / 2⁵² and the win pays T / 100.
+ */
+export function limboRtp(targetE2: number, houseEdgeBp: number): number {
+  return crashAutoRtp(targetE2, houseEdgeBp);
+}
+
+/**
+ * Keno (docs/math/keno.md): 10 of 40 numbers drawn, n picks, row[k] hundredths
+ * for k hits. P(k) = C(n, k) · C(40 − n, 10 − k) / C(40, 10).
+ */
+export function kenoRtp(picks: number, row: readonly number[]): number {
+  const total = choose(40, 10);
+  let num = 0n;
+  for (let k = 0; k <= picks; k += 1) num += choose(picks, k) * choose(40 - picks, 10 - k) * BigInt(row[k] ?? 0);
+  return Number(num) / Number(total * 100n);
+}
+
+/** Plinko (docs/math/plinko.md): slot k of R rows has probability C(R, k) / 2^R; table in hundredths. */
+export function plinkoRtp(rows: number, table: readonly number[]): number {
+  let num = 0n;
+  for (let k = 0; k <= rows; k += 1) num += choose(rows, k) * BigInt(table[k] ?? 0);
+  return Number(num) / Number(2n ** BigInt(rows) * 100n);
+}
+
+/**
+ * Hi-Lo (docs/math/hilo.md), strategy "guess the likelier side (higher from 1–7,
+ * lower from 8–13), cash out after k correct guesses or at the cap". Ranks are
+ * uniform on 1–13 for every card; a guess from r with s successful ranks pays
+ * ⌊(10000 − h) · 13^j / (s₁ ⋯ s_j)⌋ / 10⁴ after j correct guesses, capped.
+ */
+export function hiloRtp(k: number, houseEdgeBp: number, capE4: number): number {
+  const multiplier = (counts: number[]) => {
+    let num = BigInt(10_000 - houseEdgeBp);
+    let den = 1n;
+    for (const c of counts) {
+      num *= 13n;
+      den *= BigInt(c);
+    }
+    return Number(num / den);
+  };
+  const go = (rank: number, counts: number[], prob: number): number => {
+    const m = counts.length ? multiplier(counts) : 0;
+    if (counts.length === k || m >= capE4) return prob * (Math.min(m, capE4) / 10_000);
+    const up = rank <= 7;
+    const wins: number[] = [];
+    for (let next = 1; next <= 13; next += 1) if (up ? next > rank : next < rank) wins.push(next);
+    return wins.reduce((acc, next) => acc + go(next, [...counts, wins.length], prob / 13), 0);
+  };
+  let total = 0;
+  for (let first = 1; first <= 13; first += 1) total += go(first, [], 1 / 13);
+  return total;
+}

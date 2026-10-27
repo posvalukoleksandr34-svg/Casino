@@ -5,6 +5,7 @@
  *   npm run sim:risk -- [--days 30] [--paths 500] [--rounds-per-day 10000]
  *                       [--stake-median 10] [--stake-sigma 1.2]           (chips)
  *                       [--mix roulette=0.3,dice=0.25,mines=0.15,crash=0.15,blackjack=0.15]
+ *                       (also limbo, keno, plinko, hilo; games not listed get 0)
  *                       [--seed 1,2,3,4 | --seed <any string>] [--blackjack-hands 200000]
  *                       [--check]
  *
@@ -21,7 +22,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { CATALOG } from '../src/server/games/catalog';
 import { DEFAULT_PLATFORM } from '../src/server/bootstrap';
-import { defaultScenarios, meanCi, quantile, simulate, type GameId, type Limits, type RunConfig } from './sim/risk-model';
+import { defaultScenarios, meanCi, quantile, RISK_GAMES, simulate, type GameId, type Limits, type RunConfig } from './sim/risk-model';
 import { provenance, seedWords, stepSummary } from './sim/provenance';
 
 const args = process.argv.slice(2);
@@ -33,7 +34,7 @@ const CHIP = 100;
 const chips = (minor: number) => (minor / CHIP).toLocaleString('en-US', { maximumFractionDigits: 0 });
 
 function parseMix(s: string): Record<GameId, number> {
-  const mix = { roulette: 0, dice: 0, mines: 0, crash: 0, blackjack: 0 } as Record<GameId, number>;
+  const mix = Object.fromEntries(RISK_GAMES.map((g) => [g, 0])) as Record<GameId, number>;
   for (const part of s.split(',')) {
     const [k, v] = part.split('=');
     if (!(k! in mix) || !Number.isFinite(Number(v)) || Number(v) < 0) throw new Error(`invalid --mix entry "${part}"`);
@@ -48,7 +49,7 @@ async function main() {
   // Four 32-bit integers are used as given (backwards compatible); any other string is hashed.
   const seed = (ints.length === 4 && ints.every((x) => Number.isInteger(x) && x >= 0 && x < 2 ** 32) ? ints : seedWords(seedArg)) as [number, number, number, number];
   const limits = Object.fromEntries(
-    (['roulette', 'dice', 'mines', 'crash', 'blackjack'] as const).map((g) => [g, CATALOG[g]!.limits as Limits]),
+    RISK_GAMES.map((g) => [g, CATALOG[g]!.limits as Limits]),
   ) as Record<GameId, Limits>;
   const cfg: RunConfig = {
     days: Number(flag('days', '30')),

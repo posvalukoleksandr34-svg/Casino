@@ -93,12 +93,13 @@ discarded after it. Their credentials are throwaway values written in the workfl
 Each run writes the commit SHA, seed, parameters and results to `reports/*.json` (uploaded)
 and to the job summary. Re-running with the same `seed` and `rounds` reproduces it exactly.
 
-* **Exact games** (roulette, dice, mines, crash; 17 scenarios × 2,000,000 rounds):
+* **Exact games** (roulette, dice, mines, crash, limbo, keno, plinko, hilo; 31 scenarios ×
+  2,000,000 rounds):
   * The expected RTP is derived from the **published rules**, implemented independently
     of the engine (`scripts/sim/independent-rtp.ts`). The engine's own theory function
     must agree with it.
   * A scenario fails beyond |z| = 4, a two-sided α of 6.3·10⁻⁵ per scenario. With
-    Bonferroni over 17 scenarios, the family-wise false-alarm rate is about 1.1·10⁻³ per
+    Bonferroni over 31 scenarios, the family-wise false-alarm rate is about 2.0·10⁻³ per
     run.
   * Each report states the smallest bias the run could detect (4 standard errors). At
     2,000,000 rounds this ranges from 0.04 percentage points (98 % dice, 1.01× crash
@@ -122,7 +123,7 @@ derivations over the full parameter space.
 **Running locally.** These are the same commands as the workflow:
 
 ```bash
-for g in roulette dice mines crash; do npm run sim:game -- "$g" --rounds 2000000 --seed my-seed; done
+for g in roulette dice mines crash limbo keno plinko hilo; do npm run sim:game -- "$g" --rounds 2000000 --seed my-seed; done
 npm run sim:game -- blackjack --rules 6-S17-3:2-DAS --hands 4000000 --check --seed my-seed
 npm run sim:risk -- --days 30 --paths 2000 --seed my-seed --check
 ```
