@@ -138,21 +138,39 @@ export function likelierSide(rank: number): 'higher' | 'lower' {
 
 /**
  * Exact RTP of the strategy "always guess the likelier side, cash out after k
- * correct guesses (or at the cap)", by enumerating every rank path.
+ * correct guesses (or at the cap)". Dynamic programming over (current rank,
+ * product of success numerators): the multiplier depends only on that product
+ * and the number of guesses, so paths are merged instead of enumerated.
  */
 export function hiloStrategyRtp(config: HiloConfig, k: number): number {
-  const walk = (rank: number, factors: number[], prob: number): number => {
-    const m = hiloMultiplierE4(config.houseEdgeBp, factors);
-    if (factors.length === k || m >= config.maxMultiplierE4) return factors.length === 0 ? 0 : prob * (capped(config, m) / 10_000);
-    const side = likelierSide(rank);
-    let total = 0;
-    for (let next = 1; next <= HILO_RANKS; next += 1) {
-      if (side === 'higher' ? next > rank : next < rank) total += walk(next, [...factors, successNumerator(rank, side)], prob / HILO_RANKS);
-    }
-    return total;
-  };
+  const edge = BigInt(10_000 - config.houseEdgeBp);
+  let states = new Map<string, { rank: number; den: bigint; p: number }>();
+  for (let r = 1; r <= HILO_RANKS; r += 1) states.set(`${r}|1`, { rank: r, den: 1n, p: 1 / HILO_RANKS });
   let rtp = 0;
-  for (let first = 1; first <= HILO_RANKS; first += 1) rtp += walk(first, [], 1 / HILO_RANKS);
+  let num = edge;
+  for (let step = 1; step <= k && states.size > 0; step += 1) {
+    num *= BigInt(HILO_RANKS);
+    const next = new Map<string, { rank: number; den: bigint; p: number }>();
+    for (const s of states.values()) {
+      const side = likelierSide(s.rank);
+      const a = successNumerator(s.rank, side);
+      const den = s.den * BigInt(a);
+      const m = Number(num / den);
+      for (let r = 1; r <= HILO_RANKS; r += 1) {
+        if (side === 'higher' ? r <= s.rank : r >= s.rank) continue;
+        const p = s.p / HILO_RANKS;
+        if (m >= config.maxMultiplierE4 || step === k) {
+          rtp += p * (capped(config, m) / 10_000);
+          continue;
+        }
+        const key = `${r}|${den}`;
+        const prev = next.get(key);
+        if (prev) prev.p += p;
+        else next.set(key, { rank: r, den, p });
+      }
+    }
+    states = next;
+  }
   return rtp;
 }
 

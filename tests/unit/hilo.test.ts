@@ -106,7 +106,7 @@ describe('hi-lo maths (exact)', () => {
     expect(best).toBeGreaterThan(0.989);
     // A low cap can only lower the return.
     expect(bestReturn({ ...config, maxMultiplierE4: 20_000 }, 4, 2)).toBeLessThanOrEqual(0.99 + 1e-12);
-  });
+  }, 30_000); // exhaustive search: about 1 s locally, slower on shared CI runners
 
   it('the pre-drawn sequence covers the longest possible round', () => {
     // The most guesses before the cap: every guess at 12/13 (slowest growth).

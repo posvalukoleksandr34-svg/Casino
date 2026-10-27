@@ -90,24 +90,32 @@ export function plinkoRtp(rows: number, table: readonly number[]): number {
  * ⌊(10000 − h) · 13^j / (s₁ ⋯ s_j)⌋ / 10⁴ after j correct guesses, capped.
  */
 export function hiloRtp(k: number, houseEdgeBp: number, capE4: number): number {
-  const multiplier = (counts: number[]) => {
-    let num = BigInt(10_000 - houseEdgeBp);
-    let den = 1n;
-    for (const c of counts) {
-      num *= 13n;
-      den *= BigInt(c);
-    }
-    return Number(num / den);
-  };
-  const go = (rank: number, counts: number[], prob: number): number => {
-    const m = counts.length ? multiplier(counts) : 0;
-    if (counts.length === k || m >= capE4) return prob * (Math.min(m, capE4) / 10_000);
-    const up = rank <= 7;
-    const wins: number[] = [];
-    for (let next = 1; next <= 13; next += 1) if (up ? next > rank : next < rank) wins.push(next);
-    return wins.reduce((acc, next) => acc + go(next, [...counts, wins.length], prob / 13), 0);
-  };
+  // Paths are grouped by (current rank, product of success counts so far); the
+  // payout depends only on that product and the number of guesses.
+  let groups: { rank: number; product: bigint; prob: number }[] = [];
+  for (let first = 1; first <= 13; first += 1) groups.push({ rank: first, product: 1n, prob: 1 / 13 });
   let total = 0;
-  for (let first = 1; first <= 13; first += 1) total += go(first, [], 1 / 13);
+  for (let guess = 1; guess <= k && groups.length; guess += 1) {
+    const merged = new Map<string, { rank: number; product: bigint; prob: number }>();
+    for (const g of groups) {
+      const up = g.rank <= 7;
+      const wins: number[] = [];
+      for (let next = 1; next <= 13; next += 1) if (up ? next > g.rank : next < g.rank) wins.push(next);
+      const product = g.product * BigInt(wins.length);
+      const multiplierE4 = Number((BigInt(10_000 - houseEdgeBp) * 13n ** BigInt(guess)) / product);
+      for (const next of wins) {
+        const prob = g.prob / 13;
+        if (guess === k || multiplierE4 >= capE4) {
+          total += prob * (Math.min(multiplierE4, capE4) / 10_000);
+        } else {
+          const id = `${next}:${product}`;
+          const e = merged.get(id);
+          if (e) e.prob += prob;
+          else merged.set(id, { rank: next, product, prob });
+        }
+      }
+    }
+    groups = [...merged.values()];
+  }
   return total;
 }
