@@ -38,8 +38,13 @@ ledger, and every game publishes its rules, payouts and house edge.
   player's identity or history — [docs/risk.md](docs/risk.md).
 * **Responsible play**: loss/wager/session limits, cool-off, self-exclusion, delayed
   loosening, reality checks — enforced server-side — [docs/responsible-play.md](docs/responsible-play.md).
-* **Back office**: RBAC (support, risk manager, auditor, admin), audited actions with
-  reasons, analytics (theoretical vs realised), alerts, reconciliation, health.
+* **Owner back office** (`/admin`): roles owner / admin / moderator / risk manager /
+  auditor enforced on every page and API; period dashboard from real aggregates; user
+  search, suspension and roles with rank rules and last-owner protection; owner-only
+  virtual test-chip grants and audited corrections; read-only ledger browser; per-game
+  status, maintenance and stake limits; sports event operations with settlement preview;
+  searchable audit log with actor role and outcome; TOTP two-factor authentication with an
+  owner policy for staff — [docs/admin.md](docs/admin.md).
 * **Operations**: least-privilege database roles, health/readiness/metrics endpoints,
   background jobs under advisory locks, Docker Compose deployment —
   [docs/operations.md](docs/operations.md).
@@ -102,7 +107,8 @@ against the real providers ([docs/sports.md](docs/sports.md#live-providers)).
 
 **Schema, reference data and demo accounts** (migrations are forward-only SQL files in
 `migrations/`, applied in order and checksummed; `0005` adds favourites, profile fields and
-achievements, `0006` the sports tables):
+achievements, `0006` the sports tables, `0007`–`0008` the owner role, chip grants, audit
+fields, staff MFA, prediction windows and back-office indexes):
 
 ```bash
 npm run db:migrate          # migrations + reference data (games, limits, house bankroll)
@@ -112,7 +118,13 @@ npm run dev                 # http://localhost:3000
 
 `db:seed` refuses production, non-local URLs and remote databases. It has no built-in
 passwords: set `SEED_<ROLE>_PASSWORD` variables, or it generates random passwords and
-prints them once.
+prints them once. It creates an owner locally.
+
+**First owner in production:** register the account on the site, then
+`npm run admin:provision-owner -- --email <that e-mail> --reason "Initial owner"`
+(Compose: `docker compose run --rm migrate npm run admin:provision-owner -- …`). Public
+registration can never grant a staff role. Then turn on two-factor authentication at
+`/admin/security` ([docs/admin.md](docs/admin.md#first-owner)).
 
 ## Tests
 
@@ -212,6 +224,9 @@ each defect.
   credit-only, so a provider error cannot take chips back from players).
 * Not implemented yet (planned): Baccarat, slots, further sports markets.
 * Achievements are cosmetic badges only; there are no rewards of any kind.
+* Back office: MFA is TOTP only (no passkeys); there is no four-eyes approval for grants or
+  corrections; game mathematics cannot be tuned from the back office (only stake limits),
+  so published rules can never drift from the active configuration.
 
 * No e-mail address verification and no TOTP 2FA (recommended for staff accounts).
 * CSP still allows `'unsafe-inline'` scripts (Next.js bootstrap); a nonce-based CSP is a

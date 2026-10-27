@@ -64,6 +64,13 @@ erDiagram
 | `sports_tickets` (0006) | One prediction: odds snapshot, stake, potential return, status, credited payout, settlement source/version, idempotency key | unique `(user_id, idempotency_key, leg)`; rejected ⇔ reason; open/rejected ⇔ no payout; payout ≤ potential return |
 | `sports_result_log`, `sports_settlements` (0006) | Result versions; per-ticket settlement per version (outcome, entitlement, credited, ledger tx) | append-only; unique `(event_id, version)` / `(ticket_id, version)` |
 | `user_sports_favorites`, `sports_provider_status` (0006) | Followed teams/competitions; provider health | — |
+| `user_role` += `OWNER`, `ledger_tx_type` += `CHIP_GRANT` (0007) | Owner role; owner-granted virtual test chips | enum values only (used from 0008 on) |
+| `audit_logs.actor_role`, `audit_logs.outcome` (0008) | Role held when acting; `SUCCESS` / `DENIED` / `FAILED` | CHECKs; existing rows `SUCCESS`, role NULL; table stays append-only |
+| `users_keep_an_owner` trigger (0008) | The last active owner cannot be demoted, suspended or deleted | BEFORE UPDATE OF role, status |
+| `user_mfa` (0008) | TOTP secret (encrypted), enabled time, last accepted step, hashed recovery codes | one row per user; last_step ≥ 0 |
+| `sessions.mfa_verified_at`, `platform_settings.staff_mfa_required` (0008) | Session passed the second factor; owner policy | — |
+| `sports_markets.opens_at`, `closes_at` (0008) | Optional prediction window | close > open; close never later than kick-off (application) |
+| Indexes (0008) | users by created/status, rounds by start, live sessions by last seen, tickets by placement, ledger by type and time, audit by time and non-success outcome | back-office filters and period queries |
 
 ## Ledger design (double entry)
 
@@ -126,7 +133,7 @@ balanced but sent to the wrong account is still caught. Any mismatch marks the r
 | `payouts_within_declared_max` | payout ≤ the max payout approved by the risk engine |
 | `nonces_unique_and_below_counter` | nonces are below the seed pair counter (no reuse) |
 | `bonuses_match_ledger` | bonus rows ↔ BONUS_GRANTED transactions one-to-one: owner wallet +amount, promotions −amount, nothing else |
-| `admin_money_movements_audited` | every ADJUSTMENT (owner wallet vs adjustments account) and every non-bootstrap HOUSE_FUNDING has an actor and exactly one matching audited admin action with the same amount |
+| `admin_money_movements_audited` | every ADJUSTMENT (owner wallet vs adjustments account), every CHIP_GRANT (owner wallet +x vs promotions −x, nothing else) and every non-bootstrap HOUSE_FUNDING has an actor and exactly one matching audited admin action with the same amount |
 | `expiry_queue_not_overdue` | no OPEN round is > 5 min past its `expires_at` (expiry job health) |
 
 **Limitation:** a PostgreSQL superuser or table owner can disable triggers. In production,

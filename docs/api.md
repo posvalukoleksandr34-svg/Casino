@@ -40,7 +40,10 @@ Amounts are integers in minor units (100 = 1 chip).
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | POST | `/api/auth/register` | `{email, username, password, ageConfirmed: true, termsAccepted: true}` | 201, sets cookie; welcome chips; 10/h per IP |
-| POST | `/api/auth/login` | `{email, password}` | sets cookie; 20 / 5 min per IP; lockout after 8 failures |
+| POST | `/api/auth/login` | `{email, password}` | sets cookie; 20 / 5 min per IP; lockout after 8 failures. With MFA on: 401 `MFA_REQUIRED` with `details.challenge` (valid 5 min) and no cookie |
+| POST | `/api/auth/login/mfa` | `{challenge, code}` | TOTP or recovery code → sets cookie (session marked MFA-verified); 5 attempts / 5 min per account |
+| GET | `/api/account/mfa` | — | `{enabled, recoveryCodesLeft, sessionVerified}` |
+| POST | `/api/account/mfa/setup` · `/confirm` `{code}` · `/verify` `{code}` · `/disable` `{code}` | | set-up returns the secret and `otpauth://` URI once; confirm returns recovery codes once and signs out other sessions |
 | POST | `/api/auth/logout` | `{}` | revokes session |
 | GET | `/api/auth/me` | — | `{user, balance}` or `{user: null}` |
 | POST | `/api/auth/password/forgot` | `{email}` | always 200 (no enumeration) |
@@ -110,24 +113,33 @@ A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settled
 ## Admin (permission in brackets; all writes require `reason` and are audited)
 | Method | Path | |
 |---|---|---|
-| GET | `/api/admin/overview` | [admin:access] KPIs, reserves, exposure, errors, alerts |
+| GET | `/api/admin/overview` | [admin:access] KPIs, reserves, exposure, errors, alerts (the `/admin` page uses the period dashboard in `src/server/admin/overview.ts`) |
 | GET | `/api/admin/analytics?days&series` | [analytics:read] actual vs theoretical, z-scores, daily series |
-| GET | `/api/admin/users?q&limit&offset`, `/api/admin/users/:id` | [users:read] |
-| POST | `/api/admin/users/:id/status` | [users:suspend] `{status, reason}` |
-| POST | `/api/admin/users/:id/role` | [roles:manage] `{role, reason}` |
-| POST | `/api/admin/users/:id/adjust` | [ledger:adjust] `{amount, reason, reversesTransactionId?}` + `Idempotency-Key` |
+| GET | `/api/admin/users?q&status&role&from&to&sort&dir&page&pageSize` | [users:read] `{rows, total, page, pageSize}`; e-mail masked and not searchable without users:pii |
+| GET | `/api/admin/users/:id` | [users:read] detail incl. `allowed` actions for the caller; no secrets |
+| POST | `/api/admin/users/:id/status` | [users:suspend] `{status: "ACTIVE"\|"SUSPENDED", reason}`; lower-ranked accounts only; suspension revokes sessions |
+| DELETE | `/api/admin/users/:id/sessions` | [users:suspend] `{reason}` sign out everywhere |
+| POST | `/api/admin/users/:id/role` | [roles:manage] `{role, reason}`; ADMIN/OWNER only by owners; never the last active owner |
+| POST | `/api/admin/users/:id/grant` | [ledger:grant] `{amount (1…100,000,000 minor units), reason}` + `Idempotency-Key` → 201 `{transactionId, balance}`; retries replay (`Idempotent-Replayed: true`) |
+| POST | `/api/admin/users/:id/adjust` | [ledger:adjust] `{amount, reason, reversesTransactionId?}` + `Idempotency-Key` → 201; retries replay |
+| GET | `/api/admin/ledger?type&userId&transactionId&from&to&before&limit` | [ledger:read] `{rows, nextBefore}` |
+| GET | `/api/admin/ledger/:id` | [ledger:read] transaction with entries |
 | GET | `/api/admin/rounds`, `/api/admin/rounds/:id` | [rounds:read] |
 | POST | `/api/admin/rounds/:id/void` | [rounds:void] OPEN rounds only; full refund |
 | GET | `/api/admin/games` | [admin:access] |
-| POST | `/api/admin/games/:id/status` | [games:manage] |
-| POST | `/api/admin/games/:id/config` | [games:manage] new immutable version; house edge must be > 0 |
-| PUT | `/api/admin/games/:id/limits` | [risk:manage] |
+| POST | `/api/admin/games/:id/status` | [games:manage] `{status, reason, confirmOpenRounds?}`; pausing with open rounds needs `confirmOpenRounds: true` (409 otherwise) |
+| POST | `/api/admin/games/:id/config` | [games:manage] new immutable version; only the published reference configuration is accepted |
+| PUT | `/api/admin/games/:id/limits` | [risk:manage] `{limits, reason}` within the hard bounds ([admin.md](admin.md#games)) |
 | GET/PATCH | `/api/admin/platform` | [risk:manage] kill switch, exposure, reserve, caps, bonuses |
-| POST | `/api/admin/house/fund` | [house:fund] + `Idempotency-Key` |
-| GET | `/api/admin/audit` | [audit:read] |
+| POST | `/api/admin/house/fund` | [house:fund] (owner) + `Idempotency-Key`; retries replay |
+| GET | `/api/admin/audit?action&actorId&actorName&resourceId&outcome&from&to&before&limit` | [audit:read] `{items, nextBefore}` |
+| GET, POST | `/api/admin/security` | [security:manage] staff MFA overview; `{staffMfaRequired, reason}` |
 | GET/POST | `/api/admin/alerts`, `/api/admin/alerts/:id/ack` | [system:read] / [system:operate] |
 | GET/POST | `/api/admin/reconciliation` | [system:read] / [system:operate] run now |
 | GET | `/api/admin/health` | [system:read] |
-| POST | `/api/admin/sports/events/:id` | [sports:manage] `{action: "suspend"\|"resume"\|"void", reason}` or `{action: "result", home, away, reason}` (after kick-off; corrections only credit players) |
+| GET | `/api/admin/sports/events/:id` | [admin:access] prices, predictions by selection, results, settlements, operator actions |
+| POST | `/api/admin/sports/events/:id` | [sports:manage] `{action: "suspend"\|"resume"\|"void", reason}`, `{action: "result", home, away, reason}` (after kick-off; corrections only credit players) or `{action: "window", opensAt, closesAt, reason}` (ISO or null; close ≤ kick-off) |
+| GET | `/api/admin/sports/events/:id/preview?home&away` or `?void=1` | [sports:manage] read-only settlement preview |
+| POST | `/api/admin/sports/fixtures` | [sports:manage] demo mode: `{competitionId, homeId, awayId, kickoffAt, reason}`; priced by the demo model |
 
 Role → permission matrix: `src/server/auth/rbac.ts`.

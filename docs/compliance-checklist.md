@@ -67,3 +67,6 @@ See `docs/responsible-play.md` for exactly what each control enforces.
 | Password-recovery e-mail provider | Operator | `docs/operations.md` §9 |
 | Penetration test | Open / Operator | |
 | Incident response procedure | Done (documented) | `docs/operations.md` §8 |
+| Staff roles, owner provisioning, last-owner protection, staff MFA policy | Done | `docs/admin.md`, `tests/integration/owner-admin.test.ts` |
+| Audit log of staff actions (actor, role, reason, before/after), refused access logged | Done (append-only for the app; not tamper-proof against a DB superuser) | `docs/admin.md` § Audit log policy |
+| Four-eyes approval for chip grants and corrections | Open | not implemented |

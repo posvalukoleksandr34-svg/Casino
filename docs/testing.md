@@ -30,7 +30,9 @@ what the tests exercise.
   rules), `safe-next` (post-login redirect), `limbo`, `keno`, `plinko`, `hilo` (tables,
   exact RTP, strategy bound, hidden card sequence), `catalog` (categories, "new" window,
   limits), `sports` (price model and its RTP bound, committed demo results, settlement
-  and correction maths, provider payload mapping, rate-limit and error sanitising).
+  and correction maths, provider payload mapping, rate-limit and error sanitising),
+  `owner-admin` (permission matrix, rank rules, e-mail masking, TOTP against the RFC 6238
+  vectors, reporting periods, prediction windows).
 * **Integration** (`tests/integration`): `ledger-invariants`, `rounds`, `interactive`,
   `blackjack`, `expiry`, `reconciliation-faults`, `schema-and-reconciliation`,
   `privileges`, `auth`, `password-recovery`, `responsible`, `responsible-hardening`,
@@ -42,13 +44,26 @@ what the tests exercise.
   verifier replay), `lobby` (favourites, recently played), `profile-achievements`
   (profile validation and audit, idempotent server-awarded badges, server-side round
   verification), `sports` (placement, idempotency, stale/changed odds, limits, settlement,
-  void refunded once, credit-only corrections, reconciliation and a ledger tamper test).
+  void refunded once, credit-only corrections, reconciliation and a ledger tamper test),
+  `owner-admin` (API authorisation for anonymous/player/moderator/admin incl. denied-access
+  events, malformed input, role escalation via registration, rank rules, last-owner
+  protection incl. concurrent demotion and the database trigger, owner provisioning,
+  suspension enforcement across sign-in/sessions/rounds/predictions/bonus, user search and
+  masking, chip grants: replay, key reuse, invalid amounts, balance cap, concurrency,
+  rollback, reconciliation of an unaudited grant; game limit bounds and engine
+  enforcement, maintenance with open rounds, client-supplied outcomes refused; sports
+  prediction window, settlement preview vs actual credit, duplicate settlement, demo
+  fixtures; MFA enrolment, two-step sign-in, replay, recovery codes, staff policy;
+  dashboard metrics).
 * **Statistical** (`tests/statistical`): `roulette-dice`, `mines`, `crash`, `blackjack`,
   `new-games`.
 * **E2E** (`tests/e2e`): `player-journey`, `blackjack`, `security`, `resilience-access`
   (interrupted request recovery, admin API authorisation, honest states),
   `fairness-admin`, `accessibility`, `mobile`, `expansion` (lobby search and favourites,
-  one round of each new game, profile save, a demo sports prediction).
+  one round of each new game, profile save, a demo sports prediction), `owner-admin`
+  (owner dashboard, user search, chip grant, suspension and its effect on the player's
+  session, audit log and ledger; moderator limits incl. 404/403; admin pages on a phone
+  with labelled controls).
 
 ## Regression tests for defects fixed in the production-readiness pass
 
@@ -98,6 +113,37 @@ Hardening without a prior failure:
   their provenance.
 * The backup and restore scripts are tested by the restore drill.
 * New `casino_rate_limited_total` and `casino_login_failures_total` metrics.
+
+## Results of the owner-administration run (2026-10-27, this repository's environment)
+
+Migrations 0007 and 0008 applied to the development, test and e2e databases.
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` | pass / 0 problems |
+| `npm run test:unit` | **257 passed** (28 files) |
+| `npm run test:integration` | **219 passed** (24 files); the full suite also passed twice more in a row after the sports tests were given their own fixtures (see below) |
+| `npm run test:stats` | **24 passed** (5 files) |
+| `npm run build` / `npm run check:bundle` | pass / 140 files, no server secrets |
+| `npm run test:e2e` | **27 passed** (chromium desktop + Pixel 7 mobile, 2.0 min) |
+| `npm run check:docs` / `check:secrets` / `check:workflows` | 46 links OK / 438 tracked files, no findings / 2 workflows OK |
+| `npm audit` | 0 vulnerabilities |
+| `npm run ops:restore-check` (development database) | pass: counts identical, 25 triggers identical (incl. `users_keep_an_owner`), reconciliation OK (22 checks, 0 mismatches) |
+| `npm run admin:provision-owner` (development database) | refused without `--break-glass` while an owner existed; promoted with it; audited |
+
+**Defects found and fixed in this pass:**
+* `/admin/users` failed on every request: the balance subquery compared `uuid` to
+  `bigint` (a correlated column rendered unqualified bound to the inner table). Now
+  covered by the owner e2e test and the user-search integration test.
+* The published rules are generated from each game's reference configuration, but an
+  administrator could activate a different configuration (e.g. another house edge),
+  making the rules and payout tables shown to players wrong. Only the reference
+  configuration is accepted now (`admin.test.ts`).
+* A constant exported from a client component was imported by a server page and rendered
+  as nothing (empty status badge); a `loading.tsx` boundary made staff-only pages answer
+  200 instead of 404 for staff without the permission. Both caught by e2e and fixed.
+* The first version of the new sports tests shared demo events with `sports.test.ts` and
+  failed depending on file order; each now uses its own fixture.
 
 ## Results of the expansion run (2026-10-27, this repository's environment)
 

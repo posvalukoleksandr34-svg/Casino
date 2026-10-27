@@ -97,6 +97,26 @@ TLS is **not** enabled by anything in this repository until you provide a certif
   registration stay throttled, per account as well). Never set it higher than the real
   number of proxies — clients could then spoof their address.
 
+### Behind Cloudflare (or another CDN)
+
+* **Lock the origin to the CDN.** Accept connections on 80/443 only from the CDN's
+  published address ranges (firewall or security group), or use an authenticated tunnel
+  (e.g. Cloudflare Tunnel) or authenticated origin pulls (mTLS client certificate at
+  nginx). Take the ranges from the provider at deploy time (Cloudflare publishes them at
+  https://www.cloudflare.com/ips/); do not copy a list into the repository, because they
+  change.
+* **Client addresses.** In nginx, trust the CDN's real-IP header only from those ranges:
+  `set_real_ip_from <each CDN range>;` and `real_ip_header CF-Connecting-IP;`. nginx then
+  sees the client address, overwrites `X-Forwarded-For` with it, and the app keeps
+  `TRUST_PROXY_HOPS=1`. Do **not** raise `TRUST_PROXY_HOPS` to count the CDN instead:
+  if the origin were reachable directly, clients could then forge their address.
+* Use *Full (strict)* TLS between the CDN and the origin, with a certificate the origin
+  trusts. Keep `APP_URL` at the public `https://` origin.
+* Never cache `/api/*` or `/admin/*` at the CDN. The app sends `Cache-Control: no-store`
+  on API responses and pages are dynamic; add a bypass rule anyway.
+* PostgreSQL must never be published (Compose publishes no database port). The proxy
+  answers 404 for `/api/metrics*`.
+
 ## 4. Database roles and permissions
 
 | Role | Privileges | Used by |
@@ -394,10 +414,18 @@ samples and raises a CRITICAL alert.
 ## 10. Staff accounts
 
 `npm run db:seed` is for local development only (it refuses production, non-local
-`APP_URL` and non-local databases, and has no built-in passwords). In production create
-the first administrator deliberately: register normally, then as `casino_migrator`
-`UPDATE users SET role = 'ADMIN' WHERE email = '…';` and record why. Further role changes
-happen in `/admin/users/<id>` (reason required, audited, sessions revoked).
+`APP_URL` and non-local databases, and has no built-in passwords). In production, create
+the first **owner** deliberately: register the account on the site, then run
+`npm run admin:provision-owner -- --email … --reason …` (with Compose:
+`docker compose run --rm migrate npm run admin:provision-owner -- …`). The command
+refuses while an owner exists and is audited. The owner then turns on two-factor
+authentication, can require it for all staff, and appoints admins and other staff in
+`/admin/users/<id>` (reason required, audited, sessions revoked). Details, the role
+matrix and break-glass recovery: [admin.md](admin.md#first-owner).
+
+Backup credentials (`BACKUP_GPG_RECIPIENT`'s private key, storage write keys) must be
+separate from the application's: the app role cannot read backups, and the backup role
+cannot change the application database.
 
 ## 11. Known production blockers
 
