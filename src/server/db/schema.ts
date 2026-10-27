@@ -9,6 +9,7 @@ import {
   bigint,
   bigserial,
   boolean,
+  date,
   doublePrecision,
   integer,
   jsonb,
@@ -77,6 +78,46 @@ export const users = pgTable('users', {
   displayName: text('display_name'),
   /** Built-in avatar preset id (no uploads). */
   avatar: text('avatar'),
+  /** When the current e-mail address was confirmed (migration 0009); NULL = registration not verified yet. */
+  emailVerifiedAt: ts('email_verified_at'),
+  /** CODE, OPERATOR or LEGACY_MIGRATION (an assumption for pre-0009 accounts, not proof). */
+  emailVerificationMethod: text('email_verification_method').$type<EmailVerificationMethod>(),
+  firstName: text('first_name'),
+  lastName: text('last_name'),
+  /** Calendar date (YYYY-MM-DD), no time zone. */
+  dateOfBirth: date('date_of_birth', { mode: 'string' }),
+  /** ISO 3166-1 alpha-2. */
+  countryCode: text('country_code'),
+  /** E.164, e.g. +442071838750. */
+  phoneE164: text('phone_e164'),
+  /** Set only by a successful phone challenge (none exists yet): a stored number is not a verified one. */
+  phoneVerifiedAt: ts('phone_verified_at'),
+  /** TRUE for accounts registered after migration 0009; FALSE for grandfathered ones. */
+  onboardingRequired: boolean('onboarding_required').notNull().default(true),
+  onboardingCompletedAt: ts('onboarding_completed_at'),
+  termsVersion: text('terms_version'),
+  termsAcceptedAt: ts('terms_accepted_at'),
+  privacyVersion: text('privacy_version'),
+  privacyAcceptedAt: ts('privacy_accepted_at'),
+});
+
+export type EmailVerificationMethod = 'CODE' | 'OPERATOR' | 'LEGACY_MIGRATION';
+
+export const emailVerificationChallenges = pgTable('email_verification_challenges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  purpose: text('purpose').$type<'SIGNUP' | 'EMAIL_CHANGE'>().notNull(),
+  email: text('email').notNull(),
+  codeMac: text('code_mac').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(5),
+  delivery: text('delivery').$type<'PENDING' | 'SENT' | 'FAILED'>().notNull().default('PENDING'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  expiresAt: ts('expires_at').notNull(),
+  consumedAt: ts('consumed_at'),
+  supersededAt: ts('superseded_at'),
 });
 
 export const sessions = pgTable('sessions', {

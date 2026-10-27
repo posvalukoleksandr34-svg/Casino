@@ -16,6 +16,8 @@ import { errors } from '../errors';
 import { recordAdminAction } from '../audit/audit';
 import { revokeAllSessions } from '../auth/sessions';
 import { assignableRoles, canManageUser, hasPermission, maskEmail, ROLE_LABELS, type Permission } from '../auth/rbac';
+import { countryName } from '../users/countries';
+import { formatPhone } from '../users/onboarding';
 import { getWalletAccount } from '../ledger/accounts';
 import { listRounds } from '../games/round-service';
 import { playerStats } from '../users/stats';
@@ -125,11 +127,23 @@ export async function userDetail(userId: string, viewer: { role: UserRole }) {
       failedLoginCount: users.failedLoginCount,
       lockedUntil: users.lockedUntil,
       deletedAt: users.deletedAt,
+      emailVerifiedAt: users.emailVerifiedAt,
+      emailVerificationMethod: users.emailVerificationMethod,
+      onboardingRequired: users.onboardingRequired,
+      onboardingCompletedAt: users.onboardingCompletedAt,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      dateOfBirth: users.dateOfBirth,
+      countryCode: users.countryCode,
+      phoneE164: users.phoneE164,
+      phoneVerifiedAt: users.phoneVerifiedAt,
     })
     .from(users)
     .where(eq(users.id, userId));
   if (!user) throw errors.notFound('User');
   const canSeePii = hasPermission(viewer.role, 'users:pii');
+  const { firstName, lastName, dateOfBirth, countryCode, phoneE164, phoneVerifiedAt, ...account } = user;
+  const lifecycle = !account.emailVerifiedAt ? 'awaiting_verification' : account.onboardingRequired && !account.onboardingCompletedAt ? 'profile_pending' : 'active';
   const wallet = await getWalletAccount(db, userId);
   const [limits] = await db.select().from(responsibleLimits).where(eq(responsibleLimits.userId, userId));
   const [sessionRows, adminHistory, security, moneyOps, ledgerCheck, mfa] = await Promise.all([
@@ -167,7 +181,13 @@ export async function userDetail(userId: string, viewer: { role: UserRole }) {
   ]);
   const entriesSum = ledgerCheck ? Number(ledgerCheck.rows[0]?.entries_sum ?? 0) : 0;
   return {
-    user: { ...user, email: canSeePii ? user.email : maskEmail(user.email), roleLabel: ROLE_LABELS[user.role] },
+    user: { ...account, email: canSeePii ? user.email : maskEmail(user.email), roleLabel: ROLE_LABELS[user.role] },
+    /** Registration progress: unverified accounts have no wallet, session or chips yet. */
+    lifecycle,
+    /** Personal details only for roles with users:pii (support); others see whether they are present. */
+    personal: canSeePii
+      ? { firstName, lastName, dateOfBirth, countryCode, countryName: countryName(countryCode), phone: formatPhone(phoneE164), phoneVerified: phoneVerifiedAt !== null }
+      : { provided: Boolean(firstName && lastName && dateOfBirth && countryCode && phoneE164) },
     balance: wallet?.balance ?? 0,
     /** The stored balance re-derived from the wallet's ledger entries; they must agree. */
     ledgerCheck: { entriesSum, matches: !wallet || entriesSum === wallet.balance },
@@ -186,8 +206,8 @@ export async function userDetail(userId: string, viewer: { role: UserRole }) {
       changeStatus: hasPermission(viewer.role, 'users:suspend') && canManageUser(viewer.role, user.role) && user.status !== 'DELETED',
       revokeSessions: hasPermission(viewer.role, 'users:suspend') && canManageUser(viewer.role, user.role),
       roles: user.status === 'DELETED' ? [] : assignableRoles(viewer.role, user.role),
-      grant: hasPermission(viewer.role, 'ledger:grant') && user.status === 'ACTIVE',
-      adjust: hasPermission(viewer.role, 'ledger:adjust') && user.status !== 'DELETED',
+      grant: hasPermission(viewer.role, 'ledger:grant') && user.status === 'ACTIVE' && wallet !== undefined && wallet !== null,
+      adjust: hasPermission(viewer.role, 'ledger:adjust') && user.status !== 'DELETED' && wallet !== undefined && wallet !== null,
     },
   };
 }

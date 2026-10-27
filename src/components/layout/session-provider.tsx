@@ -13,6 +13,8 @@ export interface ClientUser {
   displayName?: string | null;
   avatar?: string | null;
   sessionStartedAt: string;
+  /** Newly registered player who still has to complete the profile step. */
+  onboardingPending?: boolean;
 }
 
 interface SessionValue {

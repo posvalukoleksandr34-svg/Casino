@@ -7,7 +7,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Callout, Chips, Mono, PageHeader } from '@/components/ui/misc';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { OUTCOME_LABELS, outcomeWeights, selectionRtp, totalWeight, type Outcome } from '@/engine/sports/model';
-import { currentSession } from '@/server/auth/current';
+import { pageSession } from '@/server/auth/current';
 import { getDb } from '@/server/db/client';
 import { sportsTickets } from '@/server/db/schema';
 import { AppError } from '@/server/errors';
@@ -21,7 +21,7 @@ export default async function SportsEventPage({ params }: { params: Promise<{ ev
     if (e instanceof AppError && e.code === 'NOT_FOUND') notFound();
     throw e;
   });
-  const session = await currentSession();
+  const session = await pageSession();
   const mine = session
     ? await getDb().select().from(sportsTickets).where(and(eq(sportsTickets.eventId, event.id), eq(sportsTickets.userId, session.userId))).orderBy(desc(sportsTickets.placedAt))
     : [];

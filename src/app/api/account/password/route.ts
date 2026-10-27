@@ -5,7 +5,7 @@ import { changePassword } from '@/server/users/accounts';
 
 const schema = z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(1).max(200) }).strict();
 
-export const POST = route({ name: 'account.password', auth: 'user', rateLimit: [RATE_LIMITS.mutateUser] }, async (ctx) => {
+export const POST = route({ name: 'account.password', auth: 'user', onboarding: 'allow', rateLimit: [RATE_LIMITS.mutateUser] }, async (ctx) => {
   const body = await readJson(ctx.req, schema);
   await changePassword(ctx.session.userId, ctx.session.sessionId, body.currentPassword, body.newPassword, {
     ipHash: ctx.ipHash,

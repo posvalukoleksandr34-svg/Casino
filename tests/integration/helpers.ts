@@ -3,25 +3,44 @@ import { eq } from 'drizzle-orm';
 import { getDb, getPool } from '@/server/db/client';
 import { games, platformSettings, riskLimits } from '@/server/db/schema';
 import { register } from '@/server/users/accounts';
+import { completeOnboarding } from '@/server/users/onboarding';
+import { verifySignupCode } from '@/server/users/verification';
+import { latestCode, withMailbox } from '../support/mailbox';
 import { runChecks } from '@/server/jobs/reconciliation';
 
 let counter = 0;
 
-export async function newPlayer(prefix = 'p') {
+/**
+ * A player created through the real journey: register (pending, code e-mailed
+ * to the capture mailer) → verify the code (activation: wallet, seeds, limits,
+ * welcome chips, session) → complete onboarding. Pass `stopAt` to get an
+ * account part-way through.
+ */
+export async function newPlayer(prefix = 'p', opts: { stopAt?: 'registered' | 'verified' } = {}) {
   counter += 1;
   const tag = `${prefix}${Date.now().toString(36)}${counter}${randomUUID().slice(0, 4)}`.replace(/-/g, '');
-  const res = await register(
-    {
-      email: `${tag}@example.test`,
-      username: tag.slice(0, 32),
-      password: 'correct horse battery staple',
-      ageConfirmed: true,
-      termsAccepted: true,
-    },
-    { ipHash: null, userAgent: 'vitest' },
-  );
-  return { userId: res.user.id, sessionId: res.session.sessionId, token: res.session.token, email: `${tag}@example.test` };
+  const email = `${tag}@example.test`;
+  const meta = { ipHash: null, userAgent: 'vitest' };
+  return withMailbox(async () => {
+    const reg = await register({ email, username: tag.slice(0, 32), password: PLAYER_PASSWORD, confirmPassword: PLAYER_PASSWORD, ageConfirmed: true, chipsAcknowledged: true, termsAccepted: true }, meta);
+    if (opts.stopAt === 'registered') return { userId: reg.user.id, sessionId: '', token: '', email, flowToken: reg.flow.token };
+    const verified = await verifySignupCode(reg.user.id, latestCode(email), meta);
+    if (opts.stopAt !== 'verified') await completeOnboarding(reg.user.id, ONBOARDING_SAMPLE, meta);
+    return { userId: reg.user.id, sessionId: verified.session.sessionId, token: verified.session.token, email, flowToken: reg.flow.token };
+  });
 }
+
+export const PLAYER_PASSWORD = 'correct horse battery staple';
+
+/** Test fixture details (example.test persona; the number is in Ofcom's range reserved for drama). */
+export const ONBOARDING_SAMPLE = {
+  firstName: 'Ana María',
+  lastName: "O'Connor-Nguyễn",
+  dateOfBirth: '1990-04-15',
+  countryCode: 'GB',
+  phoneRegion: 'GB',
+  phoneNumber: '020 7946 0018',
+};
 
 export function key(): string {
   return randomUUID();

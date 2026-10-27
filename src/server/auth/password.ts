@@ -49,16 +49,5 @@ export async function dummyVerify(password: string): Promise<void> {
 }
 
 /** Basic strength policy: length plus not trivially weak. */
-export function passwordProblems(password: string, context: { email?: string; username?: string } = {}): string[] {
-  const problems: string[] = [];
-  if (password.length < 10) problems.push('Use at least 10 characters.');
-  if (password.length > 200) problems.push('Use at most 200 characters.');
-  const lower = password.toLowerCase();
-  if (/^(.)\1+$/.test(password)) problems.push('Avoid repeating a single character.');
-  if (['password12', 'password123', '1234567890', 'qwertyuiop', 'letmein123'].includes(lower)) {
-    problems.push('This password is too common.');
-  }
-  if (context.username && lower.includes(context.username.toLowerCase())) problems.push('Do not include your username.');
-  if (context.email && lower.includes(context.email.split('@')[0]!.toLowerCase())) problems.push('Do not include your e-mail name.');
-  return problems;
-}
+/** The policy lives in src/lib/account-policy.ts so the registration form checks the same rules. */
+export { passwordProblems } from '@/lib/account-policy';

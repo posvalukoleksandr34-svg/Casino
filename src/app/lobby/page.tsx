@@ -1,6 +1,7 @@
 import { LobbyBrowser, type LobbyGame } from '@/components/lobby/lobby-browser';
-import { PageHeader } from '@/components/ui/misc';
-import { currentSession } from '@/server/auth/current';
+import Link from 'next/link';
+import { Callout, PageHeader } from '@/components/ui/misc';
+import { pageSession } from '@/server/auth/current';
 import { GAME_CATEGORIES } from '@/server/games/catalog';
 import { listFavorites, recentlyPlayed } from '@/server/games/favorites';
 import { listGames } from '@/server/games/lobby';
@@ -8,8 +9,8 @@ import { rtpText } from '@/lib/format';
 
 export const metadata = { title: 'Game lobby' };
 
-export default async function LobbyPage({ searchParams }: { searchParams: Promise<{ q?: string; c?: string }> }) {
-  const [all, session, sp] = await Promise.all([listGames(), currentSession(), searchParams]);
+export default async function LobbyPage({ searchParams }: { searchParams: Promise<{ q?: string; c?: string; welcome?: string }> }) {
+  const [all, session, sp] = await Promise.all([listGames(), pageSession(), searchParams]);
   const [favorites, recent] = session ? await Promise.all([listFavorites(session.userId), recentlyPlayed(session.userId)]) : [[], []];
   const games: LobbyGame[] = all.map((g) => ({
     id: g.id,
@@ -34,6 +35,15 @@ export default async function LobbyPage({ searchParams }: { searchParams: Promis
         title="Choose your table"
         subtitle="Every game shows its theoretical return to player (RTP) and table limits. RTP describes the long-run average; individual sessions can differ greatly."
       />
+      {session && sp.welcome === '1' && (
+        <Callout tone="positive" role="status" className="mb-6" title={`Welcome to Aurovane, ${session.displayName ?? session.username}.`}>
+          Your profile is complete and your free welcome chips are in your wallet. Chips are virtual and have no monetary value — play for fun, and set limits any time under{' '}
+          <Link href="/responsible-play" className="text-gold-300 underline-offset-2 hover:underline">
+            Responsible play
+          </Link>
+          .
+        </Callout>
+      )}
       <LobbyBrowser
         games={games}
         categories={categories}

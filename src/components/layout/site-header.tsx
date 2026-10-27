@@ -64,6 +64,27 @@ export function SiteHeader() {
 
   const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
+  if (user?.onboardingPending) {
+    // Until the profile step is done only onboarding is available (the server enforces it).
+    return (
+      <header className="sticky top-0 z-40 border-b border-ink-800/80 bg-ink-950/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6">
+          <Link href="/onboarding" className="shrink-0" aria-label="Aurovane — finish your profile">
+            <Wordmark />
+          </Link>
+          <div className="ml-auto flex items-center gap-2">
+            <Link href="/onboarding" className="hidden rounded-xl border border-gold-700/60 px-3 py-1.5 text-sm text-gold-200 sm:inline-flex">
+              Finish your profile
+            </Link>
+            <button type="button" onClick={signOut} className="rounded-xl px-3 py-2 text-sm text-ink-300 hover:text-ink-100">
+              Sign out
+            </button>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-ink-800/80 bg-ink-950/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6">

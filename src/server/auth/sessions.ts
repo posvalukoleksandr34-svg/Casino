@@ -36,6 +36,12 @@ export interface SessionUser {
   avatar: string | null;
   /** When this session passed TOTP MFA (null: not verified this session). */
   mfaVerifiedAt: Date | null;
+  /**
+   * True while a newly registered player still has to complete the profile
+   * step: the request handler and page guards then allow only the onboarding
+   * flow and essential account endpoints.
+   */
+  onboardingPending: boolean;
 }
 
 export async function createSession(db: Executor, userId: string, meta: { userAgent?: string | null; ipHash?: string | null; mfaVerifiedAt?: Date | null }) {
@@ -74,12 +80,16 @@ export async function resolveSession(token: string | undefined | null): Promise<
       displayName: users.displayName,
       avatar: users.avatar,
       mfaVerifiedAt: sessions.mfaVerifiedAt,
+      emailVerifiedAt: users.emailVerifiedAt,
+      onboardingRequired: users.onboardingRequired,
+      onboardingCompletedAt: users.onboardingCompletedAt,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
     .where(and(eq(sessions.tokenHash, sha256Hex(token)), isNull(sessions.revokedAt), gt(sessions.expiresAt, now)));
   if (!row) return null;
-  if (row.status !== 'ACTIVE') return null;
+  // Sessions are only issued after verification; refuse any other defensively.
+  if (row.status !== 'ACTIVE' || !row.emailVerifiedAt) return null;
   const idleMs = env().SESSION_IDLE_MINUTES * 60_000;
   if (now.getTime() - row.lastSeenAt.getTime() > idleMs) {
     await db.update(sessions).set({ revokedAt: now }).where(eq(sessions.id, row.sessionId));
@@ -100,6 +110,7 @@ export async function resolveSession(token: string | undefined | null): Promise<
     displayName: row.displayName,
     avatar: row.avatar,
     mfaVerifiedAt: row.mfaVerifiedAt,
+    onboardingPending: row.onboardingRequired && row.onboardingCompletedAt === null,
   };
 }
 

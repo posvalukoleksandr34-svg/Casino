@@ -13,9 +13,28 @@ export const currentSession = cache(async (): Promise<SessionUser | null> => {
   return resolveSession(store.get(sessionCookieName())?.value);
 });
 
-export async function requireUser(nextPath: string): Promise<SessionUser> {
+/**
+ * Signed-in player for a protected page. Players who must still complete
+ * onboarding are sent to /onboarding (only the onboarding page itself passes
+ * `allowOnboarding`), so no protected page renders for them.
+ */
+export async function requireUser(nextPath: string, opts: { allowOnboarding?: boolean } = {}): Promise<SessionUser> {
   const session = await currentSession();
   if (!session) redirect(`/login?next=${encodeURIComponent(nextPath)}`);
+  if (session.onboardingPending && !opts.allowOnboarding) redirect('/onboarding');
+  return session;
+}
+
+/**
+ * Session for pages that also render for signed-out visitors (lobby, game
+ * and sports pages). A player with a pending onboarding is sent to
+ * /onboarding instead of seeing the product. Pages must use this (or
+ * requireUser / requirePermission) rather than currentSession(); a unit test
+ * enforces it.
+ */
+export async function pageSession(): Promise<SessionUser | null> {
+  const session = await currentSession();
+  if (session?.onboardingPending) redirect('/onboarding');
   return session;
 }
 
@@ -30,6 +49,7 @@ const deniedThisRequest = cache((_userId: string) => ({ recorded: false }));
 export async function requirePermission(permission: Permission, opts: { allowWithoutMfa?: boolean } = {}): Promise<SessionUser> {
   const session = await currentSession();
   if (!session) notFound();
+  if (hasPermission(session.role, permission) && session.onboardingPending) redirect('/onboarding');
   if (hasPermission(session.role, permission) && !opts.allowWithoutMfa && (await staffMfaBlocks(session))) redirect('/admin/security');
   if (!hasPermission(session.role, permission)) {
     const state = deniedThisRequest(session.userId);

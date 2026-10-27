@@ -22,7 +22,7 @@ import type { KenoConfig } from '@/engine/games/keno';
 import type { LimboConfig } from '@/engine/games/limbo';
 import type { PlinkoConfig } from '@/engine/games/plinko';
 import { getGameSummary } from '@/server/games/lobby';
-import { currentSession } from '@/server/auth/current';
+import { pageSession } from '@/server/auth/current';
 import { rtpText } from '@/lib/format';
 
 export async function generateMetadata({ params }: { params: Promise<{ gameId: string }> }) {
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ gameId: s
 
 export default async function GamePage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = await params;
-  const [game, session] = await Promise.all([getGameSummary(gameId), currentSession()]);
+  const [game, session] = await Promise.all([getGameSummary(gameId), pageSession()]);
   if (!game || game.status === 'DISABLED') notFound();
 
   const props = { limits: game.limits, status: game.status };

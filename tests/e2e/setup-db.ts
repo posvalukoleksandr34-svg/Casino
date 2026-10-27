@@ -15,17 +15,18 @@ async function main() {
   await migrate(pool);
   await pool.end();
   const { bootstrap } = await import('../../src/server/bootstrap');
-  const { register } = await import('../../src/server/users/accounts');
+  const { createOperatorAccount } = await import('../../src/server/users/accounts');
   const { getDb, closeDb } = await import('../../src/server/db/client');
   const { users } = await import('../../src/server/db/schema');
   await bootstrap();
-  const res = await register({ email: ADMIN.email, username: 'e2e_admin', password: ADMIN.password, ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'e2e' });
+  // Staff fixtures are operator-created (verified by OPERATOR, no player-details step).
+  const res = await createOperatorAccount({ email: ADMIN.email, username: 'e2e_admin', password: ADMIN.password }, { ipHash: null, userAgent: 'e2e' }, { onboarding: 'exempt' });
   await getDb().update(users).set({ role: 'ADMIN' }).where(eq(users.id, res.user.id));
-  await register({ email: OWNER.email, username: 'e2e_owner', password: OWNER.password, ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'e2e' });
+  await createOperatorAccount({ email: OWNER.email, username: 'e2e_owner', password: OWNER.password }, { ipHash: null, userAgent: 'e2e' }, { onboarding: 'exempt' });
   // The first owner is provisioned exactly as in production (scripts/provision-owner.ts).
   const { provisionOwner } = await import('../../src/server/admin/provision');
   await provisionOwner({ email: OWNER.email, reason: 'End-to-end test owner' });
-  const mod = await register({ email: MODERATOR.email, username: 'e2e_moderator', password: MODERATOR.password, ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'e2e' });
+  const mod = await createOperatorAccount({ email: MODERATOR.email, username: 'e2e_moderator', password: MODERATOR.password }, { ipHash: null, userAgent: 'e2e' }, { onboarding: 'exempt' });
   await getDb().update(users).set({ role: 'SUPPORT' }).where(eq(users.id, mod.user.id));
   // Background jobs are off for the server under test; create the demo sports fixtures once.
   const { syncSports } = await import('../../src/server/sports/sync');

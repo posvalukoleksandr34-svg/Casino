@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { registerPlayer } from './helpers';
+import { codeFromMail, registerPlayer, startRegistration } from './helpers';
 
 /** Interactive elements without an accessible name, and form controls without a label. */
 async function unnamed(page: Page) {
@@ -31,7 +31,7 @@ async function unnamed(page: Page) {
 }
 
 test('interactive elements have accessible names and form controls have labels', async ({ page }) => {
-  for (const path of ['/', '/login', '/register', '/forgot-password', '/rules', '/sports', '/sports/how-it-works']) {
+  for (const path of ['/', '/login', '/register', '/forgot-password', '/rules', '/sports', '/sports/how-it-works', '/terms', '/privacy', '/verify-email']) {
     await page.goto(path);
     expect(await unnamed(page), path).toEqual([]);
   }
@@ -40,6 +40,29 @@ test('interactive elements have accessible names and form controls have labels',
     await page.goto(path);
     expect(await unnamed(page), path).toEqual([]);
   }
+});
+
+test('registration steps: named controls, a step indicator, and a keyboard-operable country selector', async ({ page }) => {
+  const { email, startedAt } = await startRegistration(page);
+  expect(await unnamed(page), '/verify-email').toEqual([]);
+  await expect(page.locator('[aria-current="step"]')).toContainText('Verify e-mail');
+  await page.getByLabel('Verification code').fill(await codeFromMail(email, startedAt));
+  await page.waitForURL('**/onboarding');
+  expect(await unnamed(page), '/onboarding').toEqual([]);
+  await expect(page.locator('[aria-current="step"]')).toContainText('Your details');
+  const country = page.getByRole('combobox', { name: 'Country of residence' });
+  await country.focus();
+  await page.keyboard.type('germ');
+  await expect(country).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
+  await expect(country).toHaveValue('Germany');
+  await expect(page.getByRole('combobox', { name: 'Country code' })).toHaveValue('Germany (+49)');
+  // Submitting an empty form moves focus to the first problem and announces it.
+  await page.getByRole('button', { name: 'Save and enter the lobby' }).click();
+  await expect(page.getByLabel('First name')).toBeFocused();
+  await expect(page.getByRole('alert').filter({ hasText: 'Enter your first name' })).toBeVisible();
 });
 
 test('keyboard focus is visible', async ({ page }) => {

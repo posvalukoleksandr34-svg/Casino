@@ -37,6 +37,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         displayName: session.displayName,
         avatar: session.avatar,
         sessionStartedAt: session.sessionCreatedAt.toISOString(),
+        onboardingPending: session.onboardingPending,
       }
     : null;
   const reduceMotion = Boolean(session?.preferences?.reducedMotion);

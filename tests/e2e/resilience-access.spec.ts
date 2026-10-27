@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
-import { registerPlayer } from './helpers';
+import { linkFromMail, login, registerPlayer } from './helpers';
 
 test.describe('interrupted requests, access control and honest states', () => {
   test('a wager whose response is lost is recovered safely and charged exactly once', async ({ page }) => {
@@ -68,12 +68,19 @@ test.describe('interrupted requests, access control and honest states', () => {
     for (const c of body.checks) expect(Object.keys(c).sort()).toEqual(['ms', 'name', 'ok']);
   });
 
-  test('password recovery says plainly when no e-mail provider is configured', async ({ page, baseURL }) => {
+  test('password recovery delivers a single-use link through the configured e-mail transport', async ({ page, context }) => {
+    const { email } = await registerPlayer(page);
+    await context.clearCookies();
+    const requestedAt = Date.now() - 1000;
     await page.goto('/forgot-password');
-    await expect(page.getByText('Recovery e-mail unavailable')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Send reset link' })).toHaveCount(0);
-    const res = await page.request.post('/api/auth/password/forgot', { data: { email: 'someone@example.test' }, headers: { Origin: baseURL! } });
-    expect(await res.json()).toMatchObject({ ok: false, recovery: 'unavailable' });
+    await page.getByLabel('E-mail').fill(email);
+    await page.getByRole('button', { name: 'Send reset link' }).click();
+    await expect(page.getByText('Request received')).toBeVisible();
+    const link = await linkFromMail(email, requestedAt);
+    await page.goto(link);
+    await page.getByLabel('New password').fill('a brand new e2e passphrase');
+    await page.getByRole('button', { name: 'Set new password' }).click();
+    await login(page, email, 'a brand new e2e passphrase');
   });
 
   test('signed-out visitors see a sign-in prompt, not a balance error', async ({ page }) => {

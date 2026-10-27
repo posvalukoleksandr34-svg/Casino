@@ -75,7 +75,7 @@ test.describe('invalid, duplicate and unauthorised requests', () => {
       await page.context().clearCookies();
       await page.goto(`/login?next=${encodeURIComponent(next)}`);
       await page.getByLabel('E-mail').fill(email);
-      await page.getByLabel('Password').fill(PASSWORD);
+      await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
       await page.getByRole('button', { name: 'Sign in' }).click();
       await page.waitForURL((url) => url.pathname === expectedPath || url.origin !== new URL(baseURL!).origin);
       expect(new URL(page.url()).origin).toBe(new URL(baseURL!).origin);

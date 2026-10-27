@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { SportsBoard } from '@/components/sports/sports-board';
 import { Callout, PageHeader } from '@/components/ui/misc';
-import { currentSession } from '@/server/auth/current';
+import { pageSession } from '@/server/auth/current';
 import { DEMO_SCHEDULE, sportsConfig } from '@/server/sports/config';
 import { listEvents, listSportsFavorites } from '@/server/sports/queries';
 
@@ -9,7 +9,7 @@ export const metadata = { title: 'Sports predictions' };
 
 export default async function SportsPage() {
   const cfg = sportsConfig();
-  const session = await currentSession();
+  const session = await pageSession();
   const header = (
     <PageHeader
       eyebrow="Sports"

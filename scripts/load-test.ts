@@ -19,13 +19,13 @@ async function main() {
   const vus = Number(process.argv[2] ?? 50);
   const seconds = Number(process.argv[3] ?? 30);
   const think = Number(process.argv[4] ?? 300);
-  const { register } = await import('../src/server/users/accounts');
+  const { createOperatorAccount } = await import('../src/server/users/accounts');
   const { closeDb } = await import('../src/server/db/client');
   const tokens: string[] = [];
   for (let i = 0; i < vus; i += 1) {
     const tag = `load${Date.now().toString(36)}${i}`;
-    const res = await register({ email: `${tag}@example.test`, username: tag, password: 'load test password', ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'load' });
-    tokens.push(res.session.token);
+    const res = await createOperatorAccount({ email: `${tag}@example.test`, username: tag, password: 'load test password' }, { ipHash: null, userAgent: 'load' }, { onboarding: 'exempt', session: true });
+    tokens.push(res.session!.token);
   }
   const latencies: number[] = [];
   const statuses = new Map<number, number>();

@@ -89,6 +89,26 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
         <Stat label="Predictions" value={d.sports.tickets.toLocaleString()} sub={`${d.sports.open} open · ${d.sports.won} won · ${d.sports.lost} lost · ${d.sports.voided} void`} />
         <Stat label="Prediction net" value={<Chips amount={d.sports.net} sign colored />} sub={<>Staked <Chips amount={d.sports.staked} compact suffix={false} /></>} />
         <Stat label="Registered" value={d.user.createdAt.toISOString().slice(0, 10)} sub={`Last sign-in ${utc(d.user.lastLoginAt)}`} />
+        <Stat
+          label="Registration"
+          value={d.lifecycle === 'awaiting_verification' ? 'Awaiting e-mail code' : d.lifecycle === 'profile_pending' ? 'Profile pending' : 'Complete'}
+          sub={
+            d.user.emailVerificationMethod === 'LEGACY_MIGRATION'
+              ? 'E-mail assumed verified (account predates verification)'
+              : d.user.emailVerifiedAt
+                ? `E-mail verified ${utc(d.user.emailVerifiedAt)}${d.user.emailVerificationMethod === 'OPERATOR' ? ' (operator-created)' : ''}`
+                : 'No wallet, session or chips until verified'
+          }
+        />
+        <Stat
+          label="Personal details"
+          value={'provided' in d.personal ? (d.personal.provided ? 'On file' : 'Not provided') : [d.personal.firstName, d.personal.lastName].filter(Boolean).join(' ') || 'Not provided'}
+          sub={
+            'provided' in d.personal
+              ? 'Visible to roles with personal-data access'
+              : [d.personal.dateOfBirth ? `Born ${d.personal.dateOfBirth}` : null, d.personal.countryName, d.personal.phone ? `${d.personal.phone} (${d.personal.phoneVerified ? 'verified' : 'unverified'})` : null].filter(Boolean).join(' · ') || undefined
+          }
+        />
         <Stat label="Sign-in security" value={d.mfaEnabled ? 'MFA on' : 'Password only'} sub={`${d.user.failedLoginCount} failed attempts${d.user.lockedUntil && d.user.lockedUntil > new Date() ? ` · locked until ${utc(d.user.lockedUntil)}` : ''}`} />
       </div>
 

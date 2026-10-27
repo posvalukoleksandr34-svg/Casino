@@ -2,14 +2,14 @@ import Link from 'next/link';
 import { BreakControls, LimitsForm, UsageSummary, type ResponsibleData } from '@/components/account/responsible-forms';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
-import { currentSession } from '@/server/auth/current';
+import { pageSession } from '@/server/auth/current';
 import { getDb } from '@/server/db/client';
 import { getLimits, playTotals } from '@/server/responsible/limits';
 
 export const metadata = { title: 'Responsible play' };
 
 export default async function ResponsiblePlayPage() {
-  const session = await currentSession();
+  const session = await pageSession();
   let data: ResponsibleData | null = null;
   if (session) {
     const db = getDb();

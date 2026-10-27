@@ -6,6 +6,9 @@
  *             refused in production (src/server/env.ts)
  *   disabled  nothing is sent; callers must tell the user honestly
  *
+ * Automated tests install an in-memory capture mailer with setMailerForTests
+ * (kind "capture"); it cannot be selected through configuration.
+ *
  * Messages are sent in the background so response times do not depend on
  * whether an account exists or how slow the provider is. Delivery failures are
  * logged without message bodies (which contain single-use links).
@@ -16,7 +19,7 @@ import { logger } from '../observability/logger';
 import { captureError } from '../observability/errors';
 import { metrics } from '../observability/metrics';
 
-export type MailTransportKind = 'smtp' | 'console' | 'disabled';
+export type MailTransportKind = 'smtp' | 'console' | 'disabled' | 'capture';
 
 export interface MailMessage {
   /** A single, already validated address (never a free-text list). */
@@ -93,6 +96,11 @@ export function getMailer(): Mailer {
   return cached;
 }
 
+/** Tests only: the transport installed by setMailerForTests, if any. */
+export function mailerOverrideForTests(): Mailer | null {
+  return override ?? null;
+}
+
 /** Tests only: replace the transport (null restores configuration). */
 export function setMailerForTests(m: Mailer | null): void {
   override = m ?? undefined;
@@ -115,6 +123,25 @@ export function sendInBackground(message: MailMessage, context: { purpose: strin
     })
     .finally(() => pending.delete(p));
   pending.add(p);
+}
+
+/**
+ * Sends and waits for the outcome, for messages whose delivery the caller must
+ * report (verification codes). Returns false on failure, which is logged and
+ * counted without the body, recipient or code.
+ */
+export async function sendNow(message: MailMessage, context: { purpose: string; userId?: string }): Promise<boolean> {
+  const mailer = getMailer();
+  try {
+    await mailer.send(message);
+    metrics.inc('casino_mail_sent_total', { purpose: context.purpose, transport: mailer.kind });
+    return true;
+  } catch (err) {
+    metrics.inc('casino_mail_failed_total', { purpose: context.purpose, transport: mailer.kind });
+    const e = err as { code?: string; responseCode?: number };
+    logger.error('mail delivery failed', { purpose: context.purpose, userId: context.userId, code: e.code, responseCode: e.responseCode });
+    return false;
+  }
 }
 
 /**

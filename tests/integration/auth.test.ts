@@ -9,10 +9,20 @@ import { changePassword, deleteAccount, exportUserData, login, register, request
 import { startRound } from '@/server/games/round-service';
 import { sha256Hex } from '@/server/crypto';
 import { expectLedgerConsistent, key, newPlayer } from './helpers';
+import { withMailbox } from '../support/mailbox';
 
 const meta = { ipHash: null, userAgent: 'vitest' };
 const PASSWORD = 'correct horse battery staple';
 const code = (e: unknown) => (e instanceof AppError ? e.code : String(e));
+const registration = (email: string, username: string, password = PASSWORD) => ({
+  email,
+  username,
+  password,
+  confirmPassword: password,
+  ageConfirmed: true as const,
+  chipsAcknowledged: true as const,
+  termsAccepted: true as const,
+});
 
 describe('registration', () => {
   it('creates user, wallet with welcome chips, seed pair and a working session', async () => {
@@ -28,12 +38,12 @@ describe('registration', () => {
   it('rejects duplicate e-mail (case-insensitive) and username', async () => {
     const p = await newPlayer('dup');
     await expect(
-      register({ email: p.email.toUpperCase(), username: `other${Date.now()}`, password: PASSWORD, ageConfirmed: true, termsAccepted: true }, meta),
+      withMailbox(() => register(registration(p.email.toUpperCase(), `other${Date.now()}`), meta)),
     ).rejects.toSatisfy((e) => code(e) === 'CONFLICT');
   });
 
   it('enforces the password policy', async () => {
-    await expect(register({ email: `weak${Date.now()}@example.test`, username: `weak${Date.now()}`, password: 'short', ageConfirmed: true, termsAccepted: true }, meta)).rejects.toSatisfy(
+    await expect(withMailbox(() => register(registration(`weak${Date.now()}@example.test`, `weak${Date.now()}`, 'short'), meta))).rejects.toSatisfy(
       (e) => code(e) === 'VALIDATION_ERROR',
     );
   });
@@ -115,7 +125,7 @@ describe('privacy', () => {
     expect(await getDb().select().from(gameRounds).where(eq(gameRounds.userId, p.userId))).toHaveLength(1);
     expect((await getDb().select().from(ledgerTransactions).where(eq(ledgerTransactions.userId, p.userId))).length).toBeGreaterThan(0);
     // The e-mail address is free to register again.
-    await register({ email: p.email, username: `re${Date.now().toString(36)}`, password: PASSWORD, ageConfirmed: true, termsAccepted: true }, meta);
+    await withMailbox(() => register(registration(p.email, `re${Date.now().toString(36)}`), meta));
     await expectLedgerConsistent();
   });
 });

@@ -7,11 +7,13 @@ import { currentSession } from '@/server/auth/current';
 export const metadata = { title: 'Create account' };
 
 export default async function RegisterPage() {
-  if (await currentSession()) redirect('/lobby');
+  const session = await currentSession();
+  if (session) redirect(session.onboardingPending ? '/onboarding' : '/lobby');
   return (
     <AuthShell
+      step={1}
       title="Create your account"
-      subtitle="Virtual chips only. No payment details, ever."
+      subtitle="Free virtual chips only. No payment details, ever."
       footer={
         <>
           Already registered?{' '}

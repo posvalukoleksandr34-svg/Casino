@@ -9,13 +9,13 @@ import { randomUUID } from 'node:crypto';
 async function main() {
   if (process.env.NODE_ENV === 'production') throw new Error('demo activity is for development only');
   const n = Number(process.argv[2] ?? 2000);
-  const { register } = await import('../src/server/users/accounts');
+  const { createOperatorAccount } = await import('../src/server/users/accounts');
   const { startRound } = await import('../src/server/games/round-service');
   const { closeDb } = await import('../src/server/db/client');
   const players: string[] = [];
   for (let i = 0; i < 8; i += 1) {
     const tag = `demo${Date.now().toString(36)}${i}`;
-    const res = await register({ email: `${tag}@example.test`, username: tag, password: 'demo activity password', ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'demo' });
+    const res = await createOperatorAccount({ email: `${tag}@example.test`, username: tag, password: 'demo activity password' }, { ipHash: null, userAgent: 'demo' }, { onboarding: 'exempt' });
     players.push(res.user.id);
   }
   let done = 0;

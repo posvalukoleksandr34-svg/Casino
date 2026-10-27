@@ -11,7 +11,7 @@ async function main() {
   const accounts = planSeed(process.env);
   const { getDb, closeDb } = await import('../src/server/db/client');
   const { users } = await import('../src/server/db/schema');
-  const { register } = await import('../src/server/users/accounts');
+  const { createOperatorAccount } = await import('../src/server/users/accounts');
   const db = getDb();
   const shown: string[] = [];
   for (const a of accounts) {
@@ -20,10 +20,8 @@ async function main() {
       console.log(`exists:  ${a.email} (${a.role}) — password unchanged`);
       continue;
     }
-    const res = await register(
-      { email: a.email, username: a.username, password: a.password, ageConfirmed: true, termsAccepted: true },
-      { ipHash: null, userAgent: 'seed' },
-    );
+    // Operator-created: verified by OPERATOR, exempt from the player-details step (nothing is invented).
+    const res = await createOperatorAccount({ email: a.email, username: a.username, password: a.password }, { ipHash: null, userAgent: 'seed' }, { onboarding: 'exempt' });
     if (a.role !== 'PLAYER') await db.update(users).set({ role: a.role }).where(eq(users.id, res.user.id));
     console.log(`created: ${a.email} (${a.role})${a.generated ? '' : ` — password from ${a.passwordVariable}`}`);
     if (a.generated) shown.push(`  ${a.email.padEnd(24)} ${a.password}`);

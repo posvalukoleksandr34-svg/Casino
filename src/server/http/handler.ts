@@ -19,6 +19,7 @@ import { metrics } from '../observability/metrics';
 import { consume, type RateLimitRule } from './rate-limit';
 import { recordAccessDenied } from '../security/denied';
 import { staffMfaBlocks } from '../auth/mfa';
+import { flowCookieName, flowCookieOptions, readFlowToken } from '../users/verification';
 
 export type AuthMode = 'public' | 'optional' | 'user' | Permission;
 
@@ -142,8 +143,18 @@ function errorResponse(err: unknown, requestId: string, route: string): NextResp
   return res;
 }
 
+/**
+ * Routes a signed-in player may use before finishing onboarding (the profile
+ * step after e-mail verification): the onboarding flow itself, sign-out,
+ * reading their own account, the display name and avatar, data export,
+ * account deletion and e-mail changes. Every other route answers 403
+ * ONBOARDING_REQUIRED for such sessions; routes with optional authentication
+ * treat them as signed out.
+ */
+export type OnboardingAccess = 'allow';
+
 export function route<A extends AuthMode, P = Record<string, string>>(
-  opts: { name: string; auth: A; rateLimit?: RateLimitRule[] },
+  opts: { name: string; auth: A; rateLimit?: RateLimitRule[]; onboarding?: OnboardingAccess },
   fn: (ctx: Ctx<A, P>) => Promise<unknown>,
 ) {
   return async (req: NextRequest, segment: { params: Promise<P> }): Promise<Response> => {
@@ -160,6 +171,10 @@ export function route<A extends AuthMode, P = Record<string, string>>(
       let session: SessionUser | null = null;
       if (opts.auth !== 'public') {
         session = await resolveSession(req.cookies.get(sessionCookieName())?.value);
+        if (session?.onboardingPending && opts.onboarding !== 'allow') {
+          if (opts.auth === 'optional') session = null;
+          else throw new AppError('ONBOARDING_REQUIRED', 'Complete your profile to continue.', { next: '/onboarding' });
+        }
         if (!session && opts.auth !== 'optional') throw errors.unauthenticated();
         if (session && opts.auth !== 'optional' && opts.auth !== 'user') {
           if (!hasPermission(session.role, opts.auth as Permission)) {
@@ -200,6 +215,22 @@ export function withSessionCookie(res: NextResponse, token: string, expiresAt: D
 export function clearSessionCookie(res: NextResponse): NextResponse {
   res.cookies.set(sessionCookieName(), '', { ...sessionCookieOptions(new Date(0)), maxAge: 0 });
   return res;
+}
+
+/** Signup-flow cookie: names the pending registration this browser may verify (see users/verification.ts). */
+export function withFlowCookie(res: NextResponse, token: string, expiresAt: Date): NextResponse {
+  res.cookies.set(flowCookieName(), token, flowCookieOptions(expiresAt));
+  return res;
+}
+
+export function clearFlowCookie(res: NextResponse): NextResponse {
+  res.cookies.set(flowCookieName(), '', { ...flowCookieOptions(new Date(0)), maxAge: 0 });
+  return res;
+}
+
+/** The pending account named by this request's signup-flow cookie; requests never name one by id. */
+export function flowUserId(req: NextRequest): string | null {
+  return readFlowToken(req.cookies.get(flowCookieName())?.value);
 }
 
 export function idempotencyKeyFrom(req: NextRequest): string {

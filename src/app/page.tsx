@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { GameGlyph } from '@/components/games/game-glyph';
 import { Badge } from '@/components/ui/badge';
-import { currentSession } from '@/server/auth/current';
+import { pageSession } from '@/server/auth/current';
 import { listGames } from '@/server/games/lobby';
 import { rtpText } from '@/lib/format';
 
 export default async function HomePage() {
-  const [session, games] = await Promise.all([currentSession(), listGames()]);
+  const [session, games] = await Promise.all([pageSession(), listGames()]);
   return (
     <div className="space-y-24">
       <section className="relative grid items-center gap-12 lg:grid-cols-[1.15fr_1fr]">

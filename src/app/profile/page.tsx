@@ -16,6 +16,7 @@ import { listFavorites } from '@/server/games/favorites';
 import { listRounds } from '@/server/games/round-service';
 import { getWalletAccount } from '@/server/ledger/accounts';
 import { userActivity } from '@/server/users/accounts';
+import { accountDetails } from '@/server/users/onboarding';
 import { playerStats } from '@/server/users/stats';
 
 export const metadata = { title: 'Profile' };
@@ -36,12 +37,21 @@ const ACTIVITY_LABELS: Record<string, string> = {
   'responsible.cool_off': 'Cool-off started',
   'responsible.self_excluded': 'Self-exclusion started',
   'user.data_exported': 'Personal data exported',
+  'user.email_verified': 'E-mail address confirmed',
+  'user.onboarding_completed': 'Profile completed',
+  'user.details_updated': 'Personal details updated',
+  'auth.verification_code_sent': 'Verification code sent',
+  'auth.email_verification_failed': 'Incorrect verification code entered',
+  'auth.signup_email_changed': 'Registration e-mail corrected',
+  'auth.email_change_requested': 'E-mail change requested',
+  'auth.email_change_cancelled': 'E-mail change cancelled',
+  'auth.email_changed': 'E-mail address changed',
 };
 
 export default async function ProfilePage() {
   const session = await requireUser('/profile');
   const db = getDb();
-  const [[user], wallet, stats, activity, achievements, favorites, rounds] = await Promise.all([
+  const [[user], wallet, stats, activity, achievements, favorites, rounds, details] = await Promise.all([
     db
       .select({ createdAt: users.createdAt, lastLoginAt: users.lastLoginAt, displayName: users.displayName, avatar: users.avatar })
       .from(users)
@@ -52,7 +62,10 @@ export default async function ProfilePage() {
     evaluateAchievements(session.userId),
     listFavorites(session.userId),
     listRounds({ userId: session.userId, limit: 8 }),
+    accountDetails(session.userId),
   ]);
+  const fullName = [details.firstName, details.lastName].filter(Boolean).join(' ');
+  const detailsComplete = Boolean(details.firstName && details.lastName && details.dateOfBirth && details.countryCode && details.phoneE164);
   const t = stats.totals;
   const name = user?.displayName ?? session.username;
   const earned = achievements.filter((a) => a.earned).length;
@@ -85,6 +98,48 @@ export default async function ProfilePage() {
         <Stat label="Rounds completed" value={t.rounds.toLocaleString()} sub={`${t.wins} won · ${t.losses} lost · ${t.draws} even`} />
         <Stat label="Net result" value={<Chips amount={t.net} sign colored />} sub="Returned minus staked" />
       </div>
+
+      <Card className="mt-6">
+        <CardHeader
+          title="Account details"
+          subtitle="Private: never shown to other players."
+          actions={
+            <Link href="/settings" className="text-sm text-gold-400 hover:text-gold-300">
+              Edit in settings →
+            </Link>
+          }
+        />
+        <CardBody>
+          <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">E-mail</dt>
+              <dd className="mt-1 flex flex-wrap items-center gap-2 break-all text-ink-100">
+                {session.email}
+                {details.emailVerificationMethod === 'LEGACY_MIGRATION' ? <Badge tone="warning">Not re-verified</Badge> : <Badge tone="positive">Verified</Badge>}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Name</dt>
+              <dd className="mt-1 text-ink-100" data-testid="profile-legal-name">{fullName || <span className="text-ink-400">Not provided</span>}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Country</dt>
+              <dd className="mt-1 text-ink-100">{details.countryName ?? <span className="text-ink-400">Not provided</span>}</dd>
+            </div>
+            <div>
+              <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Phone</dt>
+              <dd className="mt-1 flex flex-wrap items-center gap-2 text-ink-100">
+                {details.phoneDisplay ?? <span className="text-ink-400">Not provided</span>}
+                {details.phoneDisplay && (details.phoneVerified ? <Badge tone="positive">Verified</Badge> : <Badge>Unverified</Badge>)}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-4 text-xs text-ink-400">
+            Profile {detailsComplete ? 'complete' : details.onboardingRequired ? 'incomplete' : 'details are optional for your account (it predates the profile step)'}.
+            {details.onboardingCompletedAt && ` Completed ${details.onboardingCompletedAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}.`}
+          </p>
+        </CardBody>
+      </Card>
 
       <Card className="mt-6">
         <CardHeader

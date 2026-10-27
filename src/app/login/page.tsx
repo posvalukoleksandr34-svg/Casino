@@ -8,7 +8,8 @@ import { currentSession } from '@/server/auth/current';
 export const metadata = { title: 'Sign in' };
 
 export default async function LoginPage() {
-  if (await currentSession()) redirect('/lobby');
+  const session = await currentSession();
+  if (session) redirect(session.onboardingPending ? '/onboarding' : '/lobby');
   return (
     <AuthShell
       title="Welcome back"

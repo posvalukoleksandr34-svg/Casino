@@ -4,7 +4,6 @@
  * concurrency.
  */
 import { randomUUID } from 'node:crypto';
-import { createServer, type Server, type Socket } from 'node:net';
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sha256Hex } from '@/server/crypto';
@@ -16,73 +15,9 @@ import { resolveSession } from '@/server/auth/sessions';
 import { flushMail, setMailerForTests } from '@/server/mail/mailer';
 import { login, requestPasswordReset, resetPassword } from '@/server/users/accounts';
 import { newPlayer } from './helpers';
+import { fakeSmtp, plainBody, type Received } from '../support/fake-smtp';
 
 const meta = { ipHash: null, userAgent: 'vitest' };
-
-interface Received {
-  from: string;
-  to: string[];
-  data: string;
-}
-
-/** Just enough SMTP (RFC 5321) for nodemailer: EHLO, MAIL, RCPT, DATA, QUIT. */
-function fakeSmtp(opts: { rejectRcpt?: boolean } = {}) {
-  const inbox: Received[] = [];
-  const server: Server = createServer((socket: Socket) => {
-    let buffer = '';
-    let inData = false;
-    let current: Received = { from: '', to: [], data: '' };
-    const reply = (line: string) => socket.write(`${line}\r\n`);
-    reply('220 fake.test ESMTP');
-    socket.on('data', (chunk) => {
-      buffer += chunk.toString('utf8');
-      for (;;) {
-        if (inData) {
-          const end = buffer.indexOf('\r\n.\r\n');
-          if (end === -1) return;
-          current.data = buffer.slice(0, end);
-          buffer = buffer.slice(end + 5);
-          inData = false;
-          inbox.push(current);
-          current = { from: '', to: [], data: '' };
-          reply('250 2.0.0 queued');
-          continue;
-        }
-        const nl = buffer.indexOf('\r\n');
-        if (nl === -1) return;
-        const line = buffer.slice(0, nl);
-        buffer = buffer.slice(nl + 2);
-        const cmd = line.slice(0, 4).toUpperCase();
-        if (cmd === 'EHLO' || cmd === 'HELO') reply('250 fake.test');
-        else if (cmd === 'MAIL') {
-          current.from = line;
-          reply('250 2.1.0 ok');
-        } else if (cmd === 'RCPT') {
-          if (opts.rejectRcpt) reply('550 5.1.1 mailbox unavailable');
-          else {
-            current.to.push(line);
-            reply('250 2.1.5 ok');
-          }
-        } else if (cmd === 'DATA') {
-          inData = true;
-          reply('354 end with <CRLF>.<CRLF>');
-        } else if (cmd === 'RSET' || cmd === 'NOOP') reply('250 ok');
-        else if (cmd === 'QUIT') {
-          reply('221 bye');
-          socket.end();
-        } else reply('502 not implemented');
-      }
-    });
-  });
-  return {
-    inbox,
-    async start(): Promise<number> {
-      await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
-      return (server.address() as { port: number }).port;
-    },
-    stop: () => new Promise<void>((r) => server.close(() => r())),
-  };
-}
 
 function useSmtp(port: number) {
   process.env.MAIL_TRANSPORT = 'smtp';
@@ -102,7 +37,7 @@ function restoreMail() {
 
 /** Quoted-printable soft breaks may split the link; undo them before searching. */
 function tokenFrom(message: Received): string {
-  const body = message.data.replace(/=\r\n/g, '').replace(/=3D/g, '=');
+  const body = plainBody(message);
   const m = /reset-password\?token=([A-Za-z0-9_-]+)/.exec(body);
   if (!m) throw new Error('no reset link in message');
   return m[1]!;

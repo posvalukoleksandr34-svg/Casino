@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { registerPlayer } from './helpers';
+import { codeFromMail, registerPlayer, startRegistration } from './helpers';
 
 test('mobile layout: no horizontal page scroll and dice playable', async ({ page }) => {
   await registerPlayer(page);
@@ -18,4 +18,23 @@ test('mobile layout: key pages fit the screen without horizontal scrolling', asy
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, path).toBeLessThanOrEqual(1);
   }
+});
+
+test('mobile layout: registration, verification and onboarding fit the screen', async ({ page }) => {
+  await page.goto('/register');
+  let overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow, '/register').toBeLessThanOrEqual(1);
+  const { email, startedAt } = await startRegistration(page);
+  overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow, '/verify-email').toBeLessThanOrEqual(1);
+  await expect(page.getByLabel('Verification code')).toHaveAttribute('inputmode', 'numeric');
+  await page.getByLabel('Verification code').fill(await codeFromMail(email, startedAt));
+  await page.waitForURL('**/onboarding');
+  const country = page.getByRole('combobox', { name: 'Country of residence' });
+  await country.tap();
+  await country.fill('Fra');
+  await page.getByRole('option', { name: /^France/ }).tap();
+  await expect(country).toHaveValue('France');
+  overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow, '/onboarding').toBeLessThanOrEqual(1);
 });

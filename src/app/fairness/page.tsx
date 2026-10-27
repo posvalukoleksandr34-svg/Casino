@@ -3,14 +3,14 @@ import { Suspense } from 'react';
 import { SeedManager, Verifier } from '@/components/account/fairness-panel';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
-import { currentSession } from '@/server/auth/current';
+import { pageSession } from '@/server/auth/current';
 import { getDb } from '@/server/db/client';
 import { fairnessOverview } from '@/server/fairness/seeds';
 
 export const metadata = { title: 'Provably fair' };
 
 export default async function FairnessPage() {
-  const session = await currentSession();
+  const session = await pageSession();
   const overview = session ? await fairnessOverview(getDb(), session.userId) : null;
   return (
     <>

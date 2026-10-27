@@ -7,6 +7,7 @@ import { safeNextPath } from '@/lib/safe-next';
 import { Button } from '../ui/button';
 import { Field, Input } from '../ui/form';
 import { Callout } from '../ui/misc';
+import { PasswordInput } from '../ui/password-input';
 
 /**
  * Password sign-in. Accounts with two-factor authentication get a second
@@ -37,6 +38,12 @@ export function LoginForm() {
       else await api('/api/auth/login', { method: 'POST', body: { email, password } });
       done();
     } catch (err) {
+      if (err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
+        // Right password, unconfirmed address: continue registration where it stopped.
+        router.push('/verify-email');
+        router.refresh();
+        return;
+      }
       if (err instanceof ApiError && err.code === 'MFA_REQUIRED' && typeof err.details?.challenge === 'string') {
         setChallenge(err.details.challenge);
         setPassword('');
@@ -98,7 +105,7 @@ export function LoginForm() {
             {(p) => <Input {...p} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />}
           </Field>
           <Field label="Password">
-            {(p) => <Input {...p} type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />}
+            {(p) => <PasswordInput {...p} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />}
           </Field>
           <Button type="submit" variant="primary" size="lg" block loading={busy}>
             Sign in

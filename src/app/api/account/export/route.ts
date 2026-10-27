@@ -5,7 +5,7 @@ import { exportUserData } from '@/server/users/accounts';
 import { audit } from '@/server/audit/audit';
 import { getDb } from '@/server/db/client';
 
-export const GET = route({ name: 'account.export', auth: 'user', rateLimit: [RATE_LIMITS.mutateUser] }, async (ctx) => {
+export const GET = route({ name: 'account.export', auth: 'user', onboarding: 'allow', rateLimit: [RATE_LIMITS.mutateUser] }, async (ctx) => {
   const data = await exportUserData(ctx.session.userId);
   await audit(getDb(), { actorId: ctx.session.userId, actorType: 'USER', action: 'user.data_exported', ipHash: ctx.ipHash });
   return new NextResponse(JSON.stringify(data, null, 2), {

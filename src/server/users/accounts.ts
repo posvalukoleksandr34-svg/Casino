@@ -1,7 +1,8 @@
 /**
- * Player account lifecycle: registration, login, password management, data
- * export and deletion (anonymisation that preserves financial and audit
- * records, which must be retained).
+ * Player account lifecycle: registration (pending until the e-mail code is
+ * entered, see verification.ts), login, password management, data export and
+ * deletion (anonymisation that preserves financial and audit records, which
+ * must be retained).
  */
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -10,6 +11,7 @@ import { getDb, pgConstraint, pgErrorCode, withTransaction } from '../db/client'
 import {
   auditLogs,
   bonuses,
+  emailVerificationChallenges,
   gameRounds,
   ledgerAccounts,
   passwordResetTokens,
@@ -25,10 +27,7 @@ import {
 import { env } from '../env';
 import { AppError, errors } from '../errors';
 import { audit } from '../audit/audit';
-import { createWalletAccount, getWalletAccount, lockWalletAccount } from '../ledger/accounts';
-import { createSeedPair } from '../fairness/seeds';
-import { ensureLimitsRow } from '../responsible/limits';
-import { grantSignupBonus } from '../promotions/bonuses';
+import { getWalletAccount, lockWalletAccount } from '../ledger/accounts';
 import { dummyVerify, hashPassword, needsRehash, passwordProblems, verifyPassword } from '../auth/password';
 import { createSession, revokeAllSessions } from '../auth/sessions';
 import { issueMfaChallenge, mfaEnabled } from '../auth/mfa';
@@ -37,6 +36,19 @@ import { metrics } from '../observability/metrics';
 import { consume, type RateLimitRule } from '../http/rate-limit';
 import { getMailer, runInBackground, sendInBackground } from '../mail/mailer';
 import { listTransactions } from '../wallet/wallet';
+import { MINIMUM_AGE, PRIVACY_VERSION, TERMS_VERSION } from '@/lib/account-policy';
+import {
+  activateAccount,
+  assertCanSendCodes,
+  deliverChallenge,
+  ensureSignupCode,
+  issueFlowToken,
+  issueSignupChallenge,
+  limitAddress,
+  reclaimStalePending,
+  VERIFY_LIMITS,
+  type IssuedChallenge,
+} from './verification';
 
 export const emailSchema = z
   .string()
@@ -55,10 +67,13 @@ export const registerSchema = z
     email: emailSchema,
     username: usernameSchema,
     password: passwordSchema,
-    ageConfirmed: z.literal(true, { message: 'You must confirm you are at least 18 years old' }),
-    termsAccepted: z.literal(true, { message: 'You must accept the terms (virtual currency only)' }),
+    confirmPassword: z.string().max(200),
+    ageConfirmed: z.literal(true, { message: `You must confirm you are at least ${MINIMUM_AGE} years old` }),
+    chipsAcknowledged: z.literal(true, { message: 'You must acknowledge that chips are virtual and have no monetary value' }),
+    termsAccepted: z.literal(true, { message: 'You must accept the Terms of Service and acknowledge the Privacy Notice' }),
   })
-  .strict();
+  .strict()
+  .refine((r) => r.password === r.confirmPassword, { message: 'The passwords do not match', path: ['confirmPassword'] });
 
 export interface RequestMeta {
   ipHash: string | null;
@@ -69,26 +84,55 @@ export interface RequestMeta {
 const MAX_FAILED_LOGINS = 8;
 const LOCKOUT_MINUTES = 15;
 
+function validationIssues(error: z.ZodError) {
+  return { issues: error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) };
+}
+
+function duplicateAccount(err: unknown): AppError | null {
+  if (pgErrorCode(err) !== '23505') return null;
+  const c = pgConstraint(err);
+  if (c === 'users_email_key') return errors.conflict('An account with this e-mail already exists', { field: 'email' });
+  if (c === 'users_username_key') return errors.conflict('This username is taken. Try another one.', { field: 'username' });
+  return null;
+}
+
+/**
+ * Step 1 of the journey: creates a pending account and e-mails a
+ * verification code. No session, wallet, seeds or chips exist until the code
+ * is entered (verifySignupCode). Refused outright when this deployment cannot
+ * send e-mail, so no account is created that could never be verified. A
+ * failed delivery leaves the account pending; the verification page offers a
+ * resend straight away.
+ */
 export async function register(raw: z.input<typeof registerSchema>, meta: RequestMeta) {
+  assertCanSendCodes();
   // Validate here too (not only at the HTTP edge) so every caller gets normalised input.
   const parsed = registerSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw errors.validation('Invalid registration', { issues: parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
-  }
+  if (!parsed.success) throw errors.validation('Check the highlighted fields', validationIssues(parsed.error));
   const input = parsed.data;
   const problems = passwordProblems(input.password, { email: input.email, username: input.username });
   if (problems.length) throw errors.validation('Password does not meet the policy', { password: problems });
+  await limitAddress(VERIFY_LIMITS.registerAddress, input.email);
   const passwordHash = await hashPassword(input.password);
+  let issued: IssuedChallenge;
+  let user: { id: string; email: string; username: string };
   try {
-    return await withTransaction(async (tx) => {
+    ({ user, issued } = await withTransaction(async (tx) => {
+      await reclaimStalePending(tx, input.email, input.username);
+      const now = new Date();
       const [user] = await tx
         .insert(users)
-        .values({ email: input.email, username: input.username, passwordHash })
-        .returning({ id: users.id, email: users.email, username: users.username, role: users.role });
-      await createWalletAccount(tx, user!.id);
-      await createSeedPair(tx, user!.id);
-      await ensureLimitsRow(tx, user!.id);
-      const bonus = await grantSignupBonus(tx, user!.id);
+        .values({
+          email: input.email,
+          username: input.username,
+          passwordHash,
+          onboardingRequired: true,
+          termsVersion: TERMS_VERSION,
+          termsAcceptedAt: now,
+          privacyVersion: PRIVACY_VERSION,
+          privacyAcceptedAt: now,
+        })
+        .returning({ id: users.id, email: users.email, username: users.username });
       await audit(tx, {
         actorId: user!.id,
         actorType: 'USER',
@@ -97,17 +141,59 @@ export async function register(raw: z.input<typeof registerSchema>, meta: Reques
         resourceId: user!.id,
         ipHash: meta.ipHash,
         requestId: meta.requestId ?? null,
+        metadata: { termsVersion: TERMS_VERSION, privacyVersion: PRIVACY_VERSION },
       });
-      const session = await createSession(tx, user!.id, meta);
-      return { user: user!, session, signupBonus: bonus };
+      const issued = await issueSignupChallenge(tx, user!.id, user!.email, now);
+      return { user: user!, issued };
+    }, { retries: 0 }));
+  } catch (err) {
+    throw duplicateAccount(err) ?? err;
+  }
+  const sent = await deliverChallenge(issued);
+  return { user, sent, flow: issueFlowToken(user.id), expiresAt: issued.expiresAt };
+}
+
+/**
+ * Accounts created by operator scripts (seed data, load tests, end-to-end
+ * fixtures), never by an HTTP request: no e-mail round trip, the address is
+ * recorded as verified by OPERATOR, and the usual activation runs (wallet,
+ * seeds, limits, welcome chips). `onboarding: 'exempt'` skips the player
+ * details step (nothing is invented for it); 'required' leaves it pending.
+ */
+export async function createOperatorAccount(
+  input: { email: string; username: string; password: string },
+  meta: RequestMeta,
+  opts: { onboarding: 'exempt' | 'required'; session?: boolean },
+) {
+  const email = emailSchema.parse(input.email);
+  const username = usernameSchema.parse(input.username);
+  const problems = passwordProblems(input.password, { email, username });
+  if (problems.length) throw errors.validation('Password does not meet the policy', { password: problems });
+  const passwordHash = await hashPassword(input.password);
+  try {
+    return await withTransaction(async (tx) => {
+      const now = new Date();
+      const [user] = await tx
+        .insert(users)
+        .values({ email, username, passwordHash, emailVerifiedAt: now, emailVerificationMethod: 'OPERATOR', onboardingRequired: opts.onboarding === 'required' })
+        .returning({ id: users.id, email: users.email, username: users.username, role: users.role });
+      const signupBonus = await activateAccount(tx, user!.id);
+      await audit(tx, { actorType: 'SYSTEM', action: 'user.created_by_operator', resourceType: 'user', resourceId: user!.id, metadata: { onboarding: opts.onboarding } });
+      const session = opts.session ? await createSession(tx, user!.id, meta) : null;
+      return { user: user!, signupBonus, session };
     }, { retries: 0 });
   } catch (err) {
-    if (pgErrorCode(err) === '23505') {
-      const c = pgConstraint(err);
-      if (c === 'users_email_key') throw errors.conflict('An account with this e-mail already exists', { field: 'email' });
-      if (c === 'users_username_key') throw errors.conflict('This username is taken', { field: 'username' });
-    }
-    throw err;
+    throw duplicateAccount(err) ?? err;
+  }
+}
+
+/** Thrown by login() for an unverified account after a correct password: the route sets the signup-flow cookie. */
+export class VerificationRequiredError extends AppError {
+  constructor(
+    readonly flow: { token: string; expiresAt: Date },
+    readonly email: string,
+  ) {
+    super('EMAIL_NOT_VERIFIED', 'Confirm your e-mail address to finish creating your account. We have sent you a code.', { next: '/verify-email' });
   }
 }
 
@@ -168,6 +254,12 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
   if (user.status === 'SUSPENDED') {
     throw errors.forbidden('This account is suspended. Please contact support.');
   }
+  if (!user.emailVerifiedAt) {
+    // The password was right, so this reveals nothing about which addresses exist.
+    await db.update(users).set({ failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, user.id));
+    await ensureSignupCode(user.id, meta);
+    throw new VerificationRequiredError(issueFlowToken(user.id), user.email);
+  }
   if (await mfaEnabled(db, user.id)) {
     // The password was right: clear the failure counter, but issue no session until
     // the second factor is proven (completeMfaLogin exchanges the challenge).
@@ -190,7 +282,11 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
       requestId: meta.requestId ?? null,
     });
     const session = await createSession(tx, user.id, meta);
-    return { user: { id: user.id, email: user.email, username: user.username, role: user.role }, session };
+    return {
+      user: { id: user.id, email: user.email, username: user.username, role: user.role },
+      session,
+      onboardingPending: user.onboardingRequired && user.onboardingCompletedAt === null,
+    };
   });
 }
 
@@ -356,9 +452,36 @@ export async function exportUserData(userId: string) {
       avatar: users.avatar,
       createdAt: users.createdAt,
       lastLoginAt: users.lastLoginAt,
+      emailVerifiedAt: users.emailVerifiedAt,
+      emailVerificationMethod: users.emailVerificationMethod,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      dateOfBirth: users.dateOfBirth,
+      countryCode: users.countryCode,
+      phoneE164: users.phoneE164,
+      phoneVerifiedAt: users.phoneVerifiedAt,
+      onboardingRequired: users.onboardingRequired,
+      onboardingCompletedAt: users.onboardingCompletedAt,
+      termsVersion: users.termsVersion,
+      termsAcceptedAt: users.termsAcceptedAt,
+      privacyVersion: users.privacyVersion,
+      privacyAcceptedAt: users.privacyAcceptedAt,
     })
     .from(users)
     .where(eq(users.id, userId));
+  // Codes are never stored; only when and where each one was sent.
+  const emailVerifications = await db
+    .select({
+      purpose: emailVerificationChallenges.purpose,
+      email: emailVerificationChallenges.email,
+      delivery: emailVerificationChallenges.delivery,
+      createdAt: emailVerificationChallenges.createdAt,
+      expiresAt: emailVerificationChallenges.expiresAt,
+      consumedAt: emailVerificationChallenges.consumedAt,
+    })
+    .from(emailVerificationChallenges)
+    .where(eq(emailVerificationChallenges.userId, userId))
+    .orderBy(desc(emailVerificationChallenges.createdAt));
   const wallet = await getWalletAccount(db, userId);
   const favorites = await db.select({ gameId: userFavorites.gameId, createdAt: userFavorites.createdAt }).from(userFavorites).where(eq(userFavorites.userId, userId));
   const achievements = await db
@@ -426,6 +549,7 @@ export async function exportUserData(userId: string) {
     bonuses: bonusRows,
     seeds,
     sessions: sessionRows,
+    emailVerifications,
     activity,
     favorites,
     achievements,
@@ -436,7 +560,8 @@ export async function exportUserData(userId: string) {
 
 /**
  * Account deletion. Personal data is erased (e-mail, username, password,
- * preferences, sessions); financial records (ledger, rounds, bets, payouts)
+ * preferences, names, date of birth, country, phone number, the addresses
+ * verification codes were sent to, session metadata); financial records (ledger, rounds, bets, payouts)
  * and audit logs are retained in pseudonymised form because they must stay
  * reconcilable and auditable. Open rounds must be finished first so no stake
  * is left in limbo.
@@ -480,10 +605,21 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
         preferences: {},
         displayName: null,
         avatar: null,
+        firstName: null,
+        lastName: null,
+        dateOfBirth: null,
+        countryCode: null,
+        phoneE164: null,
+        phoneVerifiedAt: null,
         deletedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
+    // Codes were never stored; erase the addresses they were sent to.
+    await tx
+      .update(emailVerificationChallenges)
+      .set({ email: 'erased@deleted.invalid', supersededAt: sql`coalesce(${emailVerificationChallenges.supersededAt}, now())` })
+      .where(eq(emailVerificationChallenges.userId, userId));
     await tx.update(sessions).set({ userAgent: null, ipHash: null }).where(eq(sessions.userId, userId));
     await tx.delete(userFavorites).where(eq(userFavorites.userId, userId));
     await tx.delete(userSportsFavorites).where(eq(userSportsFavorites.userId, userId));
