@@ -79,7 +79,11 @@ test.describe('interrupted requests, access control and honest states', () => {
     const link = await linkFromMail(email, requestedAt);
     await page.goto(link);
     await page.getByLabel('New password').fill('a brand new e2e passphrase');
+    const reset = page.waitForResponse((r) => r.url().endsWith('/api/auth/password/reset'));
     await page.getByRole('button', { name: 'Set new password' }).click();
+    expect((await reset).status()).toBe(200);
+    // Navigating away before the reset commits would abort it.
+    await expect(page.getByText('Password updated')).toBeVisible();
     await login(page, email, 'a brand new e2e passphrase');
   });
 

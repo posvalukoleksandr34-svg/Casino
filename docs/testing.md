@@ -161,9 +161,14 @@ per purpose (`registration.test.ts`). Two e2e locators matched Next.js's route a
 and a section heading with the same name as a field; the heading was renamed (it was also
 ambiguous for screen readers).
 
+**GitHub Actions.** CI run 34 (commit `7f42ed2`, the code) passed all five jobs. Run 39
+(`41d2cae`, docs) failed in the end-to-end job only: the new password-reset test navigated
+to the sign-in page right after clicking "Set new password", which can abort the reset
+request on a slower runner (it passed locally). The test now waits for the reset response
+and the confirmation before signing in; it passed three times in a row locally.
+
 **Not verified here:** delivery through a real e-mail provider (none is configured in
-this environment; the SMTP path is tested against local sinks only). CI for these commits
-had not been checked when this was written.
+this environment; the SMTP path is tested against local sinks only).
 
 ## Results of the owner-administration run (2026-10-27, this repository's environment)
 
