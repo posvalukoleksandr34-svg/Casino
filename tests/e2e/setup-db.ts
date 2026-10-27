@@ -3,7 +3,7 @@ import pg from 'pg';
 import { eq } from 'drizzle-orm';
 import { migrate } from '../../src/server/db/migrator';
 import { ensureAppRole } from '../support/app-role';
-import { ADMIN, E2E_DATABASE_URL } from './env';
+import { ADMIN, E2E_DATABASE_URL, MODERATOR, OWNER } from './env';
 
 async function main() {
   const name = new URL(E2E_DATABASE_URL).pathname.slice(1);
@@ -21,6 +21,12 @@ async function main() {
   await bootstrap();
   const res = await register({ email: ADMIN.email, username: 'e2e_admin', password: ADMIN.password, ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'e2e' });
   await getDb().update(users).set({ role: 'ADMIN' }).where(eq(users.id, res.user.id));
+  await register({ email: OWNER.email, username: 'e2e_owner', password: OWNER.password, ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'e2e' });
+  // The first owner is provisioned exactly as in production (scripts/provision-owner.ts).
+  const { provisionOwner } = await import('../../src/server/admin/provision');
+  await provisionOwner({ email: OWNER.email, reason: 'End-to-end test owner' });
+  const mod = await register({ email: MODERATOR.email, username: 'e2e_moderator', password: MODERATOR.password, ageConfirmed: true, termsAccepted: true }, { ipHash: null, userAgent: 'e2e' });
+  await getDb().update(users).set({ role: 'SUPPORT' }).where(eq(users.id, mod.user.id));
   // Background jobs are off for the server under test; create the demo sports fixtures once.
   const { syncSports } = await import('../../src/server/sports/sync');
   await syncSports();

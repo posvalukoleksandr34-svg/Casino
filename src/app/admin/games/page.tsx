@@ -1,76 +1,85 @@
-import { ConfigEditor, GameStatusControl, LimitsEditor } from '@/components/admin/game-controls';
+import Link from 'next/link';
+import { sql } from 'drizzle-orm';
+import { GAME_STATUS_LABELS } from '@/components/account/labels';
 import { GameGlyph } from '@/components/games/game-glyph';
-import { StatusBadge } from '@/components/ui/badge';
-import { Card, CardBody, CardHeader } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardBody } from '@/components/ui/card';
 import { Chips, PageHeader } from '@/components/ui/misc';
+import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { adminGames } from '@/server/admin/admin-service';
-import { hasPermission } from '@/server/auth/rbac';
 import { requirePermission } from '@/server/auth/current';
+import { canonicalJson } from '@/server/crypto';
+import { getDb } from '@/server/db/client';
 
-export const metadata = { title: 'Games & configuration' };
+export const metadata = { title: 'Games' };
+
+const TONE = { ACTIVE: 'positive', SUSPENDED: 'warning', DISABLED: 'neutral' } as const;
 
 export default async function AdminGamesPage() {
-  const session = await requirePermission('admin:access');
-  const games = await adminGames();
-  const canGames = hasPermission(session.role, 'games:manage');
-  const canRisk = hasPermission(session.role, 'risk:manage');
+  await requirePermission('admin:access');
+  const [games, open] = await Promise.all([
+    adminGames(),
+    getDb().execute<{ game_id: string; n: number; started_24h: number }>(sql`
+      SELECT g.id AS game_id,
+             (SELECT count(*) FROM game_rounds r WHERE r.game_id = g.id AND r.status = 'OPEN')::int AS n,
+             (SELECT count(*) FROM game_rounds r WHERE r.game_id = g.id AND r.started_at > now() - interval '1 day')::int AS started_24h
+        FROM games g`),
+  ]);
+  const byGame = new Map(open.rows.map((r) => [r.game_id, r]));
   return (
     <>
-      <PageHeader eyebrow="Admin" title="Games & configuration" subtitle="Game status, versioned rule configuration and per-game risk limits. Every change requires a reason and is audited." />
-      <div className="space-y-6">
-        {games.map((g) => (
-          <Card key={g.id}>
-            <CardHeader
-              title={
-                <span className="flex items-center gap-3">
-                  <GameGlyph id={g.id} className="size-8" />
-                  <span className="font-display text-xl">{g.name}</span>
-                  <StatusBadge status={g.status} />
-                </span>
-              }
-              subtitle={g.statusReason ?? undefined}
-              actions={
-                <>
-                  {canGames && <GameStatusControl gameId={g.id} status={g.status} />}
-                  {canGames && g.activeConfig && <ConfigEditor gameId={g.id} config={g.activeConfig.config} />}
-                  {canRisk && <LimitsEditor gameId={g.id} limits={{ minStake: g.limits.minStake, maxStake: g.limits.maxStake, maxPayoutPerRound: g.limits.maxPayoutPerRound, maxGameExposure: g.limits.maxGameExposure }} />}
-                </>
-              }
-            />
-            <CardBody className="grid gap-6 md:grid-cols-3">
-              <div className="text-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">Theoretical return</div>
-                {g.theoretical && (
-                  <>
-                    <div className="num mt-1 text-2xl text-gold-300">{(g.theoretical.rtp * 100).toFixed(3)}%</div>
-                    <div className="text-xs text-ink-400">
-                      edge {(g.theoretical.houseEdge * 100).toFixed(3)}% · {g.theoretical.method}
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="text-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">Limits</div>
-                <dl className="mt-1 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                  <dt className="text-ink-400">Stake</dt>
-                  <dd>
-                    <Chips amount={g.limits.minStake} suffix={false} /> – <Chips amount={g.limits.maxStake} suffix={false} />
-                  </dd>
-                  <dt className="text-ink-400">Max payout</dt>
-                  <dd><Chips amount={g.limits.maxPayoutPerRound} suffix={false} /></dd>
-                  <dt className="text-ink-400">Max exposure</dt>
-                  <dd><Chips amount={g.limits.maxGameExposure} suffix={false} /></dd>
-                </dl>
-              </div>
-              <div className="text-sm">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">Active configuration v{g.activeConfig?.version}</div>
-                <pre className="mt-1 max-h-32 overflow-auto rounded-lg bg-ink-900 p-2 text-[11px] text-ink-300">{JSON.stringify(g.activeConfig?.config, null, 2)}</pre>
-                <div className="mt-1 text-xs text-ink-400">{g.versions.length} version(s) on record</div>
-              </div>
-            </CardBody>
-          </Card>
-        ))}
-      </div>
+      <PageHeader
+        eyebrow="Admin"
+        title="Games"
+        subtitle="Every game in the catalogue: availability, stake limits, the published configuration its rules come from, and activity. Open a game to change its status or limits; every change is audited."
+      />
+      <Card>
+        <CardBody>
+          <Table>
+            <thead>
+              <tr>
+                <Th>Game</Th>
+                <Th>Status</Th>
+                <Th className="text-right">RTP</Th>
+                <Th className="text-right">Stake range</Th>
+                <Th className="text-right">Open rounds</Th>
+                <Th className="text-right">Rounds (24 h)</Th>
+                <Th>Configuration</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {games.map((g) => {
+                const stats = byGame.get(g.id);
+                const matches = g.activeConfig ? canonicalJson(g.activeConfig.config) === canonicalJson(g.defaultConfig) : false;
+                return (
+                  <Tr key={g.id}>
+                    <Td>
+                      <Link href={`/admin/games/${g.id}`} className="flex items-center gap-3 font-medium text-ink-100 hover:text-gold-300">
+                        <GameGlyph id={g.id} className="size-7" />
+                        {g.name}
+                      </Link>
+                    </Td>
+                    <Td>
+                      <Badge tone={TONE[g.status]}>{GAME_STATUS_LABELS[g.status]}</Badge>
+                    </Td>
+                    <Td className="num text-right">
+                      {g.theoretical ? `${g.theoretical.method === 'exact' ? '' : '≈ '}${(g.theoretical.rtp * 100).toFixed(2)}%` : '—'}
+                    </Td>
+                    <Td className="whitespace-nowrap text-right">
+                      <Chips amount={g.limits.minStake} suffix={false} /> – <Chips amount={g.limits.maxStake} suffix={false} />
+                    </Td>
+                    <Td className="num text-right">{stats?.n ?? 0}</Td>
+                    <Td className="num text-right">{(stats?.started_24h ?? 0).toLocaleString()}</Td>
+                    <Td className="text-xs">
+                      v{g.activeConfig?.version ?? '—'} {matches ? <span className="text-ink-400">· published</span> : <span className="text-warning">· differs from published rules</span>}
+                    </Td>
+                  </Tr>
+                );
+              })}
+            </tbody>
+          </Table>
+        </CardBody>
+      </Card>
     </>
   );
 }

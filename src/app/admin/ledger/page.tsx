@@ -54,7 +54,7 @@ export default async function AdminLedgerPage({ searchParams }: { searchParams: 
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardHeader title="Totals by type" subtitle={`Chips credited to and debited from player wallets · ${totalsLabel} · all players`} />
           <CardBody>

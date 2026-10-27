@@ -30,7 +30,7 @@ export default async function AdminSecurityPage() {
           {state.enabled ? 'Verify this session with a code below to use the back office.' : 'Set up two-factor authentication below to use the back office.'}
         </Callout>
       )}
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Your two-factor authentication" />
           <CardBody>

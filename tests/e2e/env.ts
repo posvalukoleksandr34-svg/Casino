@@ -21,4 +21,6 @@ export const E2E_ENV = {
   TRUST_PROXY_HOPS: '1',
 };
 export const ADMIN = { email: 'e2e-admin@example.com', password: 'e2e admin passphrase' };
+export const OWNER = { email: 'e2e-owner@example.com', password: 'e2e owner passphrase' };
+export const MODERATOR = { email: 'e2e-moderator@example.com', password: 'e2e moderator passphrase' };
 export const PASSWORD = 'e2e player passphrase';

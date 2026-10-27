@@ -44,7 +44,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
     <>
       <PageHeader
         eyebrow="Admin"
-        title="Owner dashboard"
+        title={session.role === 'OWNER' ? 'Owner dashboard' : 'Operations dashboard'}
         subtitle="Every figure is computed from recorded accounts, rounds, predictions and ledger entries. Chips are virtual and have no monetary value: “house net” is chip movement, not revenue or profit."
       />
       <PeriodFilter basePath="/admin" params={sp} period={period} />
@@ -92,7 +92,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         </div>
       </section>
 
-      <div className="mt-8 grid gap-6 xl:grid-cols-2">
+      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="New accounts per day" subtitle="UTC days" />
           <CardBody>
@@ -107,7 +107,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Most played games" subtitle="Rounds started in the period" actions={<Link href="/admin/games" className="text-xs text-gold-400">Games →</Link>} />
           <CardBody>
@@ -188,7 +188,7 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         </Card>
       </div>
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Recent registrations" actions={canUsers ? <Link href="/admin/users" className="text-xs text-gold-400">All users →</Link> : undefined} />
           <CardBody>

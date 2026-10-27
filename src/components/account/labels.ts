@@ -24,3 +24,6 @@ export const GAME_NAMES: Record<string, string> = {
   plinko: 'Plinko',
   hilo: 'Hi-Lo',
 };
+
+/** Game status as shown to staff (SUSPENDED is the "maintenance" state). */
+export const GAME_STATUS_LABELS: Record<string, string> = { ACTIVE: 'Active', SUSPENDED: 'Maintenance', DISABLED: 'Disabled' };

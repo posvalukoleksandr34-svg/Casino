@@ -209,6 +209,10 @@ export async function closeStartedMarkets(now = new Date()): Promise<number> {
     UPDATE sports_markets m SET status = 'CLOSED', status_reason = 'Kicked off', updated_at = ${now}
     FROM sports_events e
     WHERE e.id = m.event_id AND m.status IN ('OPEN', 'SUSPENDED') AND e.kickoff_at <= ${now} AND e.result_version = 0`);
+  // Operator-set early close (placement also checks the window itself).
+  await getDb().execute(sql`
+    UPDATE sports_markets SET status = 'CLOSED', status_reason = 'Predictions closed', updated_at = ${now}
+    WHERE status = 'OPEN' AND closes_at IS NOT NULL AND closes_at <= ${now}`);
   await getDb().execute(sql`
     UPDATE sports_events SET status = 'LIVE', updated_at = ${now}
     WHERE status = 'SCHEDULED' AND kickoff_at <= ${now} AND result_version = 0`);

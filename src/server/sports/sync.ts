@@ -67,7 +67,7 @@ export function demoFixtureForSlot(slot: Date): { externalId: string; competitio
   return { externalId: `demo:${iso}`, competitionId: comp.id, homeId: comp.teams[home]!, awayId: comp.teams[away]! };
 }
 
-async function createDemoEvent(tx: Tx, f: ReturnType<typeof demoFixtureForSlot>, kickoff: Date, now: Date): Promise<boolean> {
+export async function createDemoEvent(tx: Tx, f: ReturnType<typeof demoFixtureForSlot>, kickoff: Date, now: Date): Promise<boolean> {
   const g = demoExpectedGoals(f.homeId, f.awayId);
   const model = buildScoreModel(g.homeE3, g.awayE3);
   const seed = randomBytes(32).toString('hex');

@@ -17,7 +17,8 @@ const AXIS_TEXT = '#a0a4ae';
 
 function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
   const ref = useRef<T>(null);
-  const [w, setW] = useState(640);
+  // Narrow until measured, so the server-rendered chart never widens a phone layout.
+  const [w, setW] = useState(320);
   useEffect(() => {
     if (!ref.current) return;
     const ro = new ResizeObserver((entries) => setW(Math.max(280, Math.floor(entries[0]!.contentRect.width))));
@@ -80,7 +81,7 @@ export interface DailyPoint {
   rounds: number;
 }
 
-/** Daily realised GGR (columns) against theoretical GGR (line), one shared axis in chips. */
+/** Daily realised house net chips (columns) against the expected net (line), one shared axis in chips. Virtual chips, not revenue. */
 export function DailyGgrChart({ points }: { points: DailyPoint[] }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
@@ -107,16 +108,16 @@ export function DailyGgrChart({ points }: { points: DailyPoint[] }) {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <Legend
           items={[
-            { label: 'Actual GGR', kind: 'rect', color: SERIES.actual },
-            { label: 'Theoretical GGR', kind: 'line', color: SERIES.theory },
+            { label: 'House net (actual)', kind: 'rect', color: SERIES.actual },
+            { label: 'Expected net', kind: 'line', color: SERIES.theory },
           ]}
         />
         <button type="button" className="text-xs text-gold-400 hover:text-gold-300" onClick={() => setShowTable((v) => !v)} aria-expanded={showTable}>
           {showTable ? 'Hide table' : 'Show table'}
         </button>
       </div>
-      <div ref={ref} className="relative" onPointerLeave={() => setHover(null)}>
-        <svg width={width} height={height} role="img" aria-label="Daily gross gaming revenue, actual versus theoretical">
+      <div ref={ref} className="relative overflow-hidden" onPointerLeave={() => setHover(null)}>
+        <svg width={width} height={height} role="img" aria-label="Daily house net chips, actual versus expected">
           {ticks.map((t) => (
             <g key={t}>
               <line x1={m.left} x2={width - m.right} y1={y(t)} y2={y(t)} stroke={t === 0 ? '#4b4f5a' : GRID} strokeWidth="1" />
@@ -189,8 +190,8 @@ export function DailyGgrChart({ points }: { points: DailyPoint[] }) {
               <tr className="text-left text-ink-400">
                 <th className="py-1.5">Day</th>
                 <th className="text-right">Rounds</th>
-                <th className="text-right">Actual GGR</th>
-                <th className="text-right">Theoretical GGR</th>
+                <th className="text-right">House net (actual)</th>
+                <th className="text-right">Expected net</th>
               </tr>
             </thead>
             <tbody className="num">
@@ -250,7 +251,7 @@ export function RtpDeviationChart({ rows }: { rows: RtpRow[] }) {
           ]}
         />
       </div>
-      <div ref={ref} className="relative" onPointerLeave={() => setHover(null)}>
+      <div ref={ref} className="relative overflow-hidden" onPointerLeave={() => setHover(null)}>
         <svg width={width} height={height} role="img" aria-label="Actual versus theoretical RTP by game with 95% ranges">
           {ticks.map((t) => (
             <g key={t}>
@@ -361,7 +362,7 @@ export function DailyBars({ points, kind, label }: { points: { day: string; valu
           {showTable ? 'Hide table' : 'Show table'}
         </button>
       </div>
-      <div ref={ref} className="relative" onPointerLeave={() => setHover(null)}>
+      <div ref={ref} className="relative overflow-hidden" onPointerLeave={() => setHover(null)}>
         <svg width={width} height={height} role="img" aria-label={label}>
           {ticks.map((t) => (
             <g key={t}>

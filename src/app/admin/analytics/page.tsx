@@ -63,7 +63,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Rounds" value={summary.rounds.toLocaleString()} />
         <Stat label="Wagered" value={<Chips amount={summary.stake} />} />
-        <Stat label="Actual GGR" value={<Chips amount={summary.ggr} sign colored />} sub={<>Theoretical <Chips amount={Math.round(summary.theoreticalGgr)} suffix={false} /></>} />
+        <Stat label="House net (actual)" value={<Chips amount={summary.ggr} sign colored />} sub={<>Theoretical <Chips amount={Math.round(summary.theoreticalGgr)} suffix={false} /></>} />
         <Stat
           label="Deviation from theory"
           value={summary.zScore === null ? '—' : `${summary.zScore >= 0 ? '+' : ''}${summary.zScore.toFixed(2)}σ`}
@@ -72,7 +72,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </div>
 
       <Card className="mt-6">
-        <CardHeader title="Daily GGR" subtitle={`Last ${days ?? 365} days${sp.game ? ` · ${GAME_NAMES[sp.game] ?? sp.game}` : ' · all games'} · chips`} />
+        <CardHeader title="Daily house net chips" subtitle={`Last ${days ?? 365} days${sp.game ? ` · ${GAME_NAMES[sp.game] ?? sp.game}` : ' · all games'} · chips`} />
         <CardBody>
           <DailyGgrChart points={daily} />
         </CardBody>
@@ -105,8 +105,8 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
                 <Th className="text-right">Rounds</Th>
                 <Th className="text-right">Stakes</Th>
                 <Th className="text-right">Payouts</Th>
-                <Th className="text-right">GGR</Th>
-                <Th className="text-right">Theo. GGR</Th>
+                <Th className="text-right">House net</Th>
+                <Th className="text-right">Expected net</Th>
                 <Th className="text-right">Actual RTP</Th>
                 <Th className="text-right">Theo. RTP</Th>
                 <Th className="text-right">95% band</Th>
@@ -176,7 +176,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
       </Card>
       <p className="mt-6 text-xs leading-relaxed text-ink-400">
         Method: for each settled round the server stores the theoretical expected payout E and variance V of the wager under the documented rules (computed exactly for roulette and dice).
-        Theoretical GGR = Σ stake − Σ E; z = (Σ payout − Σ E) / √Σ V. NGR deducts promotional (bonus) cost, the only expense in this virtual-currency product. Passing these checks is
+        Expected house net = Σ stake − Σ E (virtual chips, not revenue); z = (Σ payout − Σ E) / √Σ V. Bonus chips issued are shown separately. Passing these checks is
         consistent with correct operation but does not prove it.
       </p>
     </>

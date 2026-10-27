@@ -13,6 +13,18 @@ import { errors } from '../errors';
 
 const CHIP = 100;
 
+/**
+ * Bounds an administrator can never move a game's limits beyond, whatever the
+ * game (minor units). The risk engine applies the configured limits to every
+ * wager on the server; these bounds keep a typo from creating an unbounded
+ * table. Exposure is further capped by the platform's total exposure limit.
+ */
+export const HARD_LIMITS = {
+  minStakeFloor: 1,
+  maxStakeCeiling: 100_000 * CHIP,
+  maxPayoutCeiling: 10_000_000 * CHIP,
+} as const;
+
 export const GAME_CATEGORIES = {
   table: 'Table games',
   cards: 'Card games',

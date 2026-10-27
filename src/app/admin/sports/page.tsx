@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { desc, eq, gte, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import { SportsEventActions } from '@/components/admin/sports-actions';
+import { CreateDemoFixture, SportsEventActions } from '@/components/admin/sports-actions';
+import { DEMO_COMPETITIONS, DEMO_TEAMS } from '@/engine/sports/demo-data';
 import { StatusBadge } from '@/components/ui/badge';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Chips, EmptyState, PageHeader } from '@/components/ui/misc';
@@ -44,9 +45,14 @@ export default async function AdminSportsPage() {
       <PageHeader
         eyebrow="Admin"
         title="Sports predictions"
+        actions={
+          canManage && cfg.mode === 'demo' ? (
+            <CreateDemoFixture competitions={DEMO_COMPETITIONS.map((c) => ({ id: c.id, name: c.name, teams: c.teams.map((t) => ({ id: t, name: DEMO_TEAMS.find((x) => x.id === t)?.name ?? t })) }))} />
+          ) : undefined
+        }
         subtitle={`Mode: ${cfg.mode}${cfg.misconfigured ? ' (live selected but provider keys are missing — no events offered)' : ''}. Results, voids and suspensions are audited; corrections only ever credit players.`}
       />
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader title="Open predictions" />
           <CardBody className="grid grid-cols-3 gap-4 text-sm">
@@ -115,7 +121,7 @@ export default async function AdminSportsPage() {
                   <Tr key={e.id}>
                     <Td className="whitespace-nowrap text-ink-400">{e.kickoffAt.toLocaleString()}</Td>
                     <Td>
-                      <Link href={`/sports/events/${e.id}`} className="hover:text-gold-300">
+                      <Link href={`/admin/sports/events/${e.id}`} className="hover:text-gold-300">
                         {h} v {a}
                       </Link>
                       {e.isDemo && <span className="ml-1 text-xs text-ink-400">(demo)</span>}

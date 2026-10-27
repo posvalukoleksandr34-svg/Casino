@@ -45,6 +45,13 @@ test.describe('interrupted requests, access control and honest states', () => {
       ['POST', '/api/admin/house/fund'],
       ['PATCH', '/api/admin/platform'],
       ['POST', `/api/admin/sports/events/${randomUUID()}`],
+      ['POST', `/api/admin/users/${randomUUID()}/grant`],
+      ['DELETE', `/api/admin/users/${randomUUID()}/sessions`],
+      ['GET', '/api/admin/ledger'],
+      ['GET', '/api/admin/security'],
+      ['POST', '/api/admin/security'],
+      ['POST', '/api/admin/sports/fixtures'],
+      ['GET', `/api/admin/sports/events/${randomUUID()}/preview?void=1`],
     ];
     const call = (method: string, url: string) =>
       page.request.fetch(url, { method, data: method === 'GET' ? undefined : {}, headers: { Origin: baseURL!, 'Idempotency-Key': randomUUID() } });

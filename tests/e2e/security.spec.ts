@@ -58,7 +58,7 @@ test.describe('invalid, duplicate and unauthorised requests', () => {
     const admin = await adminContext.newPage();
     await login(admin, ADMIN.email, ADMIN.password);
     await admin.goto('/admin');
-    await expect(admin.getByRole('heading', { name: 'Operations overview' })).toBeVisible();
+    await expect(admin.getByRole('heading', { name: 'Operations dashboard' })).toBeVisible();
     await admin.goto('/admin/analytics');
     await expect(admin.getByRole('heading', { name: 'Actual vs theoretical performance' })).toBeVisible();
     await adminContext.close();

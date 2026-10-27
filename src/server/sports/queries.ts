@@ -20,7 +20,7 @@ import {
   userSportsFavorites,
 } from '../db/schema';
 import { errors } from '../errors';
-import { sportsConfig } from './config';
+import { sportsConfig, predictionWindow } from './config';
 import { recordEventResult, setEventSuspended, settleEventTickets } from './settlement';
 
 const homeTeam = alias(sportsTeams, 'home_team');
@@ -51,6 +51,9 @@ export interface EventView {
     version: number;
     oddsSource: string;
     oddsUpdatedAt: string;
+    /** Prediction window (UTC ISO); closesAt is never later than kick-off. */
+    opensAt: string | null;
+    closesAt: string;
     /** Live odds older than the freshness limit (predictions paused). */
     stale: boolean;
     selections: EventSelection[];
@@ -74,7 +77,8 @@ function toView(
 ): EventView {
   const cfg = sportsConfig();
   const stale = Boolean(r.market && !r.event.isDemo && now.getTime() - r.market.oddsUpdatedAt.getTime() > cfg.oddsMaxAgeMs);
-  const open = Boolean(r.market && r.market.status === 'OPEN' && r.event.kickoffAt > now && !stale && r.event.resultVersion === 0);
+  const window = r.market ? predictionWindow(r.market, r.event.kickoffAt, now) : null;
+  const open = Boolean(r.market && r.market.status === 'OPEN' && window?.state === 'open' && !stale && r.event.resultVersion === 0);
   return {
     id: r.event.id,
     isDemo: r.event.isDemo,
@@ -95,6 +99,8 @@ function toView(
           version: r.market.version,
           oddsSource: r.market.oddsSource,
           oddsUpdatedAt: r.market.oddsUpdatedAt.toISOString(),
+          opensAt: window?.opensAt?.toISOString() ?? null,
+          closesAt: window!.closesAt.toISOString(),
           stale,
           selections,
         }

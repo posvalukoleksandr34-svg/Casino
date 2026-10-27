@@ -2,10 +2,11 @@ import { z } from 'zod';
 import { reasonSchema, riskLimitsSchema, updateRiskLimits } from '@/server/admin/admin-service';
 import { adminCtx } from '@/server/http/admin';
 import { readJson, route } from '@/server/http/handler';
+import { RATE_LIMITS } from '@/server/http/rate-limit';
 
 const schema = z.object({ limits: riskLimitsSchema, reason: reasonSchema }).strict();
 
-export const PUT = route<'risk:manage', { gameId: string }>({ name: 'admin.game.limits', auth: 'risk:manage' }, async (ctx) => {
+export const PUT = route<'risk:manage', { gameId: string }>({ name: 'admin.game.limits', auth: 'risk:manage', rateLimit: [RATE_LIMITS.adminUser] }, async (ctx) => {
   const body = await readJson(ctx.req, schema);
   return updateRiskLimits(adminCtx(ctx), ctx.params.gameId, body.limits, body.reason);
 });

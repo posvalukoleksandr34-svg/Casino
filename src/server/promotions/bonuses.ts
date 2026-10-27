@@ -7,7 +7,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { formatChips } from '@/engine/money';
 import { withTransaction, type Executor, type Tx } from '../db/client';
-import { bonuses } from '../db/schema';
+import { bonuses, users } from '../db/schema';
 import { errors } from '../errors';
 import { lockWalletAccount, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
@@ -78,6 +78,9 @@ export async function dailyBonusStatus(tx: Executor, userId: string, now = new D
 export async function claimDailyBonus(userId: string, now = new Date()) {
   return withTransaction(async (tx) => {
     const wallet = await lockWalletAccount(tx, userId);
+    // Re-checked under the wallet lock: a suspension that committed after the session check wins.
+    const [account] = await tx.select({ status: users.status }).from(users).where(eq(users.id, userId));
+    if (account?.status !== 'ACTIVE') throw errors.forbidden('This account cannot claim chips.');
     const status = await dailyBonusStatus(tx, userId, now);
     if (status.blockedReason) throw errors.responsible(status.blockedReason);
     if (status.amount <= 0) throw errors.conflict('Daily chips are currently unavailable');

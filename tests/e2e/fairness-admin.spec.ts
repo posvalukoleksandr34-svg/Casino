@@ -23,8 +23,9 @@ test('admin suspends a game with a reason; players see it paused; action is audi
   const admin = await ctx.newPage();
   await login(admin, ADMIN.email, ADMIN.password);
   await admin.goto('/admin/games');
-  const diceCard = admin.locator('.surface', { has: admin.getByText('Dice', { exact: true }) }).first();
-  await diceCard.getByRole('button', { name: 'Change status' }).click();
+  await admin.getByRole('link', { name: 'Dice', exact: true }).click();
+  await admin.waitForURL('**/admin/games/dice');
+  await admin.getByRole('button', { name: 'Change status' }).click();
   await admin.getByLabel('New status').selectOption('SUSPENDED');
   await admin.getByLabel(/Reason/).fill('E2E incident drill');
   await admin.getByRole('button', { name: 'Confirm' }).click();
@@ -39,10 +40,11 @@ test('admin suspends a game with a reason; players see it paused; action is audi
   await admin.goto('/admin/audit?action=game.');
   await expect(admin.getByText('E2E incident drill').first()).toBeVisible();
 
-  await admin.goto('/admin/games');
-  await diceCard.getByRole('button', { name: 'Change status' }).click();
+  await admin.goto('/admin/games/dice');
+  await admin.getByRole('button', { name: 'Change status' }).click();
   await admin.getByLabel('New status').selectOption('ACTIVE');
   await admin.getByLabel(/Reason/).fill('Drill complete');
   await admin.getByRole('button', { name: 'Confirm' }).click();
+  await expect(admin.getByText('Active', { exact: true }).first()).toBeVisible();
   await ctx.close();
 });

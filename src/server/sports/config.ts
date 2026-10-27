@@ -49,3 +49,14 @@ export function sportsConfig(): SportsConfig {
     syncIntervalMs: e.SPORTS_SYNC_MINUTES * 60_000,
   };
 }
+
+/**
+ * The prediction window of a market: open from `opensAt` (or creation) until
+ * the earlier of `closesAt` and kick-off. Operators may set either bound
+ * (migration 0008); the close is never later than kick-off.
+ */
+export function predictionWindow(market: { opensAt: Date | null; closesAt: Date | null }, kickoffAt: Date, now: Date) {
+  const closesAt = market.closesAt && market.closesAt < kickoffAt ? market.closesAt : kickoffAt;
+  const state: 'not_open' | 'open' | 'closed' = market.opensAt && market.opensAt > now ? 'not_open' : closesAt <= now ? 'closed' : 'open';
+  return { opensAt: market.opensAt, closesAt, state };
+}

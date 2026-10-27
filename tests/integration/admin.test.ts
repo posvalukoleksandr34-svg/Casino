@@ -50,14 +50,18 @@ describe('audited admin actions', () => {
     await rawSetGameStatus('dice', 'ACTIVE');
   });
 
-  it('config publishing creates a new immutable version and refuses a non-positive house edge', async () => {
+  it('config publishing only accepts the published reference configuration (rules shown to players cannot drift)', async () => {
     const ctx = await adminCtx();
-    const res = await publishGameConfig(ctx, 'dice', { houseEdgeBp: 150, minWinCount: 100, maxWinCount: 9800 }, 'Raise edge for test');
-    expect(res.theoretical.houseEdge).toBeCloseTo(0.015, 10);
-    await expect(publishGameConfig(ctx, 'dice', { houseEdgeBp: 0, minWinCount: 100, maxWinCount: 9800 }, 'zero edge attempt')).rejects.toBeInstanceOf(AppError);
+    const code = (e: unknown) => (e instanceof AppError ? e.code : null);
+    // A different edge, a zero edge and malformed config are all refused; nothing changes.
+    expect(code(await publishGameConfig(ctx, 'dice', { houseEdgeBp: 150, minWinCount: 100, maxWinCount: 9800 }, 'Raise edge for test').catch((e) => e))).toBe('VALIDATION_ERROR');
+    expect(code(await publishGameConfig(ctx, 'dice', { houseEdgeBp: 0, minWinCount: 100, maxWinCount: 9800 }, 'zero edge attempt').catch((e) => e))).toBe('VALIDATION_ERROR');
+    expect(code(await publishGameConfig(ctx, 'dice', { houseEdgeBp: 'x' }, 'malformed config').catch((e) => e))).toBe('VALIDATION_ERROR');
+    // Re-publishing the active reference is a no-op conflict.
+    expect(code(await publishGameConfig(ctx, 'dice', { houseEdgeBp: 100, minWinCount: 100, maxWinCount: 9800 }, 'Same as active').catch((e) => e))).toBe('CONFLICT');
     const versions = await getDb().select().from(gameConfigurations).where(eq(gameConfigurations.gameId, 'dice'));
     expect(versions.filter((v) => v.isActive)).toHaveLength(1);
-    await publishGameConfig(ctx, 'dice', { houseEdgeBp: 100, minWinCount: 100, maxWinCount: 9800 }, 'Restore default edge');
+    expect(versions).toHaveLength(1);
   });
 
   it('risk limits update is audited', async () => {

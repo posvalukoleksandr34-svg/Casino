@@ -12,6 +12,7 @@ import {
   alerts,
   auditLogs,
   gameConfigurations,
+  gameRounds,
   games,
   platformSettings,
   reconciliationRuns,
@@ -23,8 +24,9 @@ import { recordAdminAction } from '../audit/audit';
 import { accountBalance, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
 import { hasPermission } from '../auth/rbac';
+import { canonicalJson } from '../crypto';
 import { requestFingerprint, runIdempotent, type IdempotentResult } from '../idempotency';
-import { requireGameId } from '../games/catalog';
+import { HARD_LIMITS, requireGameId } from '../games/catalog';
 import { getPlatformSettings, openExposure } from '../risk/risk-service';
 import { platformSummary, exposureByGame } from '../analytics/analytics';
 
@@ -109,23 +111,43 @@ export async function adminGames() {
   });
 }
 
-export async function setGameStatus(ctx: AdminCtx, gameId: string, status: 'ACTIVE' | 'SUSPENDED' | 'DISABLED', reason: string) {
+/**
+ * ACTIVE: open. SUSPENDED ("maintenance"): no new rounds; open rounds can be
+ * finished. DISABLED: as suspended and hidden from the lobby. Pausing a game
+ * that has open rounds needs explicit confirmation (`confirmOpenRounds`).
+ */
+export async function setGameStatus(
+  ctx: AdminCtx,
+  gameId: string,
+  status: 'ACTIVE' | 'SUSPENDED' | 'DISABLED',
+  reason: string,
+  opts: { confirmOpenRounds?: boolean } = {},
+) {
   const id = requireGameId(gameId);
   return withTransaction(async (tx) => {
     const [before] = await tx.select({ status: games.status, statusReason: games.statusReason }).from(games).where(eq(games.id, id)).for('update');
     if (!before) throw errors.notFound('Game');
+    if (before.status === status) throw errors.conflict(`The game is already ${status.toLowerCase()}`);
+    const [open] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameRounds).where(and(eq(gameRounds.gameId, id), eq(gameRounds.status, 'OPEN')));
+    const openRounds = open?.n ?? 0;
+    if (status !== 'ACTIVE' && openRounds > 0 && !opts.confirmOpenRounds) {
+      throw errors.conflict(`${openRounds} round${openRounds === 1 ? ' is' : 's are'} still open. Confirm to continue: players can finish them, but cannot start new ones.`, { openRounds, needsConfirmation: true });
+    }
     await tx
       .update(games)
       .set({ status, statusReason: status === 'ACTIVE' ? null : reason, updatedAt: new Date() })
       .where(eq(games.id, id));
-    await recordAdminAction(tx, { ...ctx, action: 'game.status', targetType: 'game', targetId: id, reason, before, after: { status } });
-    return { status };
+    await recordAdminAction(tx, { ...ctx, action: 'game.status', targetType: 'game', targetId: id, reason, before, after: { status, openRoundsAtChange: openRounds } });
+    return { status, openRounds };
   });
 }
 
 /**
- * Publishes a new immutable configuration version. Refuses any configuration
- * whose documented theoretical house edge is not strictly positive.
+ * Publishes a new immutable configuration version. Only the game's published
+ * reference configuration (engine defaultConfig, from which the player-facing
+ * rules, payout tables and RTP are generated and tested) is accepted, so an
+ * administrator can restore it but never activate maths players were not
+ * shown. Rounds keep a reference to the version they were played under.
  */
 export async function publishGameConfig(ctx: AdminCtx, gameId: string, rawConfig: unknown, reason: string) {
   const id = requireGameId(gameId);
@@ -136,9 +158,16 @@ export async function publishGameConfig(ctx: AdminCtx, gameId: string, rawConfig
   }
   const theory = mod.theoretical(parsed.data);
   if (!(theory.houseEdge > 0)) throw errors.validation('Configuration must keep a strictly positive house edge', { theory });
+  if (canonicalJson(parsed.data) !== canonicalJson(mod.configSchema.parse(mod.defaultConfig))) {
+    throw errors.validation(
+      'Only the published reference configuration can be activated: the rules, payout tables and RTP shown to players are generated from it. Changing game mathematics needs a code change that updates the published rules and their tests.',
+      { reference: mod.defaultConfig },
+    );
+  }
   return withTransaction(async (tx) => {
     const current = await tx.select().from(gameConfigurations).where(eq(gameConfigurations.gameId, id)).orderBy(desc(gameConfigurations.version)).for('update');
     const active = current.find((c) => c.isActive);
+    if (active && canonicalJson(active.config) === canonicalJson(parsed.data)) throw errors.conflict('The reference configuration is already active');
     const version = (current[0]?.version ?? 0) + 1;
     if (active) await tx.update(gameConfigurations).set({ isActive: false }).where(eq(gameConfigurations.id, active.id));
     const [created] = await tx
@@ -168,9 +197,25 @@ export const riskLimitsSchema = z
   .strict()
   .refine((l) => l.maxStake >= l.minStake, { message: 'maxStake must be ≥ minStake' });
 
+/** Checks limits against HARD_LIMITS and the platform exposure cap; returns problems (empty = valid). */
+export function limitProblems(l: z.infer<typeof riskLimitsSchema>, platformMaxExposure: number): string[] {
+  const p: string[] = [];
+  if (l.minStake < HARD_LIMITS.minStakeFloor) p.push('The minimum stake must be at least 0.01 chip');
+  if (l.maxStake < l.minStake) p.push('The maximum stake must not be below the minimum stake');
+  if (l.maxStake > HARD_LIMITS.maxStakeCeiling) p.push(`The maximum stake cannot exceed ${(HARD_LIMITS.maxStakeCeiling / 100).toLocaleString('en-US')} chips`);
+  if (l.maxPayoutPerRound < l.maxStake) p.push('The maximum payout per round must be at least the maximum stake');
+  if (l.maxPayoutPerRound > HARD_LIMITS.maxPayoutCeiling) p.push(`The maximum payout per round cannot exceed ${(HARD_LIMITS.maxPayoutCeiling / 100).toLocaleString('en-US')} chips`);
+  if (l.maxGameExposure < l.maxPayoutPerRound) p.push('The game exposure limit must be at least the maximum payout per round');
+  if (l.maxGameExposure > platformMaxExposure) p.push('The game exposure limit cannot exceed the platform exposure limit');
+  return p;
+}
+
 export async function updateRiskLimits(ctx: AdminCtx, gameId: string, limits: z.infer<typeof riskLimitsSchema>, reason: string) {
   const id = requireGameId(gameId);
   return withTransaction(async (tx) => {
+    const settings = await getPlatformSettings(tx);
+    const problems = limitProblems(limits, settings.maxTotalExposure);
+    if (problems.length) throw errors.validation(problems[0]!, { problems });
     const [before] = await tx.select().from(riskLimits).where(eq(riskLimits.gameId, id)).for('update');
     if (!before) throw errors.notFound('Risk limits');
     await tx.update(riskLimits).set({ ...limits, updatedAt: new Date(), updatedBy: ctx.adminId }).where(eq(riskLimits.gameId, id));
@@ -241,33 +286,59 @@ export async function fundHouse(ctx: AdminCtx, amount: number, reason: string, i
 // ---------------------------------------------------------------------------
 // Audit, alerts, reconciliation
 // ---------------------------------------------------------------------------
-export async function listAudit(opts: { action?: string; actorId?: string; resourceId?: string; limit?: number; before?: number }) {
+export interface AuditQuery {
+  /** Action prefix, e.g. "user." or "auth.login". */
+  action?: string;
+  actorId?: string;
+  /** Exact username of the actor (resolved to an id). */
+  actorName?: string;
+  resourceId?: string;
+  outcome?: 'SUCCESS' | 'DENIED' | 'FAILED';
+  from?: Date;
+  to?: Date;
+  /** Keyset pagination: entries with id below this. */
+  before?: number;
+  limit?: number;
+}
+
+/** Audit entries newest first. Bounded (≤ 500 per page) and keyset-paginated. */
+export async function listAudit(opts: AuditQuery) {
+  const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500);
+  const prefix = opts.action ? `${opts.action.replace(/[\\%_]/g, (c) => `\\${c}`)}%` : undefined;
   const conds = [
-    opts.action ? ilike(auditLogs.action, `${opts.action}%`) : undefined,
+    prefix ? ilike(auditLogs.action, prefix) : undefined,
     opts.actorId ? eq(auditLogs.actorId, opts.actorId) : undefined,
+    opts.actorName ? sql`${auditLogs.actorId} = (SELECT id FROM users WHERE lower(username) = lower(${opts.actorName}))` : undefined,
     opts.resourceId ? eq(auditLogs.resourceId, opts.resourceId) : undefined,
+    opts.outcome ? eq(auditLogs.outcome, opts.outcome) : undefined,
+    opts.from ? sql`${auditLogs.createdAt} >= ${opts.from}` : undefined,
+    opts.to ? sql`${auditLogs.createdAt} < ${opts.to}` : undefined,
     opts.before ? sql`${auditLogs.id} < ${opts.before}` : undefined,
   ].filter(Boolean) as SQL[];
-  return getDb()
+  const rows = await getDb()
     .select({
       id: auditLogs.id,
       createdAt: auditLogs.createdAt,
       actorId: auditLogs.actorId,
       actorType: auditLogs.actorType,
+      actorRole: auditLogs.actorRole,
       actorName: users.username,
       action: auditLogs.action,
+      outcome: auditLogs.outcome,
       resourceType: auditLogs.resourceType,
       resourceId: auditLogs.resourceId,
       before: auditLogs.before,
       after: auditLogs.after,
       reason: auditLogs.reason,
       requestId: auditLogs.requestId,
+      metadata: auditLogs.metadata,
     })
     .from(auditLogs)
     .leftJoin(users, eq(users.id, auditLogs.actorId))
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(auditLogs.id))
-    .limit(Math.min(opts.limit ?? 100, 500));
+    .limit(limit + 1);
+  return { items: rows.slice(0, limit), nextBefore: rows.length > limit ? rows[limit - 1]!.id : null };
 }
 
 export async function listAlerts(opts: { includeAcknowledged?: boolean; limit?: number } = {}) {

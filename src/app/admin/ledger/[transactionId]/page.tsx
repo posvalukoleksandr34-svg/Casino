@@ -49,7 +49,7 @@ export default async function AdminLedgerTxPage({ params }: { params: Promise<{ 
           This should be impossible (a database trigger refuses unbalanced transactions). Run reconciliation and treat this as an incident.
         </Callout>
       )}
-      <div className="grid gap-6 xl:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader title="Details" />
           <CardBody>

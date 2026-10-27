@@ -26,7 +26,7 @@ import { postTransaction } from '../ledger/ledger';
 import { metrics } from '../observability/metrics';
 import { assertCanWager } from '../responsible/limits';
 import { getPlatformSettings } from '../risk/risk-service';
-import { SPORTS_LIMITS, sportsConfig } from './config';
+import { SPORTS_LIMITS, sportsConfig, predictionWindow } from './config';
 
 export const slipSchema = z
   .object({
@@ -141,6 +141,8 @@ export async function placeSlip(input: {
         if (r.event.isDemo !== (cfg.mode === 'demo')) reason = 'This event is not available in the current mode';
         else if (r.market.status !== 'OPEN') reason = r.market.status === 'SUSPENDED' ? 'Market suspended' : 'Market closed';
         else if (r.event.kickoffAt <= now) reason = 'The event has started';
+        else if (predictionWindow(r.market, r.event.kickoffAt, now).state === 'not_open') reason = 'Predictions on this market have not opened yet';
+        else if (predictionWindow(r.market, r.event.kickoffAt, now).state === 'closed') reason = 'Predictions on this market have closed';
         else if (current === null) reason = 'This selection is not offered';
         else if (!r.event.isDemo && now.getTime() - r.market.oddsUpdatedAt.getTime() > cfg.oddsMaxAgeMs) reason = 'Odds are out of date';
         else if (current !== s.oddsE2 && !slip.acceptOddsChanges) reason = `Odds changed from ${odds(s.oddsE2)} to ${odds(current)}`;
