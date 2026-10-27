@@ -35,14 +35,18 @@ test.describe('owner back office', () => {
     // Suspend: the player's session ends immediately.
     await owner.getByRole('button', { name: 'Suspend' }).click();
     await owner.getByLabel(/Reason/).fill('E2E suspension check');
+    const suspended = owner.waitForResponse((r) => r.url().endsWith('/status') && r.request().method() === 'POST');
     await owner.getByRole('button', { name: 'Confirm' }).click();
-    await expect(owner.getByText('E2E suspension check').first()).toBeVisible();
+    expect((await suspended).status()).toBe(200);
+    await expect(owner.getByRole('button', { name: 'Reinstate' })).toBeVisible();
     const me = await playerPage.request.get('/api/wallet');
     expect(me.status()).toBe(401);
 
     await owner.getByRole('button', { name: 'Reinstate' }).click();
     await owner.getByLabel(/Reason/).fill('E2E review finished');
+    const reinstated = owner.waitForResponse((r) => r.url().endsWith('/status') && r.request().method() === 'POST');
     await owner.getByRole('button', { name: 'Confirm' }).click();
+    expect((await reinstated).status()).toBe(200);
     await expect(owner.getByRole('button', { name: 'Suspend' })).toBeVisible();
 
     // The audit log records all three with the owner's role.
@@ -54,7 +58,7 @@ test.describe('owner back office', () => {
 
     // The ledger shows the grant.
     await owner.goto('/admin/ledger?type=CHIP_GRANT');
-    await expect(owner.getByText('Virtual test chips granted: E2E test chips for QA')).toBeVisible();
+    await expect(owner.getByText('Virtual test chips granted: E2E test chips for QA').first()).toBeVisible();
     await ctx.close();
   });
 

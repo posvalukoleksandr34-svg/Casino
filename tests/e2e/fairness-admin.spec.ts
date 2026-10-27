@@ -28,8 +28,10 @@ test('admin suspends a game with a reason; players see it paused; action is audi
   await admin.getByRole('button', { name: 'Change status' }).click();
   await admin.getByLabel('New status').selectOption('SUSPENDED');
   await admin.getByLabel(/Reason/).fill('E2E incident drill');
+  const paused = admin.waitForResponse((r) => r.url().endsWith('/status') && r.request().method() === 'POST');
   await admin.getByRole('button', { name: 'Confirm' }).click();
-  await expect(admin.getByText('E2E incident drill').first()).toBeVisible();
+  expect((await paused).status()).toBe(200);
+  await expect(admin.getByText('Maintenance', { exact: true }).first()).toBeVisible();
 
   const player = await (await browser.newContext()).newPage();
   await registerPlayer(player);
