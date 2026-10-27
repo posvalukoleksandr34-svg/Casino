@@ -13,17 +13,39 @@ import { errors } from '../errors';
 
 const CHIP = 100;
 
+export const GAME_CATEGORIES = {
+  table: 'Table games',
+  cards: 'Card games',
+  instant: 'Instant results',
+  'cash-out': 'Cash out any time',
+} as const;
+export type GameCategory = keyof typeof GAME_CATEGORIES;
+
+/** The launch catalogue's date; games added later are listed as new for NEW_GAME_DAYS. */
+export const CATALOG_LAUNCH_DATE = '2026-10-26';
+export const NEW_GAME_DAYS = 60;
+
 export interface CatalogEntry {
   id: GameId;
   sortOrder: number;
   initialStatus: GameStatus;
   limits: { minStake: number; maxStake: number; maxPayoutPerRound: number; maxGameExposure: number };
   tagline: string;
+  categories: GameCategory[];
+  /** Date the game was added to the catalogue (ISO, from the repository history). */
+  addedOn: string;
+}
+
+export function isNewGame(entry: Pick<CatalogEntry, 'addedOn'>, now = new Date()): boolean {
+  if (entry.addedOn <= CATALOG_LAUNCH_DATE) return false;
+  return now.getTime() - Date.parse(`${entry.addedOn}T00:00:00Z`) <= NEW_GAME_DAYS * 86_400_000;
 }
 
 export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   roulette: {
     id: 'roulette',
+    categories: ['table'],
+    addedOn: '2026-10-26',
     sortOrder: 10,
     initialStatus: 'ACTIVE',
     tagline: 'Single-zero wheel. Straight-up, colours, dozens and columns.',
@@ -31,6 +53,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   dice: {
     id: 'dice',
+    categories: ['instant'],
+    addedOn: '2026-10-26',
     sortOrder: 20,
     initialStatus: 'ACTIVE',
     tagline: 'Pick your odds. 1% house edge, multipliers up to 99×.',
@@ -38,6 +62,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   mines: {
     id: 'mines',
+    categories: ['cash-out'],
+    addedOn: '2026-10-26',
     sortOrder: 30,
     initialStatus: 'ACTIVE',
     tagline: 'Uncover safe tiles, cash out whenever you like. Exact odds at every step.',
@@ -45,6 +71,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   crash: {
     id: 'crash',
+    categories: ['cash-out'],
+    addedOn: '2026-10-26',
     sortOrder: 40,
     initialStatus: 'ACTIVE',
     tagline: 'Watch the multiplier climb and cash out before it crashes.',
@@ -52,6 +80,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   blackjack: {
     id: 'blackjack',
+    categories: ['table', 'cards'],
+    addedOn: '2026-10-26',
     sortOrder: 50,
     initialStatus: 'ACTIVE',
     tagline: 'Six decks, dealer stands on soft 17, blackjack pays 3:2. Fresh shoe every hand.',
@@ -60,6 +90,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   limbo: {
     id: 'limbo',
+    categories: ['instant'],
+    addedOn: '2026-10-27',
     sortOrder: 60,
     initialStatus: 'ACTIVE',
     tagline: 'Set a target multiplier; win it if the result reaches it. 1% house edge at every target.',
@@ -68,6 +100,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   keno: {
     id: 'keno',
+    categories: ['instant'],
+    addedOn: '2026-10-27',
     sortOrder: 70,
     initialStatus: 'ACTIVE',
     tagline: 'Pick 1–10 numbers from 40; ten are drawn. Published payout table for every pick count.',
@@ -76,6 +110,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   plinko: {
     id: 'plinko',
+    categories: ['instant'],
+    addedOn: '2026-10-27',
     sortOrder: 80,
     initialStatus: 'ACTIVE',
     tagline: 'Drop a ball through 8, 12 or 16 rows. Risk changes the spread, not the return.',
@@ -84,6 +120,8 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
   },
   hilo: {
     id: 'hilo',
+    categories: ['cards', 'cash-out'],
+    addedOn: '2026-10-27',
     sortOrder: 90,
     initialStatus: 'ACTIVE',
     tagline: 'Higher or lower? Exact odds on every card, cash out after any correct guess.',

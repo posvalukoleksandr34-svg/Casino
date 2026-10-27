@@ -66,6 +66,10 @@ export const users = pgTable('users', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
   lastLoginAt: ts('last_login_at'),
   deletedAt: ts('deleted_at'),
+  /** Optional name shown on the player's own profile (migration 0005). */
+  displayName: text('display_name'),
+  /** Built-in avatar preset id (no uploads). */
+  avatar: text('avatar'),
 });
 
 export const sessions = pgTable('sessions', {
@@ -353,3 +357,26 @@ export const errorEvents = pgTable('error_events', {
   message: text('message').notNull(),
   requestId: text('request_id'),
 });
+
+/** A player's favourite games (migration 0005). */
+export const userFavorites = pgTable(
+  'user_favorites',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id),
+    gameId: text('game_id').notNull().references(() => games.id),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.gameId] })],
+);
+
+/** Cosmetic badges derived on the server; append-only (migration 0005). */
+export const userAchievements = pgTable(
+  'user_achievements',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id),
+    achievementId: text('achievement_id').notNull(),
+    awardedAt: ts('awarded_at').notNull().defaultNow(),
+    evidence: jsonb('evidence').$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.achievementId] })],
+);

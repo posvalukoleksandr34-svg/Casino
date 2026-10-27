@@ -3,7 +3,7 @@ import { getGameModule } from '@/engine/games/registry';
 import { isGameId } from '@/engine/games/types';
 import { getDb } from '../db/client';
 import { gameConfigurations, games, riskLimits } from '../db/schema';
-import { CATALOG, parseConfig, requireGameId } from './catalog';
+import { CATALOG, isNewGame, parseConfig, requireGameId, type GameCategory } from './catalog';
 
 export interface GameSummary {
   id: string;
@@ -12,6 +12,9 @@ export interface GameSummary {
   statusReason: string | null;
   interactive: boolean;
   tagline: string;
+  categories: GameCategory[];
+  addedOn: string;
+  isNew: boolean;
   configVersion: number;
   config: unknown;
   theoretical: ReturnType<ReturnType<typeof getGameModule>['theoretical']>;
@@ -33,13 +36,17 @@ export async function listGames(opts: { includeDisabled?: boolean } = {}): Promi
     .map((r) => {
       const mod = getGameModule(requireGameId(r.game.id));
       const config = parseConfig(mod, r.configId, r.config);
+      const entry = CATALOG[requireGameId(r.game.id)]!;
       return {
         id: r.game.id,
         name: r.game.name,
         status: r.game.status,
         statusReason: r.game.statusReason,
         interactive: r.game.interactive,
-        tagline: CATALOG[requireGameId(r.game.id)]!.tagline,
+        tagline: entry.tagline,
+        categories: entry.categories,
+        addedOn: entry.addedOn,
+        isNew: isNewGame(entry),
         configVersion: r.version,
         config,
         theoretical: mod.theoretical(config),

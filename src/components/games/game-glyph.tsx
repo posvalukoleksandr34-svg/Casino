@@ -1,5 +1,8 @@
 import { cn } from '@/lib/cn';
 
+/** Rounds trigonometric coordinates so server and browser render identical markup (no hydration mismatch). */
+const r3 = (n: number) => Math.round(n * 1000) / 1000;
+
 /** Decorative per-game illustration (original artwork, pure SVG). */
 export function GameGlyph({ id, className }: { id: string; className?: string }) {
   const common = { fill: 'none', stroke: 'url(#gg-gold)', strokeWidth: 1.6, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -18,7 +21,7 @@ export function GameGlyph({ id, className }: { id: string; className?: string })
           <circle cx="48" cy="48" r="7" />
           {Array.from({ length: 12 }, (_, i) => {
             const a = (i * Math.PI) / 6;
-            return <line key={i} x1={48 + Math.cos(a) * 26} y1={48 + Math.sin(a) * 26} x2={48 + Math.cos(a) * 36} y2={48 + Math.sin(a) * 36} />;
+            return <line key={i} x1={r3(48 + Math.cos(a) * 26)} y1={r3(48 + Math.sin(a) * 26)} x2={r3(48 + Math.cos(a) * 36)} y2={r3(48 + Math.sin(a) * 36)} />;
           })}
           <circle cx="48" cy="17" r="2.6" fill="#ebe8e2" stroke="none" />
         </g>
