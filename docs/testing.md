@@ -145,6 +145,14 @@ Migrations 0007 and 0008 applied to the development, test and e2e databases.
 * The first version of the new sports tests shared demo events with `sports.test.ts` and
   failed depending on file order; each now uses its own fixture.
 
+**GitHub Actions.** CI runs 27, 30 and 31 failed in the end-to-end job only. Run 27's
+game-suspension test still used the old games page layout. In runs 30 and 31, the owner
+workflow checked a suspension's effect before the change had committed (the reason text it
+waited for was already visible in the dialog). After fixing both tests, CI run 32
+(commit `a6ad8ae`) passed all five jobs. Extended verification run 2 (seed
+`github-d4e6fd9`, 2,000,000 rounds per scenario, including Limbo, Keno, Plinko and
+Hi-Lo) passed in 12 minutes.
+
 ## Results of the expansion run (2026-10-27, this repository's environment)
 
 New games, lobby, profile and achievements, and the sports simulator (migrations 0005 and
