@@ -50,4 +50,6 @@ export const RATE_LIMITS = {
   adminUser: { name: 'admin:user', limit: 600, windowSeconds: 60, by: 'user' },
   /** A manual reconciliation run re-reads every ledger table: a handful per staff member per 10 minutes. */
   reconcileRun: { name: 'reconcile:user', limit: 5, windowSeconds: 600, by: 'user' },
+  /** Second-factor attempts per account (keyed by the challenge's user): 6-digit codes cannot be brute-forced. */
+  mfaUser: { name: 'mfa:user', limit: 5, windowSeconds: 300, by: 'user' },
 } as const satisfies Record<string, RateLimitRule>;

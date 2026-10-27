@@ -59,7 +59,7 @@ export function TransactionsTable() {
         </label>
         <Select id="tx-type" value={type} onChange={(e) => setType(e.target.value)} className="w-48">
           <option value="">All</option>
-          {['BET_PLACED', 'BET_SETTLED', 'BONUS_GRANTED', 'ROUND_VOIDED', 'ADJUSTMENT'].map((t) => (
+          {['BET_PLACED', 'BET_SETTLED', 'ROUND_VOIDED', 'BONUS_GRANTED', 'CHIP_GRANT', 'ADJUSTMENT', 'SPORTS_STAKE', 'SPORTS_SETTLED', 'SPORTS_VOIDED', 'SPORTS_CORRECTION'].map((t) => (
             <option key={t} value={t}>
               {TX_LABELS[t]}
             </option>

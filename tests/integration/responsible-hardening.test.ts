@@ -65,7 +65,7 @@ describe('responsible play: enforcement details', () => {
     const b = await newPlayer('rgbonus2');
     // Keep balances under the daily-bonus threshold so only the break blocks it.
     for (const p of [a, b]) {
-      const { adjustBalance } = await import('@/server/admin/admin-service');
+      const { adjustBalance } = await import('@/server/admin/wallet');
       const adm = await newPlayer('rgbonusadm');
       await getDb().update(users).set({ role: 'ADMIN' }).where(eq(users.id, adm.userId));
       await adjustBalance({ adminId: adm.userId, ipHash: null, requestId: key() }, p.userId, -900_000, 'Lower balance for bonus test', key());

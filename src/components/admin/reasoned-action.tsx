@@ -11,7 +11,10 @@ import { useToast } from '../ui/toast';
 
 /**
  * Every state-changing admin action requires a written reason, which is
- * stored in the audit trail together with the before/after values.
+ * stored in the audit trail together with the before/after values. `body`
+ * may throw an Error to show a validation message instead of submitting;
+ * `confirm` adds a checkbox that must be ticked first (high-impact actions).
+ * The server validates and authorises everything again.
  */
 export function ReasonedAction({
   label,
@@ -26,11 +29,12 @@ export function ReasonedAction({
   children,
   disabled,
   onDone,
+  confirm,
 }: {
   label: ReactNode;
   title: string;
   description?: ReactNode;
-  method?: 'POST' | 'PUT' | 'PATCH';
+  method?: 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   path: string;
   body: (reason: string) => Record<string, unknown> | null;
   variant?: ButtonProps['variant'];
@@ -39,6 +43,7 @@ export function ReasonedAction({
   children?: ReactNode;
   disabled?: boolean;
   onDone?: (result: unknown) => void;
+  confirm?: ReactNode;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -47,9 +52,16 @@ export function ReasonedAction({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [key, setKey] = useState(newIdempotencyKey);
+  const [confirmed, setConfirmed] = useState(false);
 
   async function submit() {
-    const payload = body(reason);
+    let payload: Record<string, unknown> | null;
+    try {
+      payload = body(reason);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Check the form');
+      return;
+    }
     if (!payload) return;
     setBusy(true);
     setError(null);
@@ -58,6 +70,7 @@ export function ReasonedAction({
       toast.push({ tone: 'positive', title: `${title}: done`, body: 'Recorded in the audit log.' });
       setOpen(false);
       setReason('');
+      setConfirmed(false);
       setKey(newIdempotencyKey());
       onDone?.(result);
       router.refresh();
@@ -82,7 +95,7 @@ export function ReasonedAction({
             <Button variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button variant={variant === 'danger' ? 'danger' : 'primary'} onClick={submit} loading={busy} disabled={reason.trim().length < 5}>
+            <Button variant={variant === 'danger' ? 'danger' : 'primary'} onClick={submit} loading={busy} disabled={reason.trim().length < 5 || (Boolean(confirm) && !confirmed)}>
               Confirm
             </Button>
           </>
@@ -94,7 +107,17 @@ export function ReasonedAction({
           <Field label="Reason (required, stored in the audit log)">
             {(p) => <Textarea {...p} value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} placeholder="e.g. Incident #142: RNG service latency" />}
           </Field>
-          {error && <Callout tone="negative">{error}</Callout>}
+          {confirm && (
+            <label className="flex items-start gap-2 text-sm text-ink-200">
+              <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-1 accent-[var(--color-gold-500)]" />
+              <span>{confirm}</span>
+            </label>
+          )}
+          {error && (
+            <Callout tone="negative" role="alert">
+              {error}
+            </Callout>
+          )}
         </div>
       </Modal>
     </>

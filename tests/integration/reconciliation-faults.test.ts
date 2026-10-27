@@ -10,7 +10,7 @@
 import { eq } from 'drizzle-orm';
 import type { PoolClient } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { adjustBalance } from '@/server/admin/admin-service';
+import { adjustBalance } from '@/server/admin/wallet';
 import { getDb, getPool } from '@/server/db/client';
 import { users } from '@/server/db/schema';
 import { startRound, voidRound } from '@/server/games/round-service';

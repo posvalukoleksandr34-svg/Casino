@@ -34,9 +34,11 @@ export interface SessionUser {
   preferences: Record<string, unknown>;
   displayName: string | null;
   avatar: string | null;
+  /** When this session passed TOTP MFA (null: not verified this session). */
+  mfaVerifiedAt: Date | null;
 }
 
-export async function createSession(db: Executor, userId: string, meta: { userAgent?: string | null; ipHash?: string | null }) {
+export async function createSession(db: Executor, userId: string, meta: { userAgent?: string | null; ipHash?: string | null; mfaVerifiedAt?: Date | null }) {
   const token = randomToken(32);
   const expiresAt = new Date(Date.now() + env().SESSION_ABSOLUTE_HOURS * 3600_000);
   const [row] = await db
@@ -47,6 +49,7 @@ export async function createSession(db: Executor, userId: string, meta: { userAg
       expiresAt,
       userAgent: meta.userAgent?.slice(0, 300) ?? null,
       ipHash: meta.ipHash ?? null,
+      mfaVerifiedAt: meta.mfaVerifiedAt ?? null,
     })
     .returning({ id: sessions.id });
   return { token, sessionId: row!.id, expiresAt };
@@ -70,6 +73,7 @@ export async function resolveSession(token: string | undefined | null): Promise<
       preferences: users.preferences,
       displayName: users.displayName,
       avatar: users.avatar,
+      mfaVerifiedAt: sessions.mfaVerifiedAt,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -95,6 +99,7 @@ export async function resolveSession(token: string | undefined | null): Promise<
     preferences: row.preferences,
     displayName: row.displayName,
     avatar: row.avatar,
+    mfaVerifiedAt: row.mfaVerifiedAt,
   };
 }
 
@@ -102,8 +107,9 @@ export async function revokeSession(db: Executor, sessionId: string): Promise<vo
   await db.update(sessions).set({ revokedAt: new Date() }).where(and(eq(sessions.id, sessionId), isNull(sessions.revokedAt)));
 }
 
-export async function revokeAllSessions(db: Executor, userId: string, exceptSessionId?: string): Promise<void> {
-  await db
+/** Revokes every live session of a user (optionally keeping one); returns how many were revoked. */
+export async function revokeAllSessions(db: Executor, userId: string, exceptSessionId?: string): Promise<number> {
+  const revoked = await db
     .update(sessions)
     .set({ revokedAt: new Date() })
     .where(
@@ -112,5 +118,7 @@ export async function revokeAllSessions(db: Executor, userId: string, exceptSess
         isNull(sessions.revokedAt),
         exceptSessionId ? ne(sessions.id, exceptSessionId) : undefined,
       ),
-    );
+    )
+    .returning({ id: sessions.id });
+  return revoked.length;
 }

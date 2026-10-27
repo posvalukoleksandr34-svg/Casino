@@ -225,18 +225,22 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
   {
     name: 'admin_money_movements_audited',
     description:
-      'Every balance adjustment (owner wallet ±x against the adjustments account) and every house funding after bootstrap was made by an identified admin and has the matching audited admin action',
-    sql: `SELECT t.id, t.type, t.actor_id, t.user_id, l.owner_wallet::text, l.adjustments::text, l.house::text, l.issuance::text,
+      "Every balance adjustment (owner's wallet ±x against the adjustments account), every chip grant (owner's wallet +x against promotions) and every house funding after bootstrap was made by an identified staff member and has the matching audited admin action",
+    sql: `SELECT t.id, t.type, t.actor_id, t.user_id, l.owner_wallet::text, l.adjustments::text, l.promotions::text, l.house::text, l.issuance::text,
                  l.foreign_legs, l.other_system_legs, aa.n AS admin_actions, aa.amount::text AS audited_amount
           FROM ledger_transactions t
-          LEFT JOIN (${txLegs(['ADJUSTMENT', 'HOUSE_FUNDING'])}) l ON l.tx_id = t.id
+          LEFT JOIN (${txLegs(['ADJUSTMENT', 'HOUSE_FUNDING', 'CHIP_GRANT'])}) l ON l.tx_id = t.id
           LEFT JOIN (SELECT (after->>'transactionId')::bigint AS tx_id, admin_id, action, count(*) AS n,
                             max((after->>'amount')::bigint) AS amount
-                     FROM admin_actions WHERE action IN ('ledger.adjustment', 'house.funded') AND after ? 'transactionId'
+                     FROM admin_actions WHERE action IN ('ledger.adjustment', 'ledger.grant', 'house.funded') AND after ? 'transactionId'
                      GROUP BY 1, 2, 3) aa
             ON aa.tx_id = t.id AND aa.admin_id = t.actor_id
-               AND aa.action = CASE t.type WHEN 'ADJUSTMENT' THEN 'ledger.adjustment' ELSE 'house.funded' END
-          WHERE (t.type = 'ADJUSTMENT' AND (
+               AND aa.action = CASE t.type WHEN 'ADJUSTMENT' THEN 'ledger.adjustment' WHEN 'CHIP_GRANT' THEN 'ledger.grant' ELSE 'house.funded' END
+          WHERE (t.type = 'CHIP_GRANT' AND (
+                  t.actor_id IS NULL OR t.user_id IS NULL OR aa.n IS DISTINCT FROM 1 OR aa.amount IS DISTINCT FROM l.owner_wallet
+               OR l.owner_wallet <= 0 OR l.owner_wallet <> -l.promotions OR l.foreign_legs <> 0
+               OR l.other_system_legs <> 0))
+             OR (t.type = 'ADJUSTMENT' AND (
                   t.actor_id IS NULL OR t.user_id IS NULL OR aa.n IS DISTINCT FROM 1 OR aa.amount IS DISTINCT FROM l.owner_wallet
                OR l.owner_wallet = 0 OR l.owner_wallet <> -l.adjustments OR l.foreign_legs <> 0
                OR l.house <> 0 OR l.issuance <> 0 OR l.promotions <> 0 OR l.escrow <> 0))

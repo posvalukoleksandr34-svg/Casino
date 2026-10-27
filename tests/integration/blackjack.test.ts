@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BlackjackView } from '@/engine/games/blackjack';
 import { eq } from 'drizzle-orm';
-import { adjustBalance } from '@/server/admin/admin-service';
+import { adjustBalance } from '@/server/admin/wallet';
 import { getDb } from '@/server/db/client';
 import { users } from '@/server/db/schema';
 import { AppError } from '@/server/errors';

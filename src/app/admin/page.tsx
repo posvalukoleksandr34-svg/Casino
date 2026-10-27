@@ -1,144 +1,279 @@
 import Link from 'next/link';
-import { Meter } from '@/components/admin/charts';
+import { DailyBars } from '@/components/admin/charts';
+import { PeriodFilter } from '@/components/admin/period-filter';
 import { GAME_NAMES } from '@/components/account/labels';
 import { StatusBadge } from '@/components/ui/badge';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
-import { Callout, Chips, PageHeader, Pct, Stat } from '@/components/ui/misc';
-import { overview } from '@/server/admin/admin-service';
+import { Callout, Chips, EmptyState, PageHeader, Stat } from '@/components/ui/misc';
+import { Table, Td, Th, Tr } from '@/components/ui/table';
+import { overviewMetrics } from '@/server/admin/overview';
+import { resolvePeriod } from '@/server/admin/period';
 import { requirePermission } from '@/server/auth/current';
+import { hasPermission } from '@/server/auth/rbac';
+import { AppError } from '@/server/errors';
 
-export const metadata = { title: 'Overview' };
+export const metadata = { title: 'Dashboard' };
 
-export default async function AdminOverviewPage() {
+function utc(d: Date | string) {
+  return `${new Date(d).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
+
+export default async function AdminOverviewPage({ searchParams }: { searchParams: Promise<{ period?: string; from?: string; to?: string }> }) {
   // Every admin page checks for itself: layouts are not guaranteed to run for every page request.
-  await requirePermission('admin:access');
-  const o = await overview();
-  const a = o.allTime;
-  const d = o.last24h;
+  const session = await requirePermission('admin:access');
+  const sp = await searchParams;
+  let periodError: string | null = null;
+  let period;
+  try {
+    period = resolvePeriod(sp);
+  } catch (err) {
+    periodError = err instanceof AppError ? err.message : 'Invalid period';
+    period = resolvePeriod({ period: '7d' });
+  }
+  const m = await overviewMetrics(period);
+  const canUsers = hasPermission(session.role, 'users:read');
+  const canRounds = hasPermission(session.role, 'rounds:read');
+  const pending = [
+    m.system.openAlerts > 0 && { href: '/admin/alerts', text: `${m.system.openAlerts} unacknowledged alert${m.system.openAlerts === 1 ? '' : 's'}` },
+    m.system.overdueRounds > 0 && { href: '/admin/rounds?status=OPEN', text: `${m.system.overdueRounds} time-decided round${m.system.overdueRounds === 1 ? '' : 's'} overdue for settlement` },
+    m.system.laggingTickets > 0 && { href: '/admin/sports', text: `${m.system.laggingTickets} sports prediction${m.system.laggingTickets === 1 ? '' : 's'} behind their event's result` },
+    m.system.lastReconciliation && m.system.lastReconciliation.status !== 'OK' && { href: '/admin/reconciliation', text: `Last reconciliation: ${m.system.lastReconciliation.status.toLowerCase()}` },
+  ].filter(Boolean) as { href: string; text: string }[];
+
   return (
     <>
       <PageHeader
         eyebrow="Admin"
-        title="Operations overview"
-        subtitle="All figures come from recorded rounds and ledger balances. Theoretical values are derived from the documented game rules for the bets actually placed; no simulated data appears on this page."
+        title="Owner dashboard"
+        subtitle="Every figure is computed from recorded accounts, rounds, predictions and ledger entries. Chips are virtual and have no monetary value: “house net” is chip movement, not revenue or profit."
       />
-      {!o.platform.newRoundsEnabled && (
-        <Callout tone="warning" title="New rounds are disabled platform-wide" className="mb-6">
-          {o.platform.incidentMessage ?? 'Kill switch engaged.'} <Link href="/admin/risk" className="text-gold-400">Platform controls →</Link>
+      <PeriodFilter basePath="/admin" params={sp} period={period} />
+      {periodError && (
+        <Callout tone="warning" className="mb-6" title="Showing the last 7 days instead">
+          {periodError}
         </Callout>
       )}
-      <section aria-labelledby="kpi" className="space-y-4">
-        <h2 id="kpi" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-400">
-          Players & volume
+      {!m.system.newRoundsEnabled && (
+        <Callout tone="warning" title="New rounds are disabled platform-wide" className="mb-6">
+          {m.system.incidentMessage ?? 'Kill switch engaged.'} <Link href="/admin/risk" className="text-gold-400">Platform controls →</Link>
+        </Callout>
+      )}
+
+      <section aria-labelledby="kpi-players" className="space-y-3">
+        <h2 id="kpi-players" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-400">
+          Players
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Stat label="Registered users" value={o.users?.registered.toLocaleString() ?? '0'} sub={`${o.users?.suspended ?? 0} suspended`} />
-          <Stat label="Active players" value={o.users?.active_24h.toLocaleString() ?? '0'} sub={`${o.users?.active_7d ?? 0} in the last 7 days`} />
-          <Stat label="Completed rounds" value={a.rounds.toLocaleString()} sub={`${d.rounds.toLocaleString()} in the last 24 h`} />
-          <Stat label="Total wagered" value={<Chips amount={a.stake} compact />} sub={<>24 h: <Chips amount={d.stake} suffix={false} /></>} />
+          <Stat label="Registered accounts" value={m.users.registered.toLocaleString()} sub={`${m.users.suspended} suspended · ${m.users.staff} staff`} />
+          <Stat label="New accounts" value={m.users.newAccounts.toLocaleString()} sub={period.label} />
+          <Stat label="Active players" value={m.users.activePlayers.toLocaleString()} sub="Started a round or placed a prediction" />
+          <Stat label="Recently active" value={m.users.recentlyActive.toLocaleString()} sub="Signed-in requests in the last 5 minutes" />
         </div>
-        <h2 className="pt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-400">Revenue (virtual)</h2>
+      </section>
+
+      <section aria-labelledby="kpi-chips" className="mt-8 space-y-3">
+        <h2 id="kpi-chips" className="text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-400">
+          Virtual chips · {period.label}
+        </h2>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Stat label="Total payouts" value={<Chips amount={a.payout} compact />} />
-          <Stat label="Actual GGR" value={<Chips amount={a.ggr} sign colored />} sub={<>Margin <Pct value={a.stake ? a.ggr / a.stake : null} /></>} />
-          <Stat label="Theoretical GGR" value={<Chips amount={Math.round(a.theoreticalGgr)} sign />} sub={<>Margin <Pct value={a.stake ? a.theoreticalGgr / a.stake : null} /></>} />
+          <Stat label="Game rounds settled" value={m.casino.rounds.toLocaleString()} sub={`${m.sports.placed.toLocaleString()} predictions placed`} />
+          <Stat label="Chips wagered" value={<Chips amount={m.totals.wagered} compact />} sub={<>Casino <Chips amount={m.casino.stake} compact suffix={false} /> · sports <Chips amount={m.sports.stake} compact suffix={false} /></>} />
+          <Stat label="Chips paid out" value={<Chips amount={m.totals.paidOut} compact />} sub={<>Casino <Chips amount={m.casino.payout} compact suffix={false} /> · sports <Chips amount={m.sports.returned} compact suffix={false} /></>} />
           <Stat
-            label="Actual vs theory"
-            value={a.zScore === null ? '—' : `${a.zScore >= 0 ? '+' : ''}${a.zScore.toFixed(2)}σ`}
-            sub={a.zScore === null ? 'No data' : `Players ${a.zScore > 0 ? 'above' : 'below'} expectation; p = ${a.pValue?.toFixed(3)}`}
+            label="House net (virtual)"
+            value={<Chips amount={m.totals.houseNet} sign colored compact />}
+            sub="Wagered − paid out; not money"
           />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Stat label="Promotional cost" value={<Chips amount={a.bonusCost} compact />} sub="Virtual bonuses granted" />
-          <Stat label="NGR" value={<Chips amount={a.ngr} sign colored compact />} sub="GGR − promotional cost" />
-          <Stat label="GGR std. deviation" value={<Chips amount={Math.round(a.ggrStdDev)} />} sub="Expected spread around theory" />
-          <Stat label="24 h actual GGR" value={<Chips amount={d.ggr} sign colored />} sub={<>Theory <Chips amount={Math.round(d.theoreticalGgr)} suffix={false} /></>} />
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Stat label="Bonuses issued" value={<Chips amount={m.issued.bonuses} compact />} sub="Sign-up and daily chips" />
+          <Stat label="Test chips granted" value={<Chips amount={m.issued.grants} compact />} sub={`${m.issued.grantCount} owner grant${m.issued.grantCount === 1 ? '' : 's'}`} />
+          <Stat label="Corrections (net)" value={<Chips amount={m.issued.correctionsNet} sign compact />} sub={`${m.issued.correctionCount} compensating correction${m.issued.correctionCount === 1 ? '' : 's'}`} />
         </div>
       </section>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <Card>
-          <CardHeader title="Reserves & exposure" subtitle="Exposure = Σ (max payout − stake) over open rounds" />
-          <CardBody className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Stat label="House bankroll" value={<Chips amount={o.reserves.houseBalance} compact />} />
-              <Stat label="Headroom above reserve" value={<Chips amount={o.reserves.availableHeadroom} compact />} tone={o.reserves.availableHeadroom < 0 ? 'negative' : undefined} />
-              <Stat label="Wagers in play (escrow)" value={<Chips amount={o.reserves.wagersInPlay} compact />} />
-              <Stat label="Open net exposure" value={<Chips amount={o.reserves.openNetExposure} compact />} />
-            </div>
-            <Meter label="Platform exposure vs limit" value={o.reserves.openNetExposure} limit={o.reserves.maxTotalExposure} />
-            {o.exposureByGame.map((e) => (
-              <Meter key={e.gameId} label={`${GAME_NAMES[e.gameId] ?? e.gameId} · ${e.openRounds} open`} value={e.netExposure} limit={e.limit} />
-            ))}
+          <CardHeader title="New accounts per day" subtitle="UTC days" />
+          <CardBody>
+            <DailyBars points={m.daily.map((d) => ({ day: d.day, value: d.registrations }))} kind="count" label="New accounts per day" />
           </CardBody>
         </Card>
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Game availability" actions={<Link href="/admin/games" className="text-xs text-gold-400">Manage →</Link>} />
-            <CardBody>
-              <ul className="divide-y divide-ink-800">
-                {o.games.map((g) => (
-                  <li key={g.id} className="flex items-center justify-between py-2.5 text-sm">
-                    <span className="text-ink-100">{g.name}</span>
-                    <span className="flex items-center gap-2">
-                      {g.statusReason && <span className="max-w-48 truncate text-xs text-ink-400">{g.statusReason}</span>}
-                      <StatusBadge status={g.status} />
+        <Card>
+          <CardHeader title="Chips wagered per day" subtitle="Casino rounds settled + predictions placed, UTC days" />
+          <CardBody>
+            <DailyBars points={m.daily.map((d) => ({ day: d.day, value: d.wagered }))} kind="chips" label="Chips wagered per day" />
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader title="Most played games" subtitle="Rounds started in the period" actions={<Link href="/admin/games" className="text-xs text-gold-400">Games →</Link>} />
+          <CardBody>
+            {m.topGames.length === 0 ? (
+              <EmptyState title="No rounds in this period" />
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Game</Th>
+                    <Th className="text-right">Rounds</Th>
+                    <Th className="text-right">Players</Th>
+                    <Th className="text-right">Wagered</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.topGames.map((g) => (
+                    <Tr key={g.gameId}>
+                      <Td>
+                        <Link href={`/admin/games/${g.gameId}`} className="text-ink-100 hover:text-gold-300">
+                          {GAME_NAMES[g.gameId] ?? g.gameId}
+                        </Link>
+                      </Td>
+                      <Td className="num text-right">{g.rounds.toLocaleString()}</Td>
+                      <Td className="num text-right">{g.players.toLocaleString()}</Td>
+                      <Td className="text-right">
+                        <Chips amount={g.stake} compact suffix={false} />
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title="System health" actions={hasPermission(session.role, 'system:read') ? <Link href="/admin/health" className="text-xs text-gold-400">Details →</Link> : undefined} />
+          <CardBody className="space-y-3 text-sm">
+            <Row label="Last reconciliation">
+              {m.system.lastReconciliation ? (
+                <span className="flex items-center gap-2">
+                  <span className="text-xs text-ink-400">{utc(m.system.lastReconciliation.startedAt)}</span>
+                  <StatusBadge status={m.system.lastReconciliation.status} />
+                </span>
+              ) : (
+                <span className="text-ink-400">never run</span>
+              )}
+            </Row>
+            <Row label="Server errors (1 h / 24 h)">
+              <span className="num text-ink-100">
+                {m.system.errorsHour} / {m.system.errorsDay}
+              </span>
+            </Row>
+            <Row label="House bankroll">
+              <Chips amount={m.system.houseBalance} compact />
+            </Row>
+            <Row label="Headroom above reserve (after open exposure)">
+              <Chips amount={m.system.headroom} compact className={m.system.headroom < 0 ? 'text-negative' : undefined} />
+            </Row>
+            <div className="border-t border-ink-800 pt-3">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-400">Needs attention</div>
+              {pending.length === 0 ? (
+                <p className="text-ink-400">Nothing pending.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {pending.map((p) => (
+                    <li key={p.text}>
+                      <Link href={p.href} className="text-warning hover:underline">
+                        {p.text}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader title="Recent registrations" actions={canUsers ? <Link href="/admin/users" className="text-xs text-gold-400">All users →</Link> : undefined} />
+          <CardBody>
+            {m.recentUsers.length === 0 ? (
+              <EmptyState title="No accounts yet" />
+            ) : (
+              <ul className="divide-y divide-ink-800 text-sm">
+                {m.recentUsers.map((u) => (
+                  <li key={u.id} className="flex items-center justify-between gap-3 py-2.5">
+                    {canUsers ? (
+                      <Link href={`/admin/users/${u.id}`} className="truncate text-ink-100 hover:text-gold-300">
+                        {u.display_name ?? u.username}
+                      </Link>
+                    ) : (
+                      <span className="truncate text-ink-100">{u.display_name ?? u.username}</span>
+                    )}
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="text-xs text-ink-400">{utc(u.created_at)}</span>
+                      {u.status !== 'ACTIVE' && <StatusBadge status={u.status} />}
                     </span>
                   </li>
                 ))}
               </ul>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardHeader title="Integrity & errors" />
-            <CardBody className="space-y-3 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-ink-300">Last reconciliation</span>
-                <span className="flex items-center gap-2">
-                  {o.lastReconciliation ? (
-                    <>
-                      <span className="text-xs text-ink-400">{o.lastReconciliation.startedAt.toLocaleString()}</span>
-                      <StatusBadge status={o.lastReconciliation.status} />
-                    </>
-                  ) : (
-                    <span className="text-ink-400">never run</span>
-                  )}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-ink-300">Server errors (1 h / 24 h)</span>
-                <span className="num text-ink-100">
-                  {o.errors.last_hour} / {o.errors.last_day}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-ink-300">Open alerts</span>
-                <Link href="/admin/alerts" className="num text-gold-300">
-                  {o.openAlerts.length}
-                </Link>
-              </div>
-            </CardBody>
-          </Card>
-        </div>
+            )}
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader title="Recent game activity" subtitle="Latest settled rounds" actions={canRounds ? <Link href="/admin/rounds" className="text-xs text-gold-400">All rounds →</Link> : undefined} />
+          <CardBody>
+            {m.recentRounds.length === 0 ? (
+              <EmptyState title="No settled rounds yet" />
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Game</Th>
+                    <Th>Player</Th>
+                    <Th className="text-right">Stake</Th>
+                    <Th className="text-right">Paid</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {m.recentRounds.map((r) => (
+                    <Tr key={r.id}>
+                      <Td>{canRounds ? <Link href={`/admin/rounds/${r.id}`} className="hover:text-gold-300">{GAME_NAMES[r.game_id] ?? r.game_id}</Link> : GAME_NAMES[r.game_id] ?? r.game_id}</Td>
+                      <Td className="max-w-32 truncate text-ink-300">{r.username}</Td>
+                      <Td className="text-right">
+                        <Chips amount={r.stake} suffix={false} />
+                      </Td>
+                      <Td className="text-right">
+                        <Chips amount={r.payout} suffix={false} />
+                      </Td>
+                    </Tr>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </CardBody>
+        </Card>
       </div>
 
-      <Card className="mt-6">
-        <CardHeader title="Unacknowledged alerts" subtitle="Statistical deviations are judged against sampling variance (z-scores), not raw amounts." />
-        <CardBody>
-          {o.openAlerts.length === 0 ? (
-            <p className="text-sm text-ink-400">No open alerts.</p>
-          ) : (
+      {m.system.alerts.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader title="Unacknowledged alerts" actions={<Link href="/admin/alerts" className="text-xs text-gold-400">Review →</Link>} />
+          <CardBody>
             <ul className="divide-y divide-ink-800 text-sm">
-              {o.openAlerts.map((al) => (
+              {m.system.alerts.map((al) => (
                 <li key={al.id} className="flex items-center justify-between gap-3 py-2.5">
                   <span className="text-ink-200">{al.message}</span>
                   <StatusBadge status={al.severity} />
                 </li>
               ))}
             </ul>
-          )}
-        </CardBody>
-      </Card>
+          </CardBody>
+        </Card>
+      )}
     </>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-ink-300">{label}</span>
+      {children}
+    </div>
   );
 }

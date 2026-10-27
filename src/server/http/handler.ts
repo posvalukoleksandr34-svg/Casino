@@ -17,6 +17,8 @@ import { captureError } from '../observability/errors';
 import { logger } from '../observability/logger';
 import { metrics } from '../observability/metrics';
 import { consume, type RateLimitRule } from './rate-limit';
+import { recordAccessDenied } from '../security/denied';
+import { staffMfaBlocks } from '../auth/mfa';
 
 export type AuthMode = 'public' | 'optional' | 'user' | Permission;
 
@@ -159,8 +161,14 @@ export function route<A extends AuthMode, P = Record<string, string>>(
       if (opts.auth !== 'public') {
         session = await resolveSession(req.cookies.get(sessionCookieName())?.value);
         if (!session && opts.auth !== 'optional') throw errors.unauthenticated();
-        if (session && opts.auth !== 'optional' && opts.auth !== 'user' && !hasPermission(session.role, opts.auth as Permission)) {
-          throw errors.forbidden();
+        if (session && opts.auth !== 'optional' && opts.auth !== 'user') {
+          if (!hasPermission(session.role, opts.auth as Permission)) {
+            await recordAccessDenied({ userId: session.userId, permission: opts.auth, target: opts.name, requestId, ipHash });
+            throw errors.forbidden();
+          }
+          if (await staffMfaBlocks(session)) {
+            throw new AppError('FORBIDDEN', 'Two-factor authentication is required for staff. Set it up or verify this session at /admin/security.', { mfaRequired: true });
+          }
         }
       }
       userId = session?.userId;

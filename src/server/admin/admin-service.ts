@@ -4,7 +4,7 @@
  * reason), so a change without an audit record cannot exist. There is no
  * operation that edits balances or settled rounds directly.
  */
-import { and, desc, eq, ilike, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, ilike, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGameModule } from '@/engine/games/registry';
 import { getDb, withTransaction } from '../db/client';
@@ -13,26 +13,20 @@ import {
   auditLogs,
   gameConfigurations,
   games,
-  ledgerTransactions,
   platformSettings,
   reconciliationRuns,
-  responsibleLimits,
   riskLimits,
-  sessions,
   users,
-  type UserRole,
 } from '../db/schema';
 import { errors } from '../errors';
 import { recordAdminAction } from '../audit/audit';
-import { accountBalance, getWalletAccount, lockWalletAccount, systemAccountIds } from '../ledger/accounts';
+import { accountBalance, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
-import { revokeAllSessions } from '../auth/sessions';
+import { hasPermission } from '../auth/rbac';
+import { requestFingerprint, runIdempotent, type IdempotentResult } from '../idempotency';
 import { requireGameId } from '../games/catalog';
 import { getPlatformSettings, openExposure } from '../risk/risk-service';
 import { platformSummary, exposureByGame } from '../analytics/analytics';
-import { playerStats } from '../users/stats';
-import { listRounds } from '../games/round-service';
-import { listTransactions } from '../wallet/wallet';
 
 export interface AdminCtx {
   adminId: string;
@@ -87,103 +81,6 @@ export async function overview() {
     openAlerts,
     lastReconciliation: lastRecon ?? null,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Users
-// ---------------------------------------------------------------------------
-export async function listUsers(opts: { q?: string; limit?: number; offset?: number }) {
-  const db = getDb();
-  const q = opts.q?.trim();
-  const where: SQL | undefined = q ? or(ilike(users.email, `%${q}%`), ilike(users.username, `%${q}%`), sql`${users.id}::text = ${q}`) : undefined;
-  const rows = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      username: users.username,
-      role: users.role,
-      status: users.status,
-      createdAt: users.createdAt,
-      lastLoginAt: users.lastLoginAt,
-      balance: sql<number>`(SELECT balance FROM ledger_accounts a WHERE a.user_id = ${users.id})`.mapWith(Number),
-    })
-    .from(users)
-    .where(where)
-    .orderBy(desc(users.createdAt))
-    .limit(Math.min(opts.limit ?? 50, 200))
-    .offset(opts.offset ?? 0);
-  return rows;
-}
-
-export async function userDetail(userId: string) {
-  const db = getDb();
-  const [user] = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      username: users.username,
-      role: users.role,
-      status: users.status,
-      statusReason: users.statusReason,
-      createdAt: users.createdAt,
-      lastLoginAt: users.lastLoginAt,
-      failedLoginCount: users.failedLoginCount,
-      lockedUntil: users.lockedUntil,
-      deletedAt: users.deletedAt,
-    })
-    .from(users)
-    .where(eq(users.id, userId));
-  if (!user) throw errors.notFound('User');
-  const wallet = await getWalletAccount(db, userId);
-  const [limits] = await db.select().from(responsibleLimits).where(eq(responsibleLimits.userId, userId));
-  const sessionRows = await db
-    .select({ id: sessions.id, createdAt: sessions.createdAt, lastSeenAt: sessions.lastSeenAt, expiresAt: sessions.expiresAt, revokedAt: sessions.revokedAt, userAgent: sessions.userAgent })
-    .from(sessions)
-    .where(eq(sessions.userId, userId))
-    .orderBy(desc(sessions.createdAt))
-    .limit(10);
-  const activity = await db
-    .select({ id: auditLogs.id, action: auditLogs.action, actorType: auditLogs.actorType, createdAt: auditLogs.createdAt, reason: auditLogs.reason })
-    .from(auditLogs)
-    .where(or(eq(auditLogs.actorId, userId), and(eq(auditLogs.resourceType, 'user'), eq(auditLogs.resourceId, userId))))
-    .orderBy(desc(auditLogs.createdAt))
-    .limit(50);
-  return {
-    user,
-    balance: wallet?.balance ?? 0,
-    stats: await playerStats(userId),
-    responsibleLimits: limits ?? null,
-    sessions: sessionRows,
-    recentRounds: await listRounds({ userId, limit: 25 }),
-    recentTransactions: await listTransactions(userId, { limit: 25 }),
-    activity,
-  };
-}
-
-export async function setUserStatus(ctx: AdminCtx, userId: string, status: 'ACTIVE' | 'SUSPENDED', reason: string) {
-  if (userId === ctx.adminId) throw errors.conflict('You cannot change the status of your own account');
-  return withTransaction(async (tx) => {
-    const [before] = await tx.select({ status: users.status, statusReason: users.statusReason }).from(users).where(eq(users.id, userId)).for('update');
-    if (!before) throw errors.notFound('User');
-    if (before.status === 'DELETED') throw errors.conflict('Deleted accounts cannot be reactivated');
-    await tx.update(users).set({ status, statusReason: reason, updatedAt: new Date() }).where(eq(users.id, userId));
-    if (status === 'SUSPENDED') await revokeAllSessions(tx, userId);
-    await recordAdminAction(tx, { ...ctx, action: 'user.status', targetType: 'user', targetId: userId, reason, before, after: { status, statusReason: reason } });
-    return { status };
-  });
-}
-
-export async function setUserRole(ctx: AdminCtx, userId: string, role: UserRole, reason: string) {
-  if (userId === ctx.adminId) throw errors.conflict('You cannot change your own role');
-  return withTransaction(async (tx) => {
-    const [before] = await tx.select({ role: users.role, status: users.status }).from(users).where(eq(users.id, userId)).for('update');
-    if (!before) throw errors.notFound('User');
-    if (before.status === 'DELETED') throw errors.conflict('Deleted accounts cannot be given roles');
-    await tx.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId));
-    await revokeAllSessions(tx, userId); // force re-login with the new privileges
-    await recordAdminAction(tx, { ...ctx, action: 'user.role', targetType: 'user', targetId: userId, reason, before: { role: before.role }, after: { role } });
-    return { role };
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -311,74 +208,34 @@ export async function updatePlatformSettings(ctx: AdminCtx, patch: z.infer<typeo
 }
 
 // ---------------------------------------------------------------------------
-// Ledger corrections and house funding (ADMIN only)
+// House funding (owner only; player grants and corrections: wallet.ts)
 // ---------------------------------------------------------------------------
 /**
- * Compensating correction of a player's balance. Visible in the player's own
- * transaction history as an ADJUSTMENT with the stated reason; never edits
- * existing entries.
+ * Issues virtual chips into the house bankroll (owner only). Idempotent per
+ * owner and Idempotency-Key: a retry replays the original response.
  */
-export async function adjustBalance(
-  ctx: AdminCtx,
-  userId: string,
-  amount: number,
-  reason: string,
-  idempotencyKey: string,
-  reversesTransactionId?: number,
-) {
-  if (!Number.isSafeInteger(amount) || amount === 0) throw errors.validation('Amount must be a non-zero integer (minor units)');
-  if (Math.abs(amount) > 100_000_000_00) throw errors.validation('Adjustments above 100,000,000 chips require a migration-level change');
-  return withTransaction(async (tx) => {
-    const wallet = await lockWalletAccount(tx, userId);
-    if (reversesTransactionId !== undefined) {
-      const [orig] = await tx.select({ id: ledgerTransactions.id, userId: ledgerTransactions.userId }).from(ledgerTransactions).where(eq(ledgerTransactions.id, reversesTransactionId));
-      if (!orig || orig.userId !== userId) throw errors.validation('Referenced transaction does not belong to this player');
-    }
-    const ids = await systemAccountIds(tx);
-    const posted = await postTransaction(tx, {
-      type: 'ADJUSTMENT',
-      idempotencyKey: `adjustment:${idempotencyKey}`,
-      userId,
-      actorId: ctx.adminId,
-      reversesId: reversesTransactionId ?? null,
-      description: `Balance correction: ${reason}`,
-      postings: [
-        { accountId: wallet.id, amount },
-        { accountId: ids.ADJUSTMENTS, amount: -amount },
-      ],
-      metadata: { reason },
-    });
-    await recordAdminAction(tx, {
-      ...ctx,
-      action: 'ledger.adjustment',
-      targetType: 'user',
-      targetId: userId,
-      reason,
-      before: { balance: wallet.balance },
-      after: { balance: wallet.balance + amount, amount, transactionId: posted.id, reverses: reversesTransactionId ?? null },
-    });
-    return { transactionId: posted.id, balance: wallet.balance + amount };
-  });
-}
-
-export async function fundHouse(ctx: AdminCtx, amount: number, reason: string, idempotencyKey: string) {
+export async function fundHouse(ctx: AdminCtx, amount: number, reason: string, idempotencyKey: string): Promise<IdempotentResult<{ balance: number; transactionId: number }>> {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw errors.validation('Amount must be a positive integer (minor units)');
-  return withTransaction(async (tx) => {
-    const ids = await systemAccountIds(tx);
-    const before = await accountBalance(tx, ids.HOUSE_BANKROLL);
-    const posted = await postTransaction(tx, {
-      type: 'HOUSE_FUNDING',
-      idempotencyKey: `house-funding:${idempotencyKey}`,
-      actorId: ctx.adminId,
-      description: `House reserve funding: ${reason}`,
-      postings: [
-        { accountId: ids.ISSUANCE, amount: -amount },
-        { accountId: ids.HOUSE_BANKROLL, amount },
-      ],
-    });
-    await recordAdminAction(tx, { ...ctx, action: 'house.funded', targetType: 'account', targetId: 'HOUSE_BANKROLL', reason, before: { balance: before }, after: { balance: before + amount, transactionId: posted.id } });
-    return { balance: before + amount };
-  });
+  return withTransaction((tx) =>
+    runIdempotent(tx, ctx.adminId, idempotencyKey, requestFingerprint('admin:house-fund', { amount, reason }), async () => {
+      const [actor] = await tx.select({ role: users.role, status: users.status }).from(users).where(eq(users.id, ctx.adminId));
+      if (!actor || actor.status !== 'ACTIVE' || !hasPermission(actor.role, 'house:fund')) throw errors.forbidden();
+      const ids = await systemAccountIds(tx);
+      const before = await accountBalance(tx, ids.HOUSE_BANKROLL);
+      const posted = await postTransaction(tx, {
+        type: 'HOUSE_FUNDING',
+        idempotencyKey: `house-funding:${ctx.adminId}:${idempotencyKey}`,
+        actorId: ctx.adminId,
+        description: `House reserve funding: ${reason}`,
+        postings: [
+          { accountId: ids.ISSUANCE, amount: -amount },
+          { accountId: ids.HOUSE_BANKROLL, amount },
+        ],
+      });
+      await recordAdminAction(tx, { ...ctx, action: 'house.funded', targetType: 'account', targetId: 'HOUSE_BANKROLL', reason, before: { balance: before }, after: { balance: before + amount, amount, transactionId: posted.id } });
+      return { status: 201, body: { balance: before + amount, transactionId: posted.id } };
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------

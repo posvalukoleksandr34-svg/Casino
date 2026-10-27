@@ -127,7 +127,7 @@ describe('every application flow works as casino_app', () => {
 
   it('registration, wagers, interactive play, expiry, void, adjustment, seeds, jobs and reconciliation', async () => {
     const { startRound, actOnRound, voidRound, expireDueRounds } = await import('@/server/games/round-service');
-    const { adjustBalance } = await import('@/server/admin/admin-service');
+    const { adjustBalance } = await import('@/server/admin/wallet');
     const { rotateSeed } = await import('@/server/fairness/seeds');
     const { runReconciliation } = await import('@/server/jobs/reconciliation');
     const { cleanupExpired, detectAnomalies } = await import('@/server/jobs/anomaly');

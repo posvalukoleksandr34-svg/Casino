@@ -23,7 +23,7 @@ import {
 const money = (name: string) => bigint(name, { mode: 'number' });
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
-export const userRole = pgEnum('user_role', ['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'AUDITOR', 'ADMIN']);
+export const userRole = pgEnum('user_role', ['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'AUDITOR', 'ADMIN', 'OWNER']);
 export const userStatus = pgEnum('user_status', ['ACTIVE', 'SUSPENDED', 'DELETED']);
 export const accountType = pgEnum('account_type', [
   'PLAYER_WALLET',
@@ -45,6 +45,7 @@ export const ledgerTxType = pgEnum('ledger_tx_type', [
   'SPORTS_SETTLED',
   'SPORTS_VOIDED',
   'SPORTS_CORRECTION',
+  'CHIP_GRANT',
 ]);
 export const gameStatus = pgEnum('game_status', ['ACTIVE', 'SUSPENDED', 'DISABLED']);
 export const roundStatus = pgEnum('round_status', ['OPEN', 'SETTLED', 'VOIDED']);
@@ -88,6 +89,21 @@ export const sessions = pgTable('sessions', {
   revokedAt: ts('revoked_at'),
   userAgent: text('user_agent'),
   ipHash: text('ip_hash'),
+  /** When this session passed the second factor (migration 0008). */
+  mfaVerifiedAt: ts('mfa_verified_at'),
+});
+
+/** Staff TOTP enrolment (migration 0008). The secret is encrypted with the seed key ring. */
+export const userMfa = pgTable('user_mfa', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id),
+  secretEnc: text('secret_enc').notNull(),
+  enabledAt: ts('enabled_at'),
+  lastStep: bigint('last_step', { mode: 'number' }).notNull().default(0),
+  recoveryHashes: text('recovery_hashes').array().notNull().default([]),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
 export const passwordResetTokens = pgTable('password_reset_tokens', {
@@ -141,6 +157,8 @@ export const platformSettings = pgTable('platform_settings', {
   dailyBonus: money('daily_bonus').notNull(),
   dailyBonusMaxBalance: money('daily_bonus_max_balance').notNull(),
   anomalyZThreshold: doublePrecision('anomaly_z_threshold').notNull().default(4),
+  /** Staff must pass TOTP MFA to use the back office (migration 0008). */
+  staffMfaRequired: boolean('staff_mfa_required').notNull().default(false),
   updatedAt: ts('updated_at').notNull().defaultNow(),
   updatedBy: uuid('updated_by').references(() => users.id),
 });
@@ -315,6 +333,9 @@ export const auditLogs = pgTable('audit_logs', {
   ipHash: text('ip_hash'),
   requestId: text('request_id'),
   metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+  /** Role held by the actor when acting (migration 0008; NULL for older rows). */
+  actorRole: text('actor_role'),
+  outcome: text('outcome').$type<'SUCCESS' | 'DENIED' | 'FAILED'>().notNull().default('SUCCESS'),
 });
 
 export const adminActions = pgTable('admin_actions', {
@@ -461,6 +482,9 @@ export const sportsMarkets = pgTable('sports_markets', {
   oddsUpdatedAt: ts('odds_updated_at').notNull(),
   version: integer('version').notNull().default(1),
   statusReason: text('status_reason'),
+  /** Optional operator-set prediction window (migration 0008): NULL = open now / closes at kick-off. */
+  opensAt: ts('opens_at'),
+  closesAt: ts('closes_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });

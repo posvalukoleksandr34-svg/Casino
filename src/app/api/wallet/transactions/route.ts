@@ -6,7 +6,7 @@ import { listTransactions } from '@/server/wallet/wallet';
 const query = z.object({
   before: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
-  type: z.enum(['BET_PLACED', 'BET_SETTLED', 'ROUND_VOIDED', 'BONUS_GRANTED', 'ADJUSTMENT']).optional(),
+  type: z.enum(['BET_PLACED', 'BET_SETTLED', 'ROUND_VOIDED', 'BONUS_GRANTED', 'CHIP_GRANT', 'ADJUSTMENT', 'SPORTS_STAKE', 'SPORTS_SETTLED', 'SPORTS_VOIDED', 'SPORTS_CORRECTION']).optional(),
 });
 
 export const GET = route({ name: 'wallet.transactions', auth: 'user', rateLimit: [RATE_LIMITS.readUser] }, async (ctx) => {

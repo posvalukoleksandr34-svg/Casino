@@ -31,6 +31,7 @@ import { ensureLimitsRow } from '../responsible/limits';
 import { grantSignupBonus } from '../promotions/bonuses';
 import { dummyVerify, hashPassword, needsRehash, passwordProblems, verifyPassword } from '../auth/password';
 import { createSession, revokeAllSessions } from '../auth/sessions';
+import { issueMfaChallenge, mfaEnabled } from '../auth/mfa';
 import { logger } from '../observability/logger';
 import { metrics } from '../observability/metrics';
 import { consume, type RateLimitRule } from '../http/rate-limit';
@@ -166,6 +167,12 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
   }
   if (user.status === 'SUSPENDED') {
     throw errors.forbidden('This account is suspended. Please contact support.');
+  }
+  if (await mfaEnabled(db, user.id)) {
+    // The password was right: clear the failure counter, but issue no session until
+    // the second factor is proven (completeMfaLogin exchanges the challenge).
+    await db.update(users).set({ failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, user.id));
+    throw new AppError('MFA_REQUIRED', 'Enter the code from your authenticator app', { challenge: issueMfaChallenge(user.id) });
   }
   return withTransaction(async (tx) => {
     const upgrades = needsRehash(user.passwordHash!) ? { passwordHash: await hashPassword(password) } : {};
@@ -441,6 +448,13 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
     throw new AppError('UNAUTHENTICATED', 'Password is incorrect');
   }
   await withTransaction(async (tx) => {
+    if (user.role === 'OWNER') {
+      // Every owner row, in id order (as role and status changes lock them), before counting.
+      const owners = await tx.execute<{ id: string; status: string }>(sql`SELECT id, status FROM users WHERE role = 'OWNER' ORDER BY id FOR UPDATE`);
+      if (!owners.rows.some((o) => o.id !== userId && o.status === 'ACTIVE')) {
+        throw errors.conflict('You are the last active owner. Make another account owner before deleting this one.');
+      }
+    }
     // Same lock order as a wager (user row via its idempotency key, then wallet): a wager
     // already in flight commits first and is counted below; a later one sees DELETED.
     await tx.select({ id: users.id }).from(users).where(eq(users.id, userId)).for('update');

@@ -1,6 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import { describe, expect, it } from 'vitest';
-import { adjustBalance, fundHouse, publishGameConfig, setGameStatus, setUserRole, setUserStatus, updateRiskLimits } from '@/server/admin/admin-service';
+import { fundHouse, publishGameConfig, setGameStatus, updateRiskLimits } from '@/server/admin/admin-service';
+import { setUserRole, setUserStatus } from '@/server/admin/users';
+import { adjustBalance } from '@/server/admin/wallet';
 import { hasPermission, ROLE_PERMISSIONS } from '@/server/auth/rbac';
 import { resolveSession } from '@/server/auth/sessions';
 import { getDb } from '@/server/db/client';
@@ -71,8 +73,12 @@ describe('audited admin actions', () => {
     const p = await newPlayer('adj');
     const before = (await getWalletAccount(getDb(), p.userId))!.balance;
     const k = key();
-    await adjustBalance(ctx, p.userId, 12_345, 'Goodwill correction after incident', k);
-    await expect(adjustBalance(ctx, p.userId, 12_345, 'Goodwill correction after incident', k)).rejects.toSatisfy((e) => e instanceof AppError && e.code === 'CONFLICT');
+    const first = await adjustBalance(ctx, p.userId, 12_345, 'Goodwill correction after incident', k);
+    // A retry with the same key replays the original answer and posts nothing.
+    const retry = await adjustBalance(ctx, p.userId, 12_345, 'Goodwill correction after incident', k);
+    expect(retry).toMatchObject({ replayed: true, body: first.body });
+    // The same key with a different request is refused.
+    await expect(adjustBalance(ctx, p.userId, 999, 'Goodwill correction after incident', k)).rejects.toSatisfy((e) => e instanceof AppError && e.code === 'IDEMPOTENCY_CONFLICT');
     expect((await getWalletAccount(getDb(), p.userId))!.balance).toBe(before + 12_345);
     const tx = await listTransactions(p.userId, { limit: 1 });
     expect(tx[0]!.type).toBe('ADJUSTMENT');
@@ -91,10 +97,13 @@ describe('audited admin actions', () => {
     await expect(setUserStatus(ctx, ctx.adminId, 'SUSPENDED', 'self suspend test')).rejects.toBeInstanceOf(AppError);
   });
 
-  it('house funding issues virtual chips through the ledger', async () => {
-    const ctx = await adminCtx();
-    const res = await fundHouse(ctx, 1_000_00, 'Top up reserve for test', key());
-    expect(res.balance).toBeGreaterThan(0);
+  it('house funding (owner only) issues virtual chips through the ledger', async () => {
+    const admin = await adminCtx();
+    await expect(fundHouse(admin, 1_000_00, 'Admin may not fund the house', key())).rejects.toSatisfy((e) => e instanceof AppError && e.code === 'FORBIDDEN');
+    const o = await newPlayer('own');
+    await getDb().update(users).set({ role: 'OWNER' }).where(eq(users.id, o.userId));
+    const res = await fundHouse({ adminId: o.userId, ipHash: null, requestId: key() }, 1_000_00, 'Top up reserve for test', key());
+    expect(res.body.balance).toBeGreaterThan(0);
     await expectLedgerConsistent();
   });
 });

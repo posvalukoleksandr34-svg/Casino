@@ -11,8 +11,8 @@ describe('db:seed safety', () => {
   it('refuses a public APP_URL and a remote database', () => {
     expect(() => planSeed({ ...local, APP_URL: 'https://casino.example.com' })).toThrow(/non-local APP_URL/);
     expect(() => planSeed({ ...local, DATABASE_URL: 'postgresql://u:p@db.internal.example.com/casino' })).toThrow(/non-local database/);
-    expect(planSeed({ ...local, DATABASE_URL: 'postgresql://u:p@db.internal.example.com/casino', SEED_ALLOW_NON_LOCAL_DATABASE: 'true' })).toHaveLength(5);
-    expect(planSeed({ ...local, DATABASE_URL: 'postgresql://u:p@db:5432/casino' })).toHaveLength(5); // Compose service
+    expect(planSeed({ ...local, DATABASE_URL: 'postgresql://u:p@db.internal.example.com/casino', SEED_ALLOW_NON_LOCAL_DATABASE: 'true' })).toHaveLength(6);
+    expect(planSeed({ ...local, DATABASE_URL: 'postgresql://u:p@db:5432/casino' })).toHaveLength(6); // Compose service
   });
 
   it('has no built-in password: generates a distinct random password per account', () => {

@@ -330,3 +330,106 @@ export function Meter({ value, limit, label }: { value: number; limit: number; l
     </div>
   );
 }
+
+/**
+ * One series of daily values as columns (counts or chips). Single series, so
+ * no legend: the card title names it. Hover/focus shows the day's value; the
+ * table view lists every day.
+ */
+export function DailyBars({ points, kind, label }: { points: { day: string; value: number }[]; kind: 'count' | 'chips'; label: string }) {
+  const [ref, width] = useWidth<HTMLDivElement>();
+  const [hover, setHover] = useState<number | null>(null);
+  const [showTable, setShowTable] = useState(false);
+  const fmt = (v: number) => (kind === 'chips' ? compactChips(v) : v.toLocaleString('en-US'));
+  const height = 200;
+  const m = { top: 12, right: 12, bottom: 26, left: 52 };
+  const iw = width - m.left - m.right;
+  const ih = height - m.top - m.bottom;
+  const max = Math.max(0, ...points.map((p) => p.value));
+  const ticks = niceTicks(0, kind === 'count' ? Math.max(max, 4) : Math.max(max, 100));
+  const hi = ticks[ticks.length - 1]!;
+  const y = (v: number) => m.top + ih - (v / (hi || 1)) * ih;
+  const band = iw / Math.max(points.length, 1);
+  const bw = Math.min(24, Math.max(3, band - 2));
+  const cx = (i: number) => m.left + band * i + band / 2;
+
+  if (points.length === 0) return <p className="text-sm text-ink-400">No data in this period.</p>;
+  return (
+    <div>
+      <div className="mb-2 flex justify-end">
+        <button type="button" className="text-xs text-gold-400 hover:text-gold-300" onClick={() => setShowTable((v) => !v)} aria-expanded={showTable}>
+          {showTable ? 'Hide table' : 'Show table'}
+        </button>
+      </div>
+      <div ref={ref} className="relative" onPointerLeave={() => setHover(null)}>
+        <svg width={width} height={height} role="img" aria-label={label}>
+          {ticks.map((t) => (
+            <g key={t}>
+              <line x1={m.left} x2={width - m.right} y1={y(t)} y2={y(t)} stroke={t === 0 ? '#4b4f5a' : GRID} strokeWidth="1" />
+              <text x={m.left - 8} y={y(t)} fill={AXIS_TEXT} fontSize="11" textAnchor="end" dominantBaseline="central" className="num">
+                {fmt(t)}
+              </text>
+            </g>
+          ))}
+          {points.map((p, i) => {
+            if (p.value <= 0) return null;
+            const top = y(p.value);
+            const h = Math.max(1, y(0) - top);
+            const r = Math.min(4, h / 2, bw / 2);
+            const x0 = cx(i) - bw / 2;
+            const d = `M${x0},${top + h} V${top + r} Q${x0},${top} ${x0 + r},${top} H${x0 + bw - r} Q${x0 + bw},${top} ${x0 + bw},${top + r} V${top + h} Z`;
+            return <path key={p.day} d={d} fill={SERIES.actual} opacity={hover === null || hover === i ? 1 : 0.55} />;
+          })}
+          {points.map((p, i) =>
+            i % Math.ceil(points.length / 7) === 0 || i === points.length - 1 ? (
+              <text key={p.day} x={cx(i)} y={height - 8} fill={AXIS_TEXT} fontSize="11" textAnchor="middle">
+                {p.day.slice(5)}
+              </text>
+            ) : null,
+          )}
+          {points.map((p, i) => (
+            <rect
+              key={`hit-${p.day}`}
+              x={m.left + band * i}
+              y={m.top}
+              width={band}
+              height={ih}
+              fill="transparent"
+              tabIndex={0}
+              aria-label={`${p.day}: ${fmt(p.value)}`}
+              onPointerMove={() => setHover(i)}
+              onFocus={() => setHover(i)}
+              onBlur={() => setHover(null)}
+            />
+          ))}
+        </svg>
+        {hover !== null && points[hover] && (
+          <Tooltip x={cx(hover)} y={m.top} width={width}>
+            <div className="text-ink-400">{points[hover]!.day} (UTC)</div>
+            <div className="num font-semibold text-ink-100">{kind === 'chips' ? `${(points[hover]!.value / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })} chips` : fmt(points[hover]!.value)}</div>
+          </Tooltip>
+        )}
+      </div>
+      {showTable && (
+        <div className="mt-3 max-h-64 overflow-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-left text-ink-400">
+                <th className="py-1.5">Day (UTC)</th>
+                <th className="text-right">{kind === 'chips' ? 'Chips' : 'Count'}</th>
+              </tr>
+            </thead>
+            <tbody className="num">
+              {points.map((p) => (
+                <tr key={p.day} className="border-t border-ink-800 text-ink-200">
+                  <td className="py-1.5">{p.day}</td>
+                  <td className="text-right">{kind === 'chips' ? (p.value / 100).toFixed(2) : p.value.toLocaleString('en-US')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}

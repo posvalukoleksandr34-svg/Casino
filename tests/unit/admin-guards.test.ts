@@ -14,7 +14,7 @@ describe('admin access control is declared on every entry point', () => {
   it('every admin page checks a permission itself (layouts alone are not sufficient)', () => {
     const pages = walk('src/app/admin', 'page.tsx');
     expect(pages.length).toBeGreaterThan(10);
-    for (const p of pages) expect(readFileSync(p, 'utf8'), p).toMatch(/requirePermission\('[a-z:]+'\)/);
+    for (const p of pages) expect(readFileSync(p, 'utf8'), p).toMatch(/requirePermission\('[a-z:]+'(, \{[^}]*\})?\)/);
   });
 
   it('every admin API handler requires a staff permission (never public or plain user)', () => {

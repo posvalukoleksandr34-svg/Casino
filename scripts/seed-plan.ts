@@ -17,7 +17,7 @@ import { randomBytes } from 'node:crypto';
 /** The environment variables the plan reads (process.env in the script). */
 export type SeedEnv = Record<string, string | undefined>;
 
-export type SeedRole = 'ADMIN' | 'RISK_MANAGER' | 'AUDITOR' | 'SUPPORT' | 'PLAYER';
+export type SeedRole = 'OWNER' | 'ADMIN' | 'RISK_MANAGER' | 'AUDITOR' | 'SUPPORT' | 'PLAYER';
 
 export interface SeedAccount {
   email: string;
@@ -33,6 +33,7 @@ export interface SeedAccount {
 export const PUBLISHED_PASSWORDS: readonly string[] = ['Velvet-Table-Seed-2026'];
 
 const ACCOUNTS: { role: SeedRole; username: string; email: (env: SeedEnv) => string }[] = [
+  { role: 'OWNER', username: 'owner', email: (env) => env.SEED_OWNER_EMAIL || 'owner@example.com' },
   { role: 'ADMIN', username: 'admin', email: (env) => env.SEED_ADMIN_EMAIL || 'admin@example.com' },
   { role: 'RISK_MANAGER', username: 'risk_manager', email: () => 'risk@example.com' },
   { role: 'AUDITOR', username: 'auditor', email: () => 'auditor@example.com' },

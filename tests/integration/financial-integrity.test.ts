@@ -16,7 +16,7 @@ import { POST as actionRoute } from '@/app/api/rounds/[roundId]/actions/route';
 import { GET as roundRoute } from '@/app/api/rounds/[roundId]/route';
 import { GET as roundsRoute } from '@/app/api/rounds/route';
 import { GET as transactionsRoute } from '@/app/api/wallet/transactions/route';
-import { setUserStatus } from '@/server/admin/admin-service';
+import { setUserStatus } from '@/server/admin/users';
 import { SESSION_COOKIE_DEV } from '@/server/auth/sessions';
 import { getDb } from '@/server/db/client';
 import { gameRounds, ledgerTransactions, payouts, users } from '@/server/db/schema';

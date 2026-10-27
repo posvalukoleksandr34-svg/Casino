@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { auditLogs, adminActions } from '../db/schema';
 import type { Executor } from '../db/client';
 
@@ -15,9 +16,16 @@ export interface AuditEvent {
   ipHash?: string | null;
   requestId?: string | null;
   metadata?: Record<string, unknown>;
+  /** Defaults to SUCCESS: most events are written in the transaction of the change they describe. */
+  outcome?: 'SUCCESS' | 'DENIED' | 'FAILED';
 }
 
-/** Appends an audit record. Audit rows are immutable (enforced by DB triggers). */
+/**
+ * Appends an audit record. Audit rows are immutable for the application
+ * (DB triggers refuse UPDATE, DELETE and TRUNCATE). The actor's role is read
+ * from their account in the same statement, so it is the role they held when
+ * the record was written.
+ */
 export async function audit(db: Executor, event: AuditEvent): Promise<number> {
   const [row] = await db
     .insert(auditLogs)
@@ -33,6 +41,8 @@ export async function audit(db: Executor, event: AuditEvent): Promise<number> {
       ipHash: event.ipHash ?? null,
       requestId: event.requestId ?? null,
       metadata: event.metadata ?? {},
+      outcome: event.outcome ?? 'SUCCESS',
+      actorRole: event.actorId ? sql`(SELECT role::text FROM users WHERE id = ${event.actorId})` : null,
     })
     .returning({ id: auditLogs.id });
   return row!.id;

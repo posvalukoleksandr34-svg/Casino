@@ -4,7 +4,12 @@ export const TX_LABELS: Record<string, string> = {
   ROUND_VOIDED: 'Refund',
   BONUS_GRANTED: 'Bonus',
   ADJUSTMENT: 'Correction',
+  CHIP_GRANT: 'Test chips granted',
   HOUSE_FUNDING: 'House funding',
+  SPORTS_STAKE: 'Prediction stake',
+  SPORTS_SETTLED: 'Prediction settled',
+  SPORTS_VOIDED: 'Prediction refund',
+  SPORTS_CORRECTION: 'Prediction correction',
 };
 
 export const GAME_NAMES: Record<string, string> = {
