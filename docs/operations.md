@@ -388,34 +388,54 @@ samples and raises a CRITICAL alert.
    with a reason, and record the incident: cause, affected rounds and players, and the
    corrections with their transaction ids.
 
-## 9. Password-recovery e-mail **(external provider)**
+## 9. E-mail delivery **(external provider)**
+
+E-mail carries registration codes, e-mail-change codes, password-reset links
+and security notices. **Registration requires it:** with `MAIL_TRANSPORT=disabled`
+(the default) new players cannot register (the API answers 503 and creates
+nothing), password recovery is unavailable, and `/admin/health` says so.
+Existing accounts keep signing in. The full journey, code limits and the
+support procedure for players who receive no code are in
+[onboarding.md](onboarding.md).
 
 * `MAIL_TRANSPORT=smtp`, `SMTP_URL=smtps://user:pass@smtp.provider:465` (or `smtp://…:587`,
   STARTTLS is then required for non-loopback hosts), `MAIL_FROM="Aurovane <no-reply@your.domain>"`.
+  Keep `SMTP_URL` in the secret store; it is never sent to the browser (checked by
+  `npm run check:bundle`).
 * Configure SPF, DKIM and DMARC for the sending domain with your provider.
-* Delivery is asynchronous, and so is everything that depends on the account (lookup,
-  token write), so response times do not reveal whether an address has an account.
-  Delivery failures increment `casino_mail_failed_total` and are logged without the link
-  or address; a failure before sending (e.g. the database) is recorded as an error event
-  for `background:password_reset` (`/admin/health`).
-* **Delivery guarantee: best effort, in process, at most once.** There is no durable queue.
-  If the process stops between the response and the send, or the provider rejects the
-  message, no link arrives and the player simply asks again (3 per address per hour).
-  A token is only usable from the e-mail, so a lost message never leaves a usable secret
-  anywhere. If you need guaranteed delivery, put a durable queue or the provider's API with
-  retries in place of `sendInBackground`. Reset links are single-use, expire after 30 minutes, are
-  stored only as SHA-256 hashes, are throttled per address (3/hour, silently) and per IP.
-* Without a provider (`disabled`, the default) the site says so honestly: the
-  forgot-password page explains that recovery is unavailable and asks players to contact
-  support; no reset token is created. `/admin/health` shows the state.
-* Verified here against an in-test SMTP server (`tests/integration/password-recovery.test.ts`);
-  **not** verified against a real provider (none is configured in this environment).
+* **Before opening registration, test the provider end to end**: register a test
+  account with a mailbox you control, confirm the code arrives (and not in spam)
+  within a minute, enter it, and check `casino_mail_sent_total{purpose="email_verification"}`.
+  Repeat a password reset. This has **not** been done in this repository's
+  environment (no provider is configured here).
+* **Verification codes** are sent synchronously after the registering
+  transaction commits; the outcome is stored on the challenge. A failure leaves
+  the account pending and the page offers an immediate resend. Codes are stored
+  only as keyed HMACs (`IP_HASH_SECRET`; rotating it invalidates codes in flight).
+* **Password resets**: delivery is asynchronous, and so is everything that depends on
+  the account (lookup, token write), so response times do not reveal whether an address
+  has an account. A failure before sending (e.g. the database) is recorded as an error
+  event for `background:password_reset` (`/admin/health`).
+* Failures increment `casino_mail_failed_total` and are logged without the recipient,
+  body, link or code.
+* **Delivery guarantee: best effort, in process, at most once per request.** There is no
+  durable queue. If the provider rejects a message, the player asks again (codes:
+  resend after 60 s, 5 per hour; resets: 3 per address per hour). Codes and reset
+  tokens are only usable from the e-mail, so a lost message never leaves a usable secret
+  anywhere. Reset links are single-use, expire after 30 minutes and are stored only as
+  SHA-256 hashes.
+* Local development: `MAIL_TRANSPORT=console` prints messages to the server console, or
+  point `smtp://127.0.0.1:1025` at a local sink such as Mailpit. Automated tests use an
+  in-memory capture mailer (integration) and a loopback SMTP sink (end-to-end); they never
+  send real e-mail.
 
 ## 10. Staff accounts
 
 `npm run db:seed` is for local development only (it refuses production, non-local
-`APP_URL` and non-local databases, and has no built-in passwords). In production, create
-the first **owner** deliberately: register the account on the site, then run
+`APP_URL` and non-local databases, and has no built-in passwords). Seeded accounts are
+created as already verified by `OPERATOR` and skip the player-details step. In production, create
+the first **owner** deliberately: register the account on the site (including the
+e-mailed code and the profile step), then run
 `npm run admin:provision-owner -- --email … --reason …` (with Compose:
 `docker compose run --rm migrate npm run admin:provision-owner -- …`). The command
 refuses while an owner exists and is audited. The owner then turns on two-factor

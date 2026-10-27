@@ -23,10 +23,10 @@ export default async function HealthPage() {
         <Stat label="Server error rate" value={requests ? `${((server / requests) * 100).toFixed(2)}%` : '—'} sub={`${server} of ${requests} requests since start · ${h.errors.last_day} logged errors in 24 h`} />
       </div>
       {h.passwordRecovery !== 'email' && (
-        <Callout tone="warning" className="mt-6" title="Password-recovery e-mail is not being delivered">
+        <Callout tone="warning" className="mt-6" title={h.passwordRecovery === 'console' ? 'E-mail is printed, not delivered' : 'Registration is closed: no e-mail provider'}>
           {h.passwordRecovery === 'console'
-            ? 'MAIL_TRANSPORT=console: reset links are printed to the server console (development only).'
-            : 'No e-mail provider is configured (MAIL_TRANSPORT=disabled). Players see that recovery is unavailable and must contact support. Configure SMTP_URL and MAIL_FROM — see docs/operations.md.'}
+            ? 'MAIL_TRANSPORT=console: verification codes and reset links are printed to the server console (development only).'
+            : 'No e-mail provider is configured (MAIL_TRANSPORT=disabled). New players cannot register (a verification code cannot be sent), and password recovery is unavailable. Configure SMTP_URL and MAIL_FROM — see docs/operations.md.'}
         </Callout>
       )}
       <Card className="mt-6">

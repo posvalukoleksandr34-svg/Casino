@@ -470,6 +470,15 @@ describe('existing and operator-created accounts', () => {
     expect(d.emailVerificationMethod).toBe('LEGACY_MIGRATION');
   });
 
+  it('an unverified registration cannot be provisioned as owner', async () => {
+    const raw = input();
+    await registerNow(raw);
+    const { provisionOwner } = await import('@/server/admin/provision');
+    const err = await provisionOwner({ email: raw.email, reason: 'Initial owner', allowAdditional: true }).catch((e) => e);
+    expect(code(err)).toBe('CONFLICT');
+    expect((err as AppError).message).toMatch(/not confirmed its e-mail/);
+  });
+
   it('operator-created accounts can be required to onboard', async () => {
     const op = await createOperatorAccount({ email: `opreq${Date.now()}@example.test`, username: `opreq${Date.now().toString(36)}`, password: PLAYER_PASSWORD }, meta, { onboarding: 'required', session: true });
     expect((await resolveSession(op.session!.token))!.onboardingPending).toBe(true);

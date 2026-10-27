@@ -26,12 +26,14 @@ organisation · **Open** = not implemented.
 
 | Item | Status | Where |
 |---|---|---|
-| Age confirmation (18+) and terms acceptance at registration | Done (self-declaration) | `register` schema requires both |
+| Age confirmation (18+) and terms acceptance at registration | Done (self-declaration) | `register` schema requires both; accepted terms and privacy versions are recorded |
+| Date of birth with a server-side 18+ check | Done (self-declared date) | onboarding, `docs/onboarding.md` |
 | Age **verification** (documents / provider) | Open / Operator | not implemented |
-| E-mail verification | Open | not implemented (`docs/threat-model.md`) |
+| E-mail verification | Done | six-digit codes at registration and on address change (`docs/onboarding.md`); pre-existing accounts marked `LEGACY_MIGRATION` without proof |
+| Phone verification | Open | numbers stored and shown as unverified |
 | Account deletion with retention of financial and audit records | Done | `deleteAccount` anonymises the profile; ledger/audit kept |
 | Data export (portability) | Done | `/settings` → export, `exportUserData` |
-| Privacy notice, cookie notice, lawful bases, DPA with processors | Operator | only one first-party session cookie is set |
+| Privacy notice, cookie notice, lawful bases, DPA with processors | Operator | `/privacy` and `/terms` describe how the software handles data (not legally reviewed); two first-party HttpOnly cookies (session, signup flow) |
 
 ## Fair play
 

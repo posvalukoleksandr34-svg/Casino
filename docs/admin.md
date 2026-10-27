@@ -71,7 +71,9 @@ SQL.
 Public registration always creates players (the registration schema is strict; a `role`
 field is rejected). The first owner is provisioned by an operator with database access:
 
-1. Register the owner's account normally on the site (with a strong, unique password).
+1. Register the owner's account normally on the site (with a strong, unique password),
+   enter the e-mailed code and complete the profile step ([onboarding.md](onboarding.md)).
+   Provisioning refuses an account whose e-mail is not verified yet.
 2. Promote it from the command line:
 
    ```bash

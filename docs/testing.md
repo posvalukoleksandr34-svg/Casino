@@ -32,7 +32,10 @@ what the tests exercise.
   limits), `sports` (price model and its RTP bound, committed demo results, settlement
   and correction maths, provider payload mapping, rate-limit and error sanitising),
   `owner-admin` (permission matrix, rank rules, e-mail masking, TOTP against the RFC 6238
-  vectors, reporting periods, prediction windows).
+  vectors, reporting periods, prediction windows), `account-policy` (Unicode names, strict
+  calendar dates, 18+ by calendar date incl. 29 February, code pasting, shared password
+  policy; static guards: no page reads the raw session, the onboarding allow-list of API
+  routes is exactly the expected one).
 * **Integration** (`tests/integration`): `ledger-invariants`, `rounds`, `interactive`,
   `blackjack`, `expiry`, `reconciliation-faults`, `schema-and-reconciliation`,
   `privileges`, `auth`, `password-recovery`, `responsible`, `responsible-hardening`,
@@ -54,7 +57,20 @@ what the tests exercise.
   enforcement, maintenance with open rounds, client-supplied outcomes refused; sports
   prediction window, settlement preview vs actual credit, duplicate settlement, demo
   fixtures; MFA enrolment, two-step sign-in, replay, recovery codes, staff policy;
-  dashboard metrics).
+  dashboard metrics), `registration` (pending accounts without session/wallet/chips, the
+  HTTP response and cookie, server-side validation incl. smuggled role/verification
+  fields, duplicate username/e-mail, stale-registration reclaim, registration refused
+  without an e-mail transport, delivery failure and resend, wrong-code counting and
+  lock-out, malformed codes, expiry, cooldown and hourly cap, superseded and consumed
+  codes, six concurrent correct submissions → one activation, signed flow cookie
+  tamper/expiry, address correction, unverified sign-in, onboarding validation and 18+,
+  phone normalisation, **every API route called with a pending session** → 403,
+  grandfathered and operator accounts, e-mail change, export and deletion of the new
+  fields, no codes or personal data in audit records or process output),
+  `migration-0009` (a scratch database at 0008 with an existing account, then 0009:
+  nothing lost or invented, legacy flags, new-row defaults, constraints). Every test
+  player is created through the real journey (register → code from the in-memory capture
+  mailer → verify → onboarding) by `newPlayer`.
 * **Statistical** (`tests/statistical`): `roulette-dice`, `mines`, `crash`, `blackjack`,
   `new-games`.
 * **E2E** (`tests/e2e`): `player-journey`, `blackjack`, `security`, `resilience-access`
@@ -63,7 +79,13 @@ what the tests exercise.
   one round of each new game, profile save, a demo sports prediction), `owner-admin`
   (owner dashboard, user search, chip grant, suspension and its effect on the player's
   session, audit log and ledger; moderator limits incl. 404/403; admin pages on a phone
-  with labelled controls).
+  with labelled controls), `registration` (register → code read from the SMTP sink →
+  wrong code → verify → every page and API closed until the profile is done → profile →
+  lobby → dice round → balance, transactions, history and profile; unverified sign-in;
+  address correction; server-side under-age refusal). The e2e server sends real SMTP to
+  a loopback sink started by `global-setup.ts` (messages saved as JSON for the specs);
+  `registerPlayer` takes every e2e player through the full journey, and
+  `resilience-access` now exercises a real password reset through it.
 
 ## Regression tests for defects fixed in the production-readiness pass
 

@@ -20,6 +20,12 @@ ledger, and every game publishes its rules, payouts and house edge.
   by number of picks, exact), Hi-Lo (≤ 99 % for every strategy, exact), Blackjack (house
   edge ≈ 0.42 % under basic strategy — a **simulation estimate** with a 95 % CI, labelled
   as such).
+* **Registration and onboarding**: create account → six-digit e-mail code (hashed,
+  10-minute, 5-attempt, single-use, rate-limited) → mandatory profile step (legal name,
+  date of birth with a server-side 18+ check, ISO 3166-1 country, phone stored as unverified
+  E.164) → lobby. No session or chips before the code; the server refuses every other page
+  and API until the profile is complete. Existing accounts are grandfathered —
+  [docs/onboarding.md](docs/onboarding.md).
 * **Lobby**: search, categories, favourites, recently played, "new" badges and a details
   view for each game; every card opens a playable game.
 * **Profile**: preset avatars, display name, balance, rounds, wins/losses/pushes, staked,
@@ -53,6 +59,7 @@ Architecture: [docs/architecture.md](docs/architecture.md) · API: [docs/api.md]
 Threat model: [docs/threat-model.md](docs/threat-model.md) · Testing: [docs/testing.md](docs/testing.md) ·
 Dependencies: [docs/dependency-security.md](docs/dependency-security.md) ·
 Product spec: [docs/product-spec.md](docs/product-spec.md) · Sports: [docs/sports.md](docs/sports.md) ·
+Registration & onboarding: [docs/onboarding.md](docs/onboarding.md) ·
 Market research: [docs/research.md](docs/research.md).
 
 ## Technology
@@ -108,19 +115,29 @@ against the real providers ([docs/sports.md](docs/sports.md#live-providers)).
 **Schema, reference data and demo accounts** (migrations are forward-only SQL files in
 `migrations/`, applied in order and checksummed; `0005` adds favourites, profile fields and
 achievements, `0006` the sports tables, `0007`–`0008` the owner role, chip grants, audit
-fields, staff MFA, prediction windows and back-office indexes):
+fields, staff MFA, prediction windows and back-office indexes, `0009` e-mail verification,
+player details, onboarding state and verification challenges — existing accounts are
+marked as legacy-verified and exempt from onboarding, see [docs/onboarding.md](docs/onboarding.md#existing-accounts-migration-0009)):
 
 ```bash
 npm run db:migrate          # migrations + reference data (games, limits, house bankroll)
 npm run db:seed             # local only: one account per staff role + a demo player
-npm run dev                 # http://localhost:3000
+MAIL_TRANSPORT=console npm run dev   # http://localhost:3000 — codes print to this console
 ```
+
+**Registration needs e-mail.** With `MAIL_TRANSPORT=disabled` (the default) registration
+is closed, because no verification code can be sent. For local development use
+`MAIL_TRANSPORT=console` (codes are printed to the server console) or an SMTP sink; in
+production configure `SMTP_URL` and `MAIL_FROM` and test delivery before opening sign-up
+([docs/operations.md §9](docs/operations.md#9-e-mail-delivery-external-provider)).
 
 `db:seed` refuses production, non-local URLs and remote databases. It has no built-in
 passwords: set `SEED_<ROLE>_PASSWORD` variables, or it generates random passwords and
-prints them once. It creates an owner locally.
+prints them once. It creates an owner locally. Seeded accounts are created already
+verified (by `OPERATOR`) and skip the player-details step.
 
-**First owner in production:** register the account on the site, then
+**First owner in production:** register the account on the site (enter the e-mailed
+code and complete the profile step), then
 `npm run admin:provision-owner -- --email <that e-mail> --reason "Initial owner"`
 (Compose: `docker compose run --rm migrate npm run admin:provision-owner -- …`). Public
 registration can never grant a staff role. Then turn on two-factor authentication at
@@ -212,7 +229,9 @@ each defect.
 
 * Domain, DNS and TLS certificate at the edge.
 * Secret manager, off-site backups with a restore drill, log/metric shipping and alerting.
-* An SMTP provider for password recovery (or an explicit support process).
+* An SMTP provider, tested end to end: **registration is closed without one** (verification
+  codes), and password recovery needs it too. Delivery has not been tested against a real
+  provider in this repository's environment.
 * Legal review for each target jurisdiction: terms, privacy notice, age gating,
   virtual-currency rules (`docs/compliance-checklist.md`).
 * An external penetration test.
@@ -228,7 +247,13 @@ each defect.
   corrections; game mathematics cannot be tuned from the back office (only stake limits),
   so published rules can never drift from the active configuration.
 
-* No e-mail address verification and no TOTP 2FA (recommended for staff accounts).
+* Phone numbers are collected but **not verified** (no SMS provider); they are stored and
+  shown as unverified. Pre-existing accounts are marked e-mail-verified by migration
+  (`LEGACY_MIGRATION`) without proof; they re-verify only when they change address.
+* E-mail delivery is in process and best effort (no durable queue); a failed code is
+  resent by the player. Age is self-declared (date of birth), checked against today's UTC
+  date — there is no identity verification, by design for a virtual-chip product.
+* TOTP 2FA is available for every account but optional for players.
 * CSP still allows `'unsafe-inline'` scripts (Next.js bootstrap); a nonce-based CSP is a
   planned hardening step.
 * Next.js 15.5 is in backport-only maintenance; plan the 16.x upgrade.

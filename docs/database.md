@@ -18,6 +18,7 @@ erDiagram
   users ||--o{ game_rounds : plays
   users ||--o| responsible_limits : sets
   users ||--o{ bonuses : receives
+  users ||--o{ email_verification_challenges : "codes sent"
   games ||--o{ game_configurations : "versioned"
   games ||--|| risk_limits : "limited by"
   game_configurations ||--o{ game_rounds : "rules used"
@@ -71,6 +72,11 @@ erDiagram
 | `sessions.mfa_verified_at`, `platform_settings.staff_mfa_required` (0008) | Session passed the second factor; owner policy | — |
 | `sports_markets.opens_at`, `closes_at` (0008) | Optional prediction window | close > open; close never later than kick-off (application) |
 | Indexes (0008) | users by created/status, rounds by start, live sessions by last seen, tickets by placement, ledger by type and time, audit by time and non-success outcome | back-office filters and period queries |
+| `users.email_verified_at`, `email_verification_method` (0009) | When and how the current address was confirmed: `CODE`, `OPERATOR` (scripts) or `LEGACY_MIGRATION` (pre-0009 accounts — an assumption, not proof) | both NULL or both set; partial index on unverified rows by `created_at` |
+| `users.first_name`, `last_name`, `date_of_birth`, `country_code`, `phone_e164`, `phone_verified_at` (0009) | Player details from onboarding ([onboarding.md](onboarding.md)) | names 1–64 chars; country `^[A-Z]{2}$`; phone `^\+[1-9][0-9]{6,14}$`; phone verified ⇒ phone present; birth date ≥ 1900 (18+ checked by the application against today's UTC date) |
+| `users.onboarding_required`, `onboarding_completed_at` (0009) | Mandatory profile step: pending while required and not completed | existing rows FALSE, new rows TRUE; completed ⇒ all details present (unless DELETED) |
+| `users.terms_version`, `terms_accepted_at`, `privacy_version`, `privacy_accepted_at` (0009) | Policy versions accepted at registration | version ⇔ time |
+| `email_verification_challenges` (0009) | One row per code sent: purpose (`SIGNUP` / `EMAIL_CHANGE`), destination, HMAC of the code (never the code), attempts / max, delivery (`PENDING`/`SENT`/`FAILED`), expiry, consumed / superseded | partial unique: one live challenge per user; MAC is 64 hex; attempts ≤ max; runtime role has no DELETE (deletion overwrites the address) |
 
 ## Ledger design (double entry)
 
