@@ -136,6 +136,35 @@ Hardening without a prior failure:
 * The backup and restore scripts are tested by the restore drill.
 * New `casino_rate_limited_total` and `casino_login_failures_total` metrics.
 
+## Results of the registration and onboarding run (2026-10-27, this repository's environment)
+
+Migration 0009 applied to the development, test and e2e databases. On the development
+database (528 existing accounts, 91,216 ledger entries) every account became
+`LEGACY_MIGRATION` with no onboarding required, the ledger entry count was unchanged, and
+reconciliation reported OK (22 checks, 0 mismatches).
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` | pass / 0 problems |
+| `npm run test:unit` | **269 passed** (29 files) |
+| `npm run test:integration` | **251 passed** (26 files) in the full run; the owner-provisioning test added afterwards passed in a rerun of `registration.test.ts` (31 passed) |
+| `npm run test:stats` | **24 passed** (5 files) |
+| `npm run build` / `npm run check:bundle` | pass / 151 files, no server secrets |
+| `npm run test:e2e` | **33 passed** (chromium desktop + Pixel 7 mobile, 3.5 min), every player through register → SMTP-sink code → verify → onboarding |
+| `npm run check:docs` / `check:secrets` / `check:workflows` | 58 links OK / 469 tracked files, no findings / 2 workflows OK |
+| `npm audit` | 0 vulnerabilities (adds `libphonenumber-js` 1.13.15 and `i18n-iso-countries` 7.14.0) |
+| `npm run ops:restore-check` (development database) | pass: counts identical, 25 triggers identical, reconciliation OK (22 checks, 0 mismatches) |
+
+**Found and fixed during this work:** the resend cooldown first counted any recent code,
+so a player who had just verified could not start an e-mail change for 60 s; it is now
+per purpose (`registration.test.ts`). Two e2e locators matched Next.js's route announcer
+and a section heading with the same name as a field; the heading was renamed (it was also
+ambiguous for screen readers).
+
+**Not verified here:** delivery through a real e-mail provider (none is configured in
+this environment; the SMTP path is tested against local sinks only). CI for these commits
+had not been checked when this was written.
+
 ## Results of the owner-administration run (2026-10-27, this repository's environment)
 
 Migrations 0007 and 0008 applied to the development, test and e2e databases.
