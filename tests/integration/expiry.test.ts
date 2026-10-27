@@ -201,6 +201,11 @@ describe('time-based round expiry', () => {
     try {
       await client.query('BEGIN');
       await client.query('SET LOCAL enable_seqscan = off');
+      // With few open rows the planner may prefer another partial index plus a
+      // sort. Ruling out the sort leaves only plans that read rows already in
+      // (expires_at, id) order, which only the expiry index provides, so this
+      // still fails if that index is missing or unusable for the query.
+      await client.query('SET LOCAL enable_sort = off');
       const { rows } = await client.query<{ 'QUERY PLAN': string }>(
         `EXPLAIN SELECT id FROM game_rounds WHERE status = 'OPEN' AND expires_at <= now() ORDER BY expires_at, id LIMIT 200`,
       );
