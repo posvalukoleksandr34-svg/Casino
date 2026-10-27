@@ -22,11 +22,11 @@ export function Badge({ tone = 'neutral', children, className }: { tone?: Tone; 
 
 export function StatusBadge({ status }: { status: string }) {
   const tone: Tone =
-    status === 'ACTIVE' || status === 'SETTLED' || status === 'OK'
+    status === 'ACTIVE' || status === 'SETTLED' || status === 'OK' || status === 'WON'
       ? 'positive'
-      : status === 'SUSPENDED' || status === 'OPEN' || status === 'WARNING' || status === 'RUNNING'
+      : status === 'SUSPENDED' || status === 'OPEN' || status === 'WARNING' || status === 'RUNNING' || status === 'REJECTED' || status === 'POSTPONED'
         ? 'warning'
-        : status === 'DISABLED' || status === 'VOIDED' || status === 'DELETED'
+        : status === 'DISABLED' || status === 'VOIDED' || status === 'DELETED' || status === 'LOST' || status === 'CANCELLED' || status === 'FINISHED'
           ? 'neutral'
           : status === 'CRITICAL' || status === 'MISMATCH' || status === 'ERROR'
             ? 'negative'

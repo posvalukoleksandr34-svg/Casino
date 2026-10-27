@@ -8,6 +8,10 @@
  *   BONUS_GRANTED  promotions −amount       wallet +amount
  *   ADJUSTMENT     adjustments ∓amount      wallet ±amount   (compensating corrections)
  *   HOUSE_FUNDING  issuance −amount         house +amount
+ *   SPORTS_STAKE       wallet −stake                       sports escrow +stake
+ *   SPORTS_SETTLED     sports escrow −stake, house +stake, house −return, wallet +return
+ *   SPORTS_VOIDED      sports escrow −stake                wallet +stake
+ *   SPORTS_CORRECTION  house −credit                       wallet +credit   (never a debit)
  *
  * Balances are applied by a database trigger as entries are inserted, so a
  * balance can never drift from its entries. Entries are inserted in a
@@ -36,6 +40,8 @@ export interface PostTransactionInput {
   postings: Posting[];
   userId?: string | null;
   roundId?: string | null;
+  /** Sports ticket this transaction belongs to (SPORTS_* types only). */
+  sportsTicketId?: string | null;
   actorId?: string | null;
   reversesId?: number | null;
   metadata?: Record<string, unknown>;
@@ -94,8 +100,8 @@ export async function postTransaction(tx: Tx, input: PostTransactionInput): Prom
   try {
     const res = await tx.execute<{ tx_id: number; account_id: number; amount: number; balance_after: number }>(sql`
       WITH t AS (
-        INSERT INTO ledger_transactions (type, idempotency_key, user_id, round_id, actor_id, reverses_id, description, metadata)
-        VALUES (${input.type}, ${input.idempotencyKey}, ${input.userId ?? null}, ${input.roundId ?? null}, ${input.actorId ?? null},
+        INSERT INTO ledger_transactions (type, idempotency_key, user_id, round_id, sports_ticket_id, actor_id, reverses_id, description, metadata)
+        VALUES (${input.type}, ${input.idempotencyKey}, ${input.userId ?? null}, ${input.roundId ?? null}, ${input.sportsTicketId ?? null}, ${input.actorId ?? null},
                 ${input.reversesId ?? null}, ${input.description}, ${JSON.stringify(metadata)}::jsonb)
         ON CONFLICT (idempotency_key) DO NOTHING
         RETURNING id

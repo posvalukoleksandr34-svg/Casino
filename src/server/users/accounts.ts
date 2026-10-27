@@ -3,7 +3,7 @@
  * export and deletion (anonymisation that preserves financial and audit
  * records, which must be retained).
  */
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { randomToken, sha256Hex } from '../crypto';
 import { getDb, pgConstraint, pgErrorCode, withTransaction } from '../db/client';
@@ -16,9 +16,11 @@ import {
   responsibleLimits,
   seedPairs,
   sessions,
+  sportsTickets,
   userAchievements,
   userFavorites,
   users,
+  userSportsFavorites,
 } from '../db/schema';
 import { env } from '../env';
 import { AppError, errors } from '../errors';
@@ -356,6 +358,24 @@ export async function exportUserData(userId: string) {
     .select({ achievementId: userAchievements.achievementId, awardedAt: userAchievements.awardedAt })
     .from(userAchievements)
     .where(eq(userAchievements.userId, userId));
+  const sportsPredictions = await db
+    .select({
+      id: sportsTickets.id,
+      eventId: sportsTickets.eventId,
+      selection: sportsTickets.selectionCode,
+      stake: sportsTickets.stake,
+      oddsE2: sportsTickets.oddsE2,
+      potentialReturn: sportsTickets.potentialReturn,
+      status: sportsTickets.status,
+      rejectReason: sportsTickets.rejectReason,
+      payout: sportsTickets.payout,
+      placedAt: sportsTickets.placedAt,
+      settledAt: sportsTickets.settledAt,
+    })
+    .from(sportsTickets)
+    .where(eq(sportsTickets.userId, userId))
+    .orderBy(desc(sportsTickets.placedAt));
+  const sportsFavorites = await db.select({ kind: userSportsFavorites.kind, refId: userSportsFavorites.refId }).from(userSportsFavorites).where(eq(userSportsFavorites.userId, userId));
   const [limits] = await db.select().from(responsibleLimits).where(eq(responsibleLimits.userId, userId));
   const rounds = await db
     .select({
@@ -402,6 +422,8 @@ export async function exportUserData(userId: string) {
     activity,
     favorites,
     achievements,
+    sportsPredictions,
+    sportsFavorites,
   };
 }
 
@@ -428,6 +450,11 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
       .from(gameRounds)
       .where(and(eq(gameRounds.userId, userId), eq(gameRounds.status, 'OPEN')));
     if ((open?.n ?? 0) > 0) throw errors.conflict('Finish your open game rounds before deleting your account');
+    const [openTickets] = await tx
+      .select({ n: sql<number>`count(*)::int` })
+      .from(sportsTickets)
+      .where(and(eq(sportsTickets.userId, userId), inArray(sportsTickets.status, ['ACCEPTED', 'SUSPENDED'])));
+    if ((openTickets?.n ?? 0) > 0) throw errors.conflict('Wait until your open sports predictions are settled before deleting your account');
     const short = userId.slice(0, 8);
     await tx
       .update(users)
@@ -445,6 +472,7 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
       .where(eq(users.id, userId));
     await tx.update(sessions).set({ userAgent: null, ipHash: null }).where(eq(sessions.userId, userId));
     await tx.delete(userFavorites).where(eq(userFavorites.userId, userId));
+    await tx.delete(userSportsFavorites).where(eq(userSportsFavorites.userId, userId));
     await revokeAllSessions(tx, userId);
     await tx
       .update(passwordResetTokens)

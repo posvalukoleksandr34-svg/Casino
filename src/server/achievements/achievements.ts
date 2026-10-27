@@ -40,6 +40,12 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
     hint: 'After rotating your seed, open a round from that seed and choose “Check this round on the server”.',
   },
   {
+    id: 'first-prediction',
+    title: 'Called it',
+    description: 'Had a sports prediction settled.',
+    hint: 'Make a prediction in Sports and wait for its result.',
+  },
+  {
     id: 'limits-set',
     title: 'In control',
     description: 'Set a loss, wager or session limit.',
@@ -62,6 +68,7 @@ export async function evaluateAchievements(userId: string, db: Executor = getDb(
     .select({
       settled: sql<boolean>`EXISTS (SELECT 1 FROM ${gameRounds} WHERE ${gameRounds.userId} = ${userId} AND ${gameRounds.status} = 'SETTLED')`,
       revealed: sql<boolean>`EXISTS (SELECT 1 FROM ${seedPairs} WHERE ${seedPairs.userId} = ${userId} AND ${seedPairs.status} = 'REVEALED')`,
+      predicted: sql<boolean>`EXISTS (SELECT 1 FROM sports_tickets WHERE user_id = ${userId} AND status IN ('WON', 'LOST', 'VOIDED'))`,
       displayName: users.displayName,
       avatar: users.avatar,
     })
@@ -85,6 +92,7 @@ export async function evaluateAchievements(userId: string, db: Executor = getDb(
   if (facts.settled) await award(db, userId, 'first-round');
   if (facts.displayName && facts.avatar) await award(db, userId, 'profile-set');
   if (facts.revealed) await award(db, userId, 'seed-rotated');
+  if (facts.predicted) await award(db, userId, 'first-prediction');
   if (limits) await award(db, userId, 'limits-set');
   return listAchievements(userId, db);
 }

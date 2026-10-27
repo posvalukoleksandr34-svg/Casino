@@ -12,6 +12,7 @@ import { Avatar } from '../account/avatar';
 
 const NAV = [
   { href: '/lobby', label: 'Lobby' },
+  { href: '/sports', label: 'Sports' },
   { href: '/rules', label: 'Rules & odds' },
   { href: '/fairness', label: 'Fairness' },
   { href: '/responsible-play', label: 'Responsible play' },
@@ -22,6 +23,7 @@ const ACCOUNT_LINKS = [
   { href: '/wallet', label: 'Wallet' },
   { href: '/wallet/transactions', label: 'Transactions' },
   { href: '/history', label: 'Game history' },
+  { href: '/sports/tickets', label: 'My predictions' },
   { href: '/stats', label: 'Statistics' },
   { href: '/settings', label: 'Settings' },
 ];

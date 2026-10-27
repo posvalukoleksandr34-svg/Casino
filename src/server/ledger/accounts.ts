@@ -6,9 +6,10 @@ import { ledgerAccounts, type AccountType } from '../db/schema';
 export const SYSTEM_ACCOUNTS = {
   HOUSE_BANKROLL: { code: 'SYSTEM:HOUSE_BANKROLL', rank: 1, allowNegative: false },
   WAGERS_IN_PLAY: { code: 'SYSTEM:WAGERS_IN_PLAY', rank: 2, allowNegative: false },
-  PROMOTIONS: { code: 'SYSTEM:PROMOTIONS', rank: 3, allowNegative: true },
-  ADJUSTMENTS: { code: 'SYSTEM:ADJUSTMENTS', rank: 4, allowNegative: true },
-  ISSUANCE: { code: 'SYSTEM:ISSUANCE', rank: 5, allowNegative: true },
+  SPORTS_IN_PLAY: { code: 'SYSTEM:SPORTS_IN_PLAY', rank: 3, allowNegative: false },
+  PROMOTIONS: { code: 'SYSTEM:PROMOTIONS', rank: 4, allowNegative: true },
+  ADJUSTMENTS: { code: 'SYSTEM:ADJUSTMENTS', rank: 5, allowNegative: true },
+  ISSUANCE: { code: 'SYSTEM:ISSUANCE', rank: 6, allowNegative: true },
 } as const satisfies Partial<Record<AccountType, { code: string; rank: number; allowNegative: boolean }>>;
 
 export type SystemAccountType = keyof typeof SYSTEM_ACCOUNTS;

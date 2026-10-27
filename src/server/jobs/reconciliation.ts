@@ -51,12 +51,39 @@ const txLegs = (types: string[]) => `
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'HOUSE_BANKROLL'), 0) AS house,
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'ISSUANCE'), 0) AS issuance,
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'WAGERS_IN_PLAY'), 0) AS escrow,
-         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE')) AS other_system_legs
+         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE')) AS other_system_legs
   FROM ledger_transactions t
   LEFT JOIN ledger_entries e ON e.transaction_id = t.id
   LEFT JOIN ledger_accounts a ON a.id = e.account_id
   WHERE t.type IN (${types.map((x) => `'${x}'`).join(', ')})
   GROUP BY t.id`;
+
+const SPORTS_TX_TYPES = `'SPORTS_STAKE', 'SPORTS_SETTLED', 'SPORTS_VOIDED', 'SPORTS_CORRECTION'`;
+
+/**
+ * Per-ticket summary of all SPORTS_* postings, classified against the
+ * ticket's own player: owner wallet, sports escrow, house, anything else.
+ */
+const sportsLegs = `
+  SELECT t.sports_ticket_id AS ticket_id,
+         count(DISTINCT t.id) FILTER (WHERE t.type = 'SPORTS_STAKE') AS stakes,
+         count(DISTINCT t.id) FILTER (WHERE t.type IN ('SPORTS_SETTLED', 'SPORTS_VOIDED')) AS releases,
+         bool_or(t.user_id IS DISTINCT FROM k.user_id) AS wrong_user,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'PLAYER_WALLET' AND a.user_id = k.user_id), 0) AS owner_wallet,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'SPORTS_IN_PLAY'), 0) AS escrow,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'HOUSE_BANKROLL'), 0) AS house,
+         coalesce(sum(e.amount) FILTER (WHERE t.type = 'SPORTS_STAKE' AND a.type = 'PLAYER_WALLET' AND a.user_id = k.user_id), 0) AS stake_wallet,
+         coalesce(sum(e.amount) FILTER (WHERE t.type = 'SPORTS_STAKE' AND a.type = 'SPORTS_IN_PLAY'), 0) AS stake_escrow,
+         count(e.id) FILTER (WHERE t.type = 'SPORTS_STAKE'
+                                   AND NOT ((a.type = 'PLAYER_WALLET' AND a.user_id = k.user_id) OR a.type = 'SPORTS_IN_PLAY')) AS stake_other_legs,
+         count(e.id) FILTER (WHERE NOT ((a.type = 'PLAYER_WALLET' AND a.user_id = k.user_id)
+                                        OR a.type IN ('SPORTS_IN_PLAY', 'HOUSE_BANKROLL'))) AS foreign_legs
+  FROM ledger_transactions t
+  JOIN sports_tickets k ON k.id = t.sports_ticket_id
+  LEFT JOIN ledger_entries e ON e.transaction_id = t.id
+  LEFT JOIN ledger_accounts a ON a.id = e.account_id
+  WHERE t.type IN (${SPORTS_TX_TYPES})
+  GROUP BY t.sports_ticket_id`;
 
 const CHECKS: { name: string; description: string; sql: string }[] = [
   {
@@ -217,6 +244,76 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
                   l.house <= 0 OR l.house <> -l.issuance OR l.foreign_legs <> 0 OR l.owner_legs <> 0
                OR l.adjustments <> 0 OR l.promotions <> 0 OR l.escrow <> 0
                OR (t.idempotency_key <> 'house-funding:initial' AND (t.actor_id IS NULL OR aa.n IS DISTINCT FROM 1))))`,
+  },
+  {
+    name: 'sports_escrow_matches_open_tickets',
+    description: 'Sports-in-play balance equals the total stake of ACCEPTED and SUSPENDED tickets',
+    sql: `SELECT a.balance::text AS escrow,
+                 coalesce((SELECT sum(stake) FROM sports_tickets WHERE status IN ('ACCEPTED', 'SUSPENDED')), 0)::text AS open_stakes
+          FROM ledger_accounts a WHERE a.code = '${SYSTEM_ACCOUNTS.SPORTS_IN_PLAY.code}'
+            AND a.balance <> coalesce((SELECT sum(stake) FROM sports_tickets WHERE status IN ('ACCEPTED', 'SUSPENDED')), 0)`,
+  },
+  {
+    name: 'sports_ticket_ledger',
+    description:
+      "Rejected tickets moved no money; every other ticket has exactly one stake transaction (owner's wallet −stake, sports escrow +stake, nothing else). Open tickets have no release; settled and voided tickets have exactly one escrow release, and in total: owner's wallet = payout − stake, escrow = 0, house = stake − payout, no other accounts",
+    sql: `SELECT k.id, k.status, k.stake::text, k.payout::text, l.stakes, l.releases, l.wrong_user, l.owner_wallet::text,
+                 l.escrow::text, l.house::text, l.stake_other_legs, l.foreign_legs
+          FROM sports_tickets k
+          LEFT JOIN (${sportsLegs}) l ON l.ticket_id = k.id
+          WHERE (k.status = 'REJECTED' AND l.ticket_id IS NOT NULL)
+             OR (k.status <> 'REJECTED' AND (
+                  l.ticket_id IS NULL OR l.stakes <> 1 OR l.wrong_user OR l.stake_wallet <> -k.stake OR l.stake_escrow <> k.stake
+               OR l.stake_other_legs <> 0 OR l.foreign_legs <> 0))
+             OR (k.status IN ('ACCEPTED', 'SUSPENDED') AND (
+                  l.releases <> 0 OR l.owner_wallet <> -k.stake OR l.escrow <> k.stake OR l.house <> 0))
+             OR (k.status IN ('WON', 'LOST', 'VOIDED') AND (
+                  l.releases <> 1 OR l.owner_wallet <> k.payout - k.stake OR l.escrow <> 0 OR l.house <> k.stake - k.payout))`,
+  },
+  {
+    name: 'sports_settlements_consistent',
+    description:
+      "A settled ticket's payout equals the sum credited by its settlement records and the largest entitlement it ever had (corrections only credit); its status and version are those of its latest settlement; each entitlement matches its outcome (won: potential return, void: stake, lost: 0); each credit is a sports transaction of this ticket; open and rejected tickets have no settlement",
+    sql: `SELECT k.id, k.status, k.payout::text, k.settlement_version, s.n, s.credited::text, s.max_entitlement::text,
+                 s.last_version, s.last_outcome, s.bad_entitlements, s.bad_links
+          FROM sports_tickets k
+          LEFT JOIN (
+            SELECT ss.ticket_id, count(*) AS n, sum(ss.credited) AS credited, max(ss.entitlement) AS max_entitlement,
+                   max(ss.version) AS last_version,
+                   (array_agg(ss.outcome ORDER BY ss.version DESC))[1] AS last_outcome,
+                   count(*) FILTER (WHERE ss.entitlement <> CASE ss.outcome WHEN 'WON' THEN tk.potential_return
+                                                                            WHEN 'VOIDED' THEN tk.stake ELSE 0 END) AS bad_entitlements,
+                   count(*) FILTER (WHERE (ss.credited > 0 AND ss.ledger_transaction_id IS NULL)
+                                       OR (ss.ledger_transaction_id IS NOT NULL AND NOT EXISTS (
+                                             SELECT 1 FROM ledger_transactions lt
+                                             WHERE lt.id = ss.ledger_transaction_id AND lt.sports_ticket_id = ss.ticket_id
+                                               AND lt.type IN (${SPORTS_TX_TYPES})))) AS bad_links
+            FROM sports_settlements ss JOIN sports_tickets tk ON tk.id = ss.ticket_id
+            GROUP BY ss.ticket_id
+          ) s ON s.ticket_id = k.id
+          WHERE (k.status IN ('ACCEPTED', 'SUSPENDED', 'REJECTED') AND s.ticket_id IS NOT NULL)
+             OR (k.status IN ('WON', 'LOST', 'VOIDED') AND (
+                  s.ticket_id IS NULL OR k.payout <> s.credited OR k.payout <> s.max_entitlement
+               OR k.settlement_version IS DISTINCT FROM s.last_version OR k.status::text <> s.last_outcome
+               OR s.bad_entitlements <> 0 OR s.bad_links <> 0))`,
+  },
+  {
+    name: 'sports_transactions_linked',
+    description: 'Sports transactions reference a ticket of the same player; no other transaction references a ticket',
+    sql: `SELECT t.id, t.type, t.sports_ticket_id, t.user_id, k.user_id AS ticket_user
+          FROM ledger_transactions t LEFT JOIN sports_tickets k ON k.id = t.sports_ticket_id
+          WHERE (t.type IN (${SPORTS_TX_TYPES}) AND (k.id IS NULL OR t.user_id IS DISTINCT FROM k.user_id OR t.round_id IS NOT NULL))
+             OR (t.type NOT IN (${SPORTS_TX_TYPES}) AND t.sports_ticket_id IS NOT NULL)`,
+  },
+  {
+    name: 'sports_results_settled',
+    description:
+      'Tickets on an event with a recorded result or void are settled to that result version within 10 minutes (the settlement job is keeping up); no ticket is settled to a version the event does not have',
+    sql: `SELECT k.id, k.status, k.settlement_version, e.result_version, e.result_at
+          FROM sports_tickets k JOIN sports_events e ON e.id = k.event_id
+          WHERE k.status <> 'REJECTED' AND (
+                (e.result_version > coalesce(k.settlement_version, 0) AND e.result_at < now() - interval '10 minutes')
+             OR coalesce(k.settlement_version, 0) > e.result_version)`,
   },
   {
     name: 'expiry_queue_not_overdue',

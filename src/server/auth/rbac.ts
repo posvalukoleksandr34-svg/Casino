@@ -15,6 +15,7 @@ export const PERMISSIONS = [
   'rounds:void',
   'audit:read',
   'games:manage',
+  'sports:manage',
   'risk:manage',
   'ledger:read',
   'ledger:adjust',
@@ -30,7 +31,7 @@ const STAFF_READ: Permission[] = ['admin:access', 'users:read', 'rounds:read', '
 export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {
   PLAYER: new Set(),
   SUPPORT: new Set([...STAFF_READ, 'users:suspend']),
-  RISK_MANAGER: new Set([...STAFF_READ, 'rounds:void', 'games:manage', 'risk:manage', 'system:operate']),
+  RISK_MANAGER: new Set([...STAFF_READ, 'rounds:void', 'games:manage', 'sports:manage', 'risk:manage', 'system:operate']),
   AUDITOR: new Set([...STAFF_READ, 'audit:read']),
   ADMIN: new Set(PERMISSIONS),
 };

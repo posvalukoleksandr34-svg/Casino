@@ -146,12 +146,21 @@ export async function playTotals(db: Executor, userId: string, now: Date): Promi
     WITH placed AS (
       SELECT b.stake, b.created_at FROM bets b JOIN game_rounds r ON r.id = b.round_id
        WHERE b.user_id = ${userId} AND b.created_at > ${week} AND r.status <> 'VOIDED'
+      UNION ALL
+      -- Sports predictions count like wagers; voided and rejected tickets do not.
+      SELECT t.stake, t.placed_at FROM sports_tickets t
+       WHERE t.user_id = ${userId} AND t.placed_at > ${week} AND t.status NOT IN ('VOIDED', 'REJECTED')
+    ), returned AS (
+      SELECT p.amount, p.created_at FROM payouts p WHERE p.user_id = ${userId} AND p.created_at > ${week}
+      UNION ALL
+      SELECT s.credited, s.created_at FROM sports_settlements s JOIN sports_tickets t ON t.id = s.ticket_id
+       WHERE t.user_id = ${userId} AND s.created_at > ${week} AND s.credited > 0 AND t.status <> 'VOIDED'
     )
     SELECT
       (SELECT coalesce(sum(stake), 0) FROM placed WHERE created_at > ${day})::text AS w24,
-      (SELECT coalesce(sum(amount), 0) FROM payouts WHERE user_id = ${userId} AND created_at > ${day})::text AS p24,
+      (SELECT coalesce(sum(amount), 0) FROM returned WHERE created_at > ${day})::text AS p24,
       (SELECT coalesce(sum(stake), 0) FROM placed)::text AS w7,
-      (SELECT coalesce(sum(amount), 0) FROM payouts WHERE user_id = ${userId} AND created_at > ${week})::text AS p7
+      (SELECT coalesce(sum(amount), 0) FROM returned)::text AS p7
   `);
   const r = res.rows[0]!;
   return {

@@ -9,6 +9,7 @@ import { captureError } from '../observability/errors';
 import { expireDueRounds } from '../games/round-service';
 import { runReconciliation } from './reconciliation';
 import { cleanupExpired, detectAnomalies } from './anomaly';
+import { syncSports } from '../sports/sync';
 
 interface Job {
   name: string;
@@ -42,6 +43,7 @@ export function startScheduler(): void {
     { name: 'reconciliation', lockId: 7_342_102, intervalMs: env().RECONCILE_INTERVAL_MINUTES * 60_000, run: () => runReconciliation('scheduler') },
     { name: 'anomaly-detection', lockId: 7_342_103, intervalMs: 5 * 60_000, run: () => detectAnomalies() },
     { name: 'cleanup', lockId: 7_342_104, intervalMs: 60 * 60_000, run: () => cleanupExpired() },
+    { name: 'sports-sync', lockId: 7_342_105, intervalMs: 60_000, run: () => syncSports() },
   ];
   g.__casinoScheduler = jobs.map((job) => {
     const tick = async () => {

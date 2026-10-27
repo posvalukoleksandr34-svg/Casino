@@ -15,7 +15,7 @@ export function SiteFooter() {
             <span className="font-semibold text-gold-400">18+</span> Play for entertainment only
           </p>
         </div>
-        <FooterCol title="Play" links={[['/lobby', 'Game lobby'], ['/history', 'Game history'], ['/stats', 'Statistics']]} />
+        <FooterCol title="Play" links={[['/lobby', 'Game lobby'], ['/sports', 'Sports predictions'], ['/history', 'Game history'], ['/stats', 'Statistics']]} />
         <FooterCol title="Transparency" links={[['/rules', 'Rules & odds'], ['/fairness', 'Provably fair'], ['/fairness#verify', 'Verify a round']]} />
         <FooterCol title="Your account" links={[['/wallet', 'Wallet'], ['/settings', 'Settings & privacy'], ['/responsible-play', 'Responsible play']]} />
       </div>

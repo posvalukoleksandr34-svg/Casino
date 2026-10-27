@@ -35,6 +35,26 @@ const schema = z.object({
   DB_POOL_MAX: z.coerce.number().int().min(1).max(100).default(10),
   /** Escape hatch for isolated test deployments only: accept a superuser / schema-owner DB role. */
   ALLOW_PRIVILEGED_DB_ROLE: boolish.default(false),
+  /**
+   * Sports prediction simulator: demo = fictional fixtures, house-model odds and
+   * committed simulated results (no credentials needed); live = fixtures/results
+   * from football-data.org and odds from The Odds API (both keys required);
+   * off = section hidden. Provider keys are read only on the server.
+   */
+  SPORTS_MODE: z.enum(['demo', 'live', 'off']).default('demo'),
+  FOOTBALL_DATA_API_KEY: z.string().optional(),
+  /** Comma-separated football-data.org competition codes, e.g. "PL,PD". */
+  FOOTBALL_DATA_COMPETITIONS: z.string().regex(/^[A-Z0-9]{2,5}(,[A-Z0-9]{2,5})*$/).default('PL'),
+  THE_ODDS_API_KEY: z.string().optional(),
+  /** Comma-separated The Odds API sport keys, e.g. "soccer_epl". */
+  THE_ODDS_API_SPORTS: z.string().regex(/^[a-z0-9_]+(,[a-z0-9_]+)*$/).default('soccer_epl'),
+  THE_ODDS_API_REGIONS: z.string().regex(/^[a-z]{2}(,[a-z]{2})*$/).default('eu'),
+  /** Bookmaker key whose prices are shown; empty = the first bookmaker returned. */
+  THE_ODDS_API_BOOKMAKER: z.string().regex(/^[a-z0-9_]*$/).optional(),
+  /** Minutes between provider refreshes in live mode (each refresh costs API quota). */
+  SPORTS_SYNC_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
+  /** Live odds older than this stop new predictions on that market. */
+  SPORTS_ODDS_MAX_AGE_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(45),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -87,6 +107,10 @@ export function productionProblems(e: Env, raw: Record<string, string | undefine
   if (e.MAIL_TRANSPORT === 'smtp') {
     if (!e.SMTP_URL || !/^smtps?:\/\//.test(e.SMTP_URL)) problems.push('MAIL_TRANSPORT=smtp requires SMTP_URL (smtp:// or smtps://)');
     if (!e.MAIL_FROM) problems.push('MAIL_TRANSPORT=smtp requires MAIL_FROM');
+  }
+  if (e.SPORTS_MODE === 'live') {
+    if (!e.FOOTBALL_DATA_API_KEY) problems.push('SPORTS_MODE=live requires FOOTBALL_DATA_API_KEY');
+    if (!e.THE_ODDS_API_KEY) problems.push('SPORTS_MODE=live requires THE_ODDS_API_KEY');
   }
   if (!raw.APP_URL) problems.push('APP_URL must be set explicitly');
   const app = new URL(e.APP_URL);

@@ -11,6 +11,7 @@ const NAV: (NavItem & { permission: Permission })[] = [
   { href: '/admin/analytics', label: 'Analytics', permission: 'analytics:read' },
   { href: '/admin/users', label: 'Users', permission: 'users:read' },
   { href: '/admin/rounds', label: 'Rounds', permission: 'rounds:read' },
+  { href: '/admin/sports', label: 'Sports', permission: 'admin:access' },
   { href: '/admin/games', label: 'Games & config', permission: 'admin:access' },
   { href: '/admin/risk', label: 'Risk & platform', permission: 'admin:access' },
   { href: '/admin/alerts', label: 'Alerts', permission: 'system:read' },

@@ -5,6 +5,7 @@
  * fails if the two diverge.
  */
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -28,6 +29,7 @@ export const accountType = pgEnum('account_type', [
   'PLAYER_WALLET',
   'HOUSE_BANKROLL',
   'WAGERS_IN_PLAY',
+  'SPORTS_IN_PLAY',
   'PROMOTIONS',
   'ADJUSTMENTS',
   'ISSUANCE',
@@ -39,6 +41,10 @@ export const ledgerTxType = pgEnum('ledger_tx_type', [
   'BONUS_GRANTED',
   'ADJUSTMENT',
   'HOUSE_FUNDING',
+  'SPORTS_STAKE',
+  'SPORTS_SETTLED',
+  'SPORTS_VOIDED',
+  'SPORTS_CORRECTION',
 ]);
 export const gameStatus = pgEnum('game_status', ['ACTIVE', 'SUSPENDED', 'DISABLED']);
 export const roundStatus = pgEnum('round_status', ['OPEN', 'SETTLED', 'VOIDED']);
@@ -196,6 +202,8 @@ export const ledgerTransactions = pgTable('ledger_transactions', {
   idempotencyKey: text('idempotency_key').notNull().unique(),
   userId: uuid('user_id').references(() => users.id),
   roundId: uuid('round_id').references(() => gameRounds.id),
+  /** Set on SPORTS_* transactions (migration 0006); never together with roundId. */
+  sportsTicketId: uuid('sports_ticket_id').references((): AnyPgColumn => sportsTickets.id),
   reversesId: bigint('reverses_id', { mode: 'number' }),
   actorId: uuid('actor_id').references(() => users.id),
   description: text('description').notNull(),
@@ -380,3 +388,165 @@ export const userAchievements = pgTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.achievementId] })],
 );
+
+// ---------------------------------------------------------------------------
+// Sports prediction simulator (migration 0006).
+// ---------------------------------------------------------------------------
+export const sportsEventStatus = pgEnum('sports_event_status', ['SCHEDULED', 'LIVE', 'SUSPENDED', 'FINISHED', 'POSTPONED', 'CANCELLED']);
+export const sportsMarketStatus = pgEnum('sports_market_status', ['OPEN', 'SUSPENDED', 'CLOSED', 'SETTLED', 'VOIDED']);
+export const sportsTicketStatus = pgEnum('sports_ticket_status', ['ACCEPTED', 'SUSPENDED', 'WON', 'LOST', 'VOIDED', 'REJECTED']);
+export type SportsEventStatus = (typeof sportsEventStatus.enumValues)[number];
+export type SportsMarketStatus = (typeof sportsMarketStatus.enumValues)[number];
+export type SportsTicketStatus = (typeof sportsTicketStatus.enumValues)[number];
+
+export const sportsCompetitions = pgTable('sports_competitions', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  country: text('country'),
+  source: text('source').notNull(),
+  isDemo: boolean('is_demo').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const sportsTeams = pgTable('sports_teams', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  shortName: text('short_name'),
+  source: text('source').notNull(),
+  isDemo: boolean('is_demo').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const sportsEvents = pgTable('sports_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  source: text('source').notNull(),
+  externalId: text('external_id').notNull(),
+  competitionId: text('competition_id').notNull().references(() => sportsCompetitions.id),
+  homeTeamId: text('home_team_id').notNull().references(() => sportsTeams.id),
+  awayTeamId: text('away_team_id').notNull().references(() => sportsTeams.id),
+  kickoffAt: ts('kickoff_at').notNull(),
+  status: sportsEventStatus('status').notNull().default('SCHEDULED'),
+  isDemo: boolean('is_demo').notNull(),
+  homeScore: integer('home_score'),
+  awayScore: integer('away_score'),
+  resultVersion: integer('result_version').notNull().default(0),
+  resultSource: text('result_source'),
+  resultAt: ts('result_at'),
+  seedHash: text('seed_hash'),
+  seedEnc: text('seed_enc'),
+  revealedSeed: text('revealed_seed'),
+  model: jsonb('model').$type<Record<string, unknown>>(),
+  providerUpdatedAt: ts('provider_updated_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const sportsExternalRefs = pgTable(
+  'sports_external_refs',
+  {
+    provider: text('provider').notNull(),
+    externalId: text('external_id').notNull(),
+    eventId: uuid('event_id').notNull().references(() => sportsEvents.id),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.provider, t.externalId] })],
+);
+
+export const sportsMarkets = pgTable('sports_markets', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  eventId: uuid('event_id').notNull().references(() => sportsEvents.id),
+  type: text('type').$type<'1X2'>().notNull(),
+  status: sportsMarketStatus('status').notNull().default('OPEN'),
+  oddsSource: text('odds_source').notNull(),
+  oddsUpdatedAt: ts('odds_updated_at').notNull(),
+  version: integer('version').notNull().default(1),
+  statusReason: text('status_reason'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const sportsSelections = pgTable('sports_selections', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  marketId: bigint('market_id', { mode: 'number' }).notNull().references(() => sportsMarkets.id),
+  code: text('code').$type<'HOME' | 'DRAW' | 'AWAY'>().notNull(),
+  oddsE2: integer('odds_e2'),
+});
+
+export const sportsOddsHistory = pgTable('sports_odds_history', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  selectionId: bigint('selection_id', { mode: 'number' }).notNull().references(() => sportsSelections.id),
+  marketVersion: integer('market_version').notNull(),
+  oddsE2: integer('odds_e2'),
+  source: text('source').notNull(),
+  recordedAt: ts('recorded_at').notNull().defaultNow(),
+});
+
+export const sportsTickets = pgTable('sports_tickets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  slipId: uuid('slip_id').notNull(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  leg: integer('leg').notNull(),
+  eventId: uuid('event_id').notNull().references(() => sportsEvents.id),
+  marketId: bigint('market_id', { mode: 'number' }).notNull().references(() => sportsMarkets.id),
+  selectionId: bigint('selection_id', { mode: 'number' }).notNull().references(() => sportsSelections.id),
+  selectionCode: text('selection_code').$type<'HOME' | 'DRAW' | 'AWAY'>().notNull(),
+  marketVersion: integer('market_version').notNull(),
+  stake: money('stake').notNull(),
+  oddsE2: integer('odds_e2').notNull(),
+  potentialReturn: money('potential_return').notNull(),
+  status: sportsTicketStatus('status').notNull(),
+  rejectReason: text('reject_reason'),
+  payout: money('payout'),
+  settlementSource: text('settlement_source'),
+  settlementVersion: integer('settlement_version'),
+  isDemo: boolean('is_demo').notNull(),
+  placedAt: ts('placed_at').notNull().defaultNow(),
+  settledAt: ts('settled_at'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const sportsResultLog = pgTable('sports_result_log', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  eventId: uuid('event_id').notNull().references(() => sportsEvents.id),
+  version: integer('version').notNull(),
+  kind: text('kind').$type<'RESULT' | 'VOID' | 'CORRECTION'>().notNull(),
+  homeScore: integer('home_score'),
+  awayScore: integer('away_score'),
+  reason: text('reason').notNull(),
+  source: text('source').notNull(),
+  actorId: uuid('actor_id').references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const sportsSettlements = pgTable('sports_settlements', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  ticketId: uuid('ticket_id').notNull().references(() => sportsTickets.id),
+  version: integer('version').notNull(),
+  outcome: text('outcome').$type<'WON' | 'LOST' | 'VOIDED'>().notNull(),
+  entitlement: money('entitlement').notNull(),
+  credited: money('credited').notNull(),
+  ledgerTransactionId: bigint('ledger_transaction_id', { mode: 'number' }).references(() => ledgerTransactions.id),
+  source: text('source').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const userSportsFavorites = pgTable(
+  'user_sports_favorites',
+  {
+    userId: uuid('user_id').notNull().references(() => users.id),
+    kind: text('kind').$type<'team' | 'competition'>().notNull(),
+    refId: text('ref_id').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.refId] })],
+);
+
+export const sportsProviderStatus = pgTable('sports_provider_status', {
+  provider: text('provider').primaryKey(),
+  lastSuccessAt: ts('last_success_at'),
+  lastErrorAt: ts('last_error_at'),
+  lastError: text('last_error'),
+  requestsRemaining: integer('requests_remaining'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
