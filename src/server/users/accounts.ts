@@ -16,6 +16,8 @@ import {
   responsibleLimits,
   seedPairs,
   sessions,
+  userAchievements,
+  userFavorites,
   users,
 } from '../db/schema';
 import { env } from '../env';
@@ -341,12 +343,19 @@ export async function exportUserData(userId: string) {
       role: users.role,
       status: users.status,
       preferences: users.preferences,
+      displayName: users.displayName,
+      avatar: users.avatar,
       createdAt: users.createdAt,
       lastLoginAt: users.lastLoginAt,
     })
     .from(users)
     .where(eq(users.id, userId));
   const wallet = await getWalletAccount(db, userId);
+  const favorites = await db.select({ gameId: userFavorites.gameId, createdAt: userFavorites.createdAt }).from(userFavorites).where(eq(userFavorites.userId, userId));
+  const achievements = await db
+    .select({ achievementId: userAchievements.achievementId, awardedAt: userAchievements.awardedAt })
+    .from(userAchievements)
+    .where(eq(userAchievements.userId, userId));
   const [limits] = await db.select().from(responsibleLimits).where(eq(responsibleLimits.userId, userId));
   const rounds = await db
     .select({
@@ -391,6 +400,8 @@ export async function exportUserData(userId: string) {
     seeds,
     sessions: sessionRows,
     activity,
+    favorites,
+    achievements,
   };
 }
 
@@ -426,11 +437,14 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
         passwordHash: null,
         status: 'DELETED',
         preferences: {},
+        displayName: null,
+        avatar: null,
         deletedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
     await tx.update(sessions).set({ userAgent: null, ipHash: null }).where(eq(sessions.userId, userId));
+    await tx.delete(userFavorites).where(eq(userFavorites.userId, userId));
     await revokeAllSessions(tx, userId);
     await tx
       .update(passwordResetTokens)

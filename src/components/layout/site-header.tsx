@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { Wordmark } from './logo';
 import { useSession } from './session-provider';
+import { Avatar } from '../account/avatar';
 
 const NAV = [
   { href: '/lobby', label: 'Lobby' },
@@ -109,10 +110,14 @@ export function SiteHeader() {
                   aria-expanded={menuOpen}
                   className="flex items-center gap-2 rounded-xl border border-ink-700 bg-ink-850 py-1.5 pl-1.5 pr-3 text-sm text-ink-200 hover:border-ink-500"
                 >
-                  <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-gold-500 to-gold-700 text-xs font-bold uppercase text-ink-950" aria-hidden="true">
-                    {user.username.slice(0, 2)}
-                  </span>
-                  <span className="hidden max-w-28 truncate sm:inline">{user.username}</span>
+                  {user.avatar ? (
+                    <Avatar avatar={user.avatar} name={user.username} className="size-7 rounded-lg" />
+                  ) : (
+                    <span className="grid size-7 place-items-center rounded-lg bg-gradient-to-br from-gold-500 to-gold-700 text-xs font-bold uppercase text-ink-950" aria-hidden="true">
+                      {user.username.slice(0, 2)}
+                    </span>
+                  )}
+                  <span className="hidden max-w-28 truncate sm:inline">{user.displayName ?? user.username}</span>
                 </button>
                 {menuOpen && (
                   <div role="menu" className="surface absolute right-0 mt-2 w-56 overflow-hidden py-1.5 animate-rise">

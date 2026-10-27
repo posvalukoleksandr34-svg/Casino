@@ -34,6 +34,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         role: session.role,
         isStaff: hasPermission(session.role, 'admin:access'),
         preferences: session.preferences,
+        displayName: session.displayName,
+        avatar: session.avatar,
         sessionStartedAt: session.sessionCreatedAt.toISOString(),
       }
     : null;

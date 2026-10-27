@@ -11,6 +11,7 @@ import { requireUser } from '@/server/auth/current';
 import { AppError } from '@/server/errors';
 import { getRoundForUser } from '@/server/games/round-service';
 import { verifyQueryForRound } from '@/components/games/verify-link';
+import { ServerVerify } from '@/components/account/server-verify';
 
 export const metadata = { title: 'Round details' };
 
@@ -70,6 +71,8 @@ export default async function RoundPage({ params }: { params: Promise<{ roundId:
                 <Link href={`/fairness?${verifyQuery}#verify`} className="inline-flex h-10 items-center rounded-xl bg-gradient-to-b from-gold-400 to-gold-600 px-4 text-sm font-semibold text-ink-950">
                   Verify this round
                 </Link>
+                <p className="text-xs text-ink-400">Verification runs in your browser. You can also ask the server to recompute the round and compare it with the stored result:</p>
+                {round.status === 'SETTLED' && <ServerVerify roundId={round.id} />}
               </>
             ) : (
               <Callout tone="info">

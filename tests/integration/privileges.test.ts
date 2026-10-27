@@ -161,6 +161,19 @@ describe('every application flow works as casino_app', () => {
     await detectAnomalies();
     await cleanupExpired();
     expect(crash.body.round.id).toBeDefined();
+    // Lobby favourites (insert + delete), profile, achievements and server-side verification.
+    const { addFavorite, removeFavorite, recentlyPlayed } = await import('@/server/games/favorites');
+    const { updateProfile } = await import('@/server/users/profile');
+    const { evaluateAchievements, verifyRoundOnServer } = await import('@/server/achievements/achievements');
+    expect(await addFavorite(p.userId, 'keno')).toEqual(['keno']);
+    expect(await removeFavorite(p.userId, 'keno')).toEqual([]);
+    expect((await recentlyPlayed(p.userId)).length).toBeGreaterThan(0);
+    await updateProfile(p.userId, { displayName: 'Least Privilege', avatar: 'gold-diamond' });
+    await withTransaction((tx) => rotateSeed(tx, p.userId));
+    expect((await verifyRoundOnServer(p.userId, replay.body.round.id)).matches).toBe(true);
+    expect((await evaluateAchievements(p.userId)).filter((a) => a.earned).map((a) => a.id)).toEqual(
+      expect.arrayContaining(['first-round', 'profile-set', 'seed-rotated', 'fairness-verified']),
+    );
     const recon = await runReconciliation('privilege-test');
     expect(recon.status).toBe('OK');
   });

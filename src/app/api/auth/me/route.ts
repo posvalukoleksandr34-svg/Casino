@@ -14,6 +14,8 @@ export const GET = route({ name: 'auth.me', auth: 'optional' }, async ({ session
       role: session.role,
       isStaff: hasPermission(session.role, 'admin:access'),
       preferences: session.preferences,
+      displayName: session.displayName,
+      avatar: session.avatar,
       sessionStartedAt: session.sessionCreatedAt.toISOString(),
     },
     balance: wallet?.balance ?? 0,

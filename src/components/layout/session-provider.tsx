@@ -10,6 +10,8 @@ export interface ClientUser {
   role: string;
   isStaff: boolean;
   preferences: Record<string, unknown>;
+  displayName?: string | null;
+  avatar?: string | null;
   sessionStartedAt: string;
 }
 

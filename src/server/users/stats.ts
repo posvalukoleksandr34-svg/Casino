@@ -7,7 +7,12 @@ export interface PlayerGameStats {
   wagered: number;
   paidOut: number;
   net: number;
+  /** Rounds that returned more than the stake. */
   wins: number;
+  /** Rounds that returned less than the stake (including partial returns). */
+  losses: number;
+  /** Rounds that returned exactly the stake (pushes). */
+  draws: number;
   biggestPayout: number;
   bestMultiplier: number;
 }
@@ -20,6 +25,8 @@ export async function playerStats(userId: string): Promise<{ games: PlayerGameSt
     wagered: string;
     paid: string;
     wins: number;
+    losses: number;
+    draws: number;
     biggest: string;
     best_mult: number | null;
   }>(sql`
@@ -28,6 +35,8 @@ export async function playerStats(userId: string): Promise<{ games: PlayerGameSt
            sum(stake_total)::text AS wagered,
            sum(payout_total)::text AS paid,
            count(*) FILTER (WHERE payout_total > stake_total)::int AS wins,
+           count(*) FILTER (WHERE payout_total < stake_total)::int AS losses,
+           count(*) FILTER (WHERE payout_total = stake_total)::int AS draws,
            max(payout_total)::text AS biggest,
            max(payout_total::float8 / stake_total) AS best_mult
     FROM game_rounds
@@ -41,6 +50,8 @@ export async function playerStats(userId: string): Promise<{ games: PlayerGameSt
     paidOut: Number(r.paid),
     net: Number(r.paid) - Number(r.wagered),
     wins: r.wins,
+    losses: r.losses,
+    draws: r.draws,
     biggestPayout: Number(r.biggest),
     bestMultiplier: r.best_mult ?? 0,
   }));
@@ -51,10 +62,12 @@ export async function playerStats(userId: string): Promise<{ games: PlayerGameSt
       paidOut: a.paidOut + g.paidOut,
       net: a.net + g.net,
       wins: a.wins + g.wins,
+      losses: a.losses + g.losses,
+      draws: a.draws + g.draws,
       biggestPayout: Math.max(a.biggestPayout, g.biggestPayout),
       bestMultiplier: Math.max(a.bestMultiplier, g.bestMultiplier),
     }),
-    { rounds: 0, wagered: 0, paidOut: 0, net: 0, wins: 0, biggestPayout: 0, bestMultiplier: 0 },
+    { rounds: 0, wagered: 0, paidOut: 0, net: 0, wins: 0, losses: 0, draws: 0, biggestPayout: 0, bestMultiplier: 0 },
   );
   return { games, totals };
 }

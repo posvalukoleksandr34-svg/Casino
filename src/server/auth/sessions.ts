@@ -32,6 +32,8 @@ export interface SessionUser {
   role: UserRole;
   status: UserStatus;
   preferences: Record<string, unknown>;
+  displayName: string | null;
+  avatar: string | null;
 }
 
 export async function createSession(db: Executor, userId: string, meta: { userAgent?: string | null; ipHash?: string | null }) {
@@ -66,6 +68,8 @@ export async function resolveSession(token: string | undefined | null): Promise<
       role: users.role,
       status: users.status,
       preferences: users.preferences,
+      displayName: users.displayName,
+      avatar: users.avatar,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -89,6 +93,8 @@ export async function resolveSession(token: string | undefined | null): Promise<
     role: row.role,
     status: row.status,
     preferences: row.preferences,
+    displayName: row.displayName,
+    avatar: row.avatar,
   };
 }
 
