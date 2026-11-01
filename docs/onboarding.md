@@ -91,8 +91,18 @@ rolls everything back.
 * **Phone**: a phone-region selector (the residence country is suggested until
   the player picks one) plus the national number, normalised and validated with
   `libphonenumber-js` (full metadata on the server) and stored as E.164.
-  `phone_verified_at` stays NULL — there is no SMS challenge — and every page
-  shows the number as unverified.
+  `phone_verified_at` stays NULL until a code sent by SMS is confirmed, and
+  every page shows the number as unverified until then. **SMS verification is
+  inactive by default:** no SMS provider ships with Aurovane
+  (`SMS_PROVIDER=disabled`); Settings says so. The challenge machinery is
+  implemented and tested (`src/server/users/phone-verification.ts`: HMAC-stored
+  codes, 10-minute expiry, 5 attempts, 60 s / 5 per hour, per-IP and per-number
+  limits, bound to the number sent to). An operator enables it by adding a
+  provider adapter (`src/server/verification/sms.ts`).
+* **Age assurance**: the self-declared date of birth, checked 18+ on the server,
+  is the only signal. `src/server/verification/age.ts` defines the interface for
+  a qualified third-party age/identity provider (`AGE_VERIFICATION_PROVIDER=none`
+  today) and where its result is stored; staff see "self-declared" until then.
 
 Submitting stores everything and sets `onboarding_completed_at` in one
 transaction, audits `user.onboarding_completed` with the **names of the fields**

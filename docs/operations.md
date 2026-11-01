@@ -1,5 +1,11 @@
 # Operations guide
 
+> Launch documents: [deployment.md](deployment.md) (production setup procedure) ·
+> [email-setup.md](email-setup.md) · [backup-recovery.md](backup-recovery.md) ·
+> [security-review.md](security-review.md) · [penetration-testing.md](penetration-testing.md) ·
+> [legal-review-checklist.md](legal-review-checklist.md) ·
+> [public-launch-checklist.md](public-launch-checklist.md) · [production-readiness.md](production-readiness.md)
+
 How to run Aurovane in production and what the operator must provide. Everything below
 was exercised in this repository's environment unless marked **(external)** — those parts
 depend on infrastructure this repository cannot provide (a domain, certificates, a mail

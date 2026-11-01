@@ -50,16 +50,27 @@ ledger, and every game publishes its rules, payouts and house edge.
   virtual test-chip grants and audited corrections; read-only ledger browser; per-game
   status, maintenance and stake limits; sports event operations with settlement preview;
   searchable audit log with actor role and outcome; TOTP two-factor authentication with an
-  owner policy for staff — [docs/admin.md](docs/admin.md).
-* **Operations**: least-privilege database roles, health/readiness/metrics endpoints,
-  background jobs under advisory locks, Docker Compose deployment —
-  [docs/operations.md](docs/operations.md).
+  owner policy for staff; **four-eyes approval** for large grants, every correction, house
+  funding and relaxing staff MFA — [docs/admin.md](docs/admin.md).
+* **Operations**: least-privilege database roles; hardened Docker Compose deployment
+  (internal database network, read-only non-root containers, limits, TLS override);
+  health/readiness/metrics with Prometheus alert rules; encrypted, verified backups with a
+  tested restore; production e-mail with connection checks and safe retries —
+  [docs/deployment.md](docs/deployment.md), [docs/backup-recovery.md](docs/backup-recovery.md),
+  [docs/email-setup.md](docs/email-setup.md), [docs/operations.md](docs/operations.md).
+
+**Launch status:** technically ready; external operator tasks remain (domain/TLS, e-mail
+provider, off-site backups, monitoring, independent penetration test, legal review). Not
+deployed publicly. See [docs/production-readiness.md](docs/production-readiness.md) and
+[docs/public-launch-checklist.md](docs/public-launch-checklist.md).
 
 Architecture: [docs/architecture.md](docs/architecture.md) · API: [docs/api.md](docs/api.md) · CI: [docs/ci.md](docs/ci.md) ·
 Threat model: [docs/threat-model.md](docs/threat-model.md) · Testing: [docs/testing.md](docs/testing.md) ·
 Dependencies: [docs/dependency-security.md](docs/dependency-security.md) ·
 Product spec: [docs/product-spec.md](docs/product-spec.md) · Sports: [docs/sports.md](docs/sports.md) ·
 Registration & onboarding: [docs/onboarding.md](docs/onboarding.md) ·
+Security review: [docs/security-review.md](docs/security-review.md) · Pen-test brief: [docs/penetration-testing.md](docs/penetration-testing.md) ·
+Legal review checklist: [docs/legal-review-checklist.md](docs/legal-review-checklist.md) ·
 Market research: [docs/research.md](docs/research.md).
 
 ## Technology
@@ -243,19 +254,21 @@ each defect.
   credit-only, so a provider error cannot take chips back from players).
 * Not implemented yet (planned): Baccarat, slots, further sports markets.
 * Achievements are cosmetic badges only; there are no rewards of any kind.
-* Back office: MFA is TOTP only (no passkeys); there is no four-eyes approval for grants or
-  corrections; game mathematics cannot be tuned from the back office (only stake limits),
-  so published rules can never drift from the active configuration.
+* Back office: MFA is TOTP only (no passkeys); four-eyes approval covers large grants,
+  corrections, house funding and relaxing staff MFA (role changes and the kill switch stay
+  single-person, audited); game mathematics cannot be tuned from the back office (only stake
+  limits), so published rules can never drift from the active configuration.
 
-* Phone numbers are collected but **not verified** (no SMS provider); they are stored and
+* Phone numbers are collected but **not verified** unless an SMS provider adapter is added
+  (the verification machinery exists, inactive by default); they are stored and
   shown as unverified. Pre-existing accounts are marked e-mail-verified by migration
   (`LEGACY_MIGRATION`) without proof; they re-verify only when they change address.
 * E-mail delivery is in process and best effort (no durable queue); a failed code is
   resent by the player. Age is self-declared (date of birth), checked against today's UTC
   date — there is no identity verification, by design for a virtual-chip product.
 * TOTP 2FA is available for every account but optional for players.
-* CSP still allows `'unsafe-inline'` scripts (Next.js bootstrap); a nonce-based CSP is a
-  planned hardening step.
+* CSP: scripts are nonce-based (no `'unsafe-inline'`); styles still allow `'unsafe-inline'`
+  (React style attributes).
 * Next.js 15.5 is in backport-only maintenance; plan the 16.x upgrade.
 * Session time limits are per login session; exclusions are per account (no shared
   register).

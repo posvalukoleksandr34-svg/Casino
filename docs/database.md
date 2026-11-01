@@ -19,6 +19,8 @@ erDiagram
   users ||--o| responsible_limits : sets
   users ||--o{ bonuses : receives
   users ||--o{ email_verification_challenges : "codes sent"
+  users ||--o{ phone_verification_challenges : "SMS codes"
+  users ||--o{ admin_approval_requests : "requests / decides"
   games ||--o{ game_configurations : "versioned"
   games ||--|| risk_limits : "limited by"
   game_configurations ||--o{ game_rounds : "rules used"
@@ -77,6 +79,10 @@ erDiagram
 | `users.onboarding_required`, `onboarding_completed_at` (0009) | Mandatory profile step: pending while required and not completed | existing rows FALSE, new rows TRUE; completed ⇒ all details present (unless DELETED) |
 | `users.terms_version`, `terms_accepted_at`, `privacy_version`, `privacy_accepted_at` (0009) | Policy versions accepted at registration | version ⇔ time |
 | `email_verification_challenges` (0009) | One row per code sent: purpose (`SIGNUP` / `EMAIL_CHANGE`), destination, HMAC of the code (never the code), attempts / max, delivery (`PENDING`/`SENT`/`FAILED`), expiry, consumed / superseded | partial unique: one live challenge per user; MAC is 64 hex; attempts ≤ max; runtime role has no DELETE (deletion overwrites the address) |
+| `email_verification_challenges.delivery` += `REJECTED` (0010) | Permanent refusal by the receiving server (FAILED stays temporary) | CHECK |
+| `admin_approval_requests` (0010) | Four-eyes requests: action, target, parameters (never a resulting balance), reason, requester and role, expiry, status (`PENDING`/`EXECUTED`/`REJECTED`/`CANCELLED`/`EXPIRED`/`FAILED`), decider, note, result | CHECK decider ≠ requester (except cancel/expiry); pending ⇔ no decision time; trigger: a decided request is immutable, content never changes, no deletes |
+| `phone_verification_challenges` (0010) | SMS codes (HMAC only), number they were sent to, provider, attempts, delivery, expiry, consumed/superseded | partial unique: one live challenge per user; E.164 CHECK; deletion overwrites the number |
+| `users.age_verified_at`, `age_verification_provider`, `age_verification_ref` (0010) | Result of a third-party age check (no provider integrated: all NULL) | provider ⇔ time |
 
 ## Ledger design (double entry)
 

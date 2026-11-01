@@ -3,7 +3,7 @@
 | Suite | Command | Needs | What it covers |
 |---|---|---|---|
 | Unit | `npm run test:unit` | nothing | engine maths, RNG, money bounds, verifier, content-vs-engine, config/seed safety, admin guards, contrast, risk model |
-| Integration | `npm run test:integration` | PostgreSQL (`DATABASE_URL_TEST`, name must end in `_test`; wiped each run) | ledger invariants, rounds and concurrency, Crash cash-out vs settlement ordering under real row locks, expiry queue, reconciliation (incl. fault injection), account-state races, least-privilege role, auth, sessions, rate limits and password recovery (SMTP), responsible play, admin, API routes |
+| Integration | `npm run test:integration` | PostgreSQL (`DATABASE_URL_TEST`, name must end in `_test`; wiped each run) | registration, e-mail delivery over SMTP, four-eyes approvals, phone verification, ledger invariants, rounds and concurrency, Crash cash-out vs settlement ordering under real row locks, expiry queue, reconciliation (incl. fault injection), account-state races, least-privilege role, auth, sessions, rate limits and password recovery (SMTP), responsible play, admin, API routes |
 | Statistical | `npm run test:stats` | nothing | fixed-seed chi-square and RTP confidence-interval tests for every game (≈1 min) |
 | End-to-end | `npm run build && npm run test:e2e` | PostgreSQL (`DATABASE_URL_E2E`, name must contain `e2e`; reset each run), Chromium | Playwright against the **production standalone build**, desktop and mobile |
 | Docs | `npm run check:docs` | nothing | relative Markdown links resolve |
@@ -135,6 +135,35 @@ Hardening without a prior failure:
   their provenance.
 * The backup and restore scripts are tested by the restore drill.
 * New `casino_rate_limited_total` and `casino_login_failures_total` metrics.
+
+## Results of the public-launch pass (2026-11-01, this repository's environment)
+
+Migration 0010 applied to the development (existing data: 528 accounts, 91,216 ledger
+entries, unchanged, reconciliation OK), test and e2e databases.
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` | pass / 0 problems |
+| `npm run test:unit` | **277 passed** (29 files) |
+| `npm run test:integration` | **286 passed** (30 files) |
+| `npm run test:stats` | **24 passed** (5 files) |
+| `npm run build` / `npm run check:bundle` | pass / 158 files, no server secrets |
+| `npm run test:e2e` | **35 passed** (chromium desktop + Pixel 7 mobile, 3.7 min) |
+| `npm audit` | 0 vulnerabilities after the `minimatch` override (a new advisory had appeared during the pass; [dependency-security.md](dependency-security.md)) |
+| Docker: images built, hardened Compose stack started, checked from outside | pass (details in [deployment.md](deployment.md)) |
+| Encrypted backup by the Compose `backup` service → `ops:backup-verify` → `RESTORE_FROM=… ops:restore-check` | PASSED, 26 triggers, reconciliation OK (22 checks, 0 mismatches) |
+| Same encrypted drill on the development database | PASSED |
+
+New test files: `mail.test.ts` (SMTP refused/auth failure/timeout/4xx retry/5xx no retry,
+classification, logs, recovery after an outage, REJECTED state, templates),
+`approvals.test.ts` (four-eyes: self-approval refused, concurrency, rejection, cancel,
+expiry, failed execution, demoted requester, database immutability, routes, idempotency),
+`phone-verification.test.ts`, `launch-hardening.test.ts` (grants during breaks); e2e: nonce
+CSP across a full journey, cool-off banner and enforcement, real password reset; unit:
+four-eyes route guard, production mail/contact configuration.
+
+**Defects found and fixed in this pass** are listed with their evidence in
+[security-review.md](security-review.md#defects-found-and-fixed-in-this-pass).
 
 ## Results of the registration and onboarding run (2026-10-27, this repository's environment)
 

@@ -17,6 +17,9 @@ standalone build. `npm audit` returning zero was not taken as sufficient on its 
 | `drizzle-orm` | 0.45.3 | 0.45.3 | ≥ 0.45.2 (identifier-escaping SQL injection fix) |
 | `pg` | 8.23.1 | 8.23.1 | no published advisories |
 | `postcss` (override) | 8.5.29 | 8.5.29 | single version across next, tailwind and vite |
+| `minimatch` (override, dev tooling) | 3.1.5 / 10.2.6 | **11.0.3** | GHSA-g3hv-75wg-m249 (2026-11-01 pass); see below |
+| `libphonenumber-js` (new) | — | 1.13.15 | phone validation/normalisation (onboarding) |
+| `i18n-iso-countries` (new) | — | 7.14.0 | ISO 3166-1 country codes (onboarding) |
 
 ## Applicability of recent advisories
 
@@ -32,6 +35,7 @@ standalone build. `npm audit` returning zero was not taken as sufficient on its 
 | Next GHSA-4jqv-mc3x-m676, GHSA-mcj8-r9mp-w47p — SSG/ISR cache poisoning (moderate) | ≥ 15.0.0; fixed in 15.5.27 | Patched; also not applicable (App Router only, every route dynamic, no root catch-all) |
 | Next GHSA-39w2-rjm5-chcv — dev-server MCP endpoint disclosure (low) | development server | Not applicable to production builds |
 | Drizzle GHSA-gpj5-g38j-94v9 — SQL injection via identifiers (high) | ≤ 0.45.1 | Patched (0.45.3); also not reachable (no identifiers built from input) |
+| minimatch GHSA-g3hv-75wg-m249 — ReDoS / DoS via globparts amplification (moderate) | `minimatch` < 11.0.1, pulled in only by ESLint and typescript-eslint (development tooling; not in the standalone production bundle) | **Patched by an `overrides` entry → 11.0.3** (released 2026-10-28; younger than the usual two-week cooldown, accepted because it closes a published advisory and its use is confined to lint). Compatibility verified: ESLint still reports rule violations (probe file), lints the same 428 files, and applies the `*.config.*` ignore exactly as before; typecheck, unit, integration and e2e suites pass. Remove the override when ESLint and typescript-eslint depend on a fixed minimatch |
 
 ## Verification performed
 

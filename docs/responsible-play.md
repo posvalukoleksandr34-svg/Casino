@@ -54,3 +54,14 @@ break), no deposits, purchases or cash-outs at all.
 * Limits are per account; there is no cross-account or cross-operator exclusion register.
 * Breaks and exclusions do not delete the account or block signing in (players can still
   see balances, history and finish open rounds).
+
+## Visibility and grants (2026-11-01)
+
+* An active cool-off or self-exclusion is shown in a banner on **every** page (root
+  layout), with its end time and a link to this page, not only where play is refused.
+* Staff virtual-chip grants are refused while a player is on a cool-off or self-exclusion
+  (the same rule as daily chips), so no chips arrive as an incentive during a break.
+  Compensating corrections remain possible (they are four-eyes over HTTP).
+* Tested in `tests/integration/launch-hardening.test.ts` and `tests/e2e/registration.spec.ts`
+  (banner, refused wager and refused daily chips during a cool-off).
+

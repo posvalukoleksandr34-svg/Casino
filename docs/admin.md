@@ -125,14 +125,58 @@ admin action, so either both exist or neither does.
 
 | Operation | Who | Ledger | Limits |
 |---|---|---|---|
-| Grant test chips | owner | `CHIP_GRANT`: promotions −x, wallet +x | 0.01–1,000,000 chips per grant, active accounts only, never above the player balance cap |
-| Correction | admin, owner | `ADJUSTMENT`: adjustments ∓x, wallet ±x (optionally referencing the corrected transaction) | the wallet may never go negative |
-| House funding | owner | `HOUSE_FUNDING`: issuance −x, house +x | positive |
+| Grant test chips | owner; **a second owner approves above 10,000 chips** | `CHIP_GRANT`: promotions −x, wallet +x | 0.01–1,000,000 chips per grant, active accounts only, never above the player balance cap, never during a player's cool-off or self-exclusion |
+| Correction | admin, owner; **always approved by a second admin or owner** | `ADJUSTMENT`: adjustments ∓x, wallet ±x (optionally referencing the corrected transaction) | the wallet may never go negative |
+| House funding | owner; **always approved by a second owner** | `HOUSE_FUNDING`: issuance −x, house +x | positive |
 
 Reconciliation (`admin_money_movements_audited`) checks that every such transaction was
 made by an identified staff member and has exactly one matching audited admin action with
 the same amount. The user page re-derives the wallet balance from its entries and flags a
 difference.
+
+## Four-eyes approvals
+
+Sensitive operations need two people. The request is created through the normal
+dialog (`/admin/users/<id>`, `/admin/risk`, `/admin/security`): the API answers 202
+`{approvalRequired: true, request}`, and nothing changes yet. A second staff member
+with the same permission decides it under **Admin → Approvals**. The navigation shows
+how many requests are waiting.
+
+| Action | Requires approval | Approver needs |
+|---|---|---|
+| `ledger.grant` | grants above 10,000 chips (`GRANT_APPROVAL_THRESHOLD`) | `ledger:grant` (owner) |
+| `ledger.adjustment` | every correction | `ledger:adjust` (admin, owner) |
+| `house.fund` | every funding | `house:fund` (owner) |
+| `security.staff_mfa_disable` | switching the staff MFA requirement **off** (switching it on is immediate) | `security:manage` (owner) |
+
+Rules, all enforced on the server (`src/server/admin/approvals.ts`, migration 0010):
+- **Who decides:**
+  - Nobody approves or rejects their own request. The service refuses it, and
+    so does a database CHECK.
+  - The requester may cancel their own request.
+  - A rejection needs a written reason.
+- **How it executes:**
+  - Approval executes the operation in the same transaction as the decision,
+    under a row lock, with a ledger key derived from the request id. Two
+    approvers clicking at once execute it once.
+  - The operation runs as the **requester**, whose permission is re-checked
+    at that moment. A requester demoted in the meantime cannot have it
+    executed.
+  - If execution fails (for example a debit that no longer fits the balance),
+    nothing is posted and the request closes as `FAILED`.
+- **Lifecycle:**
+  - Requests expire after 24 hours.
+  - A decided request is immutable: a database trigger refuses any change or
+    deletion.
+- **Audit:** every stage (requested, approved, rejected, cancelled, expired,
+  failed) is an audited admin action. The money operation itself keeps its
+  usual audit record, which reconciliation checks.
+
+A deployment with one owner cannot fund the house, make large grants or relax
+the MFA policy. Appoint a second owner before launch. Immediate on purpose
+(routine, or needed in an incident): grants up to the threshold, suspensions,
+session revocation, role changes (owner-only, audited, sessions revoked), game
+status and limits, the platform kill switch, sports operations.
 
 ## Games
 
@@ -218,9 +262,10 @@ Nothing is simulated or hard-coded.
 
 * MFA is TOTP only (no WebAuthn/passkeys). Recovery codes are the only fallback.
   Losing both requires the break-glass procedure above.
-* There is no approval workflow (four-eyes) for grants or corrections. The dashboard's
-  *Needs attention* list covers alerts, overdue rounds, lagging predictions and failed
-  reconciliation.
+* Four-eyes approval covers large grants, corrections, house funding and relaxing the
+  staff MFA policy (above); role changes and the kill switch stay single-person (audited).
+  The dashboard's *Needs attention* list covers alerts, overdue rounds, lagging
+  predictions and failed reconciliation.
 * Admin pages render on the server without per-section streaming; large ranges
   (≤ 366 days) are aggregated in SQL but are not cached.
 * Game mathematics cannot be tuned from the back office (by design, see above). Stake

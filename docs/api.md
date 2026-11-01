@@ -54,6 +54,8 @@ treat such a session as signed out).
 | POST | `/api/auth/login` | `{email, password}` | sets cookie, `{user, onboardingRequired}`; 20 / 5 min per IP; lockout after 8 failures. With MFA on: 401 `MFA_REQUIRED` with `details.challenge` (valid 5 min) and no cookie. Unverified e-mail: 403 `EMAIL_NOT_VERIFIED`, flow cookie, a new code if none is usable |
 | POST | `/api/onboarding` | `{firstName, lastName, dateOfBirth: "YYYY-MM-DD", countryCode, phoneRegion, phoneNumber, displayName?, avatar?}` | *onboarding*. Completes the profile step (18+ checked on the server, ISO 3166-1 alpha-2 country, phone stored as unverified E.164); 409 when already complete |
 | GET · PATCH | `/api/account/details` | `{firstName?, lastName?, dateOfBirth?, countryCode?, phoneRegion?, phoneNumber?}` | Personal details; the date of birth can be set only when none is stored; a changed number stays unverified |
+| GET · POST | `/api/account/phone/verify` | — | Phone verification status `{available, phone, verified, pending}`; POST sends an SMS code to the current number. 503 when no SMS provider is configured (the default); same code rules as e-mail (10 min, 5 attempts, 60 s / 5 per hour) |
+| POST | `/api/account/phone/verify/confirm` | `{code}` | Marks the number verified once; a code only verifies the number it was sent to |
 | GET · POST · DELETE | `/api/account/email` | POST `{email, password}` (or `{}` to resend) | *onboarding*. Pending e-mail change: start (code to the new address), resend, cancel |
 | POST | `/api/account/email/confirm` | `{code}` | *onboarding*. Switches to the new address; other sessions and reset links revoked; old address notified |
 | POST | `/api/auth/login/mfa` | `{challenge, code}` | TOTP or recovery code → sets cookie (session marked MFA-verified); 5 attempts / 5 min per account |
@@ -135,8 +137,8 @@ A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settled
 | POST | `/api/admin/users/:id/status` | [users:suspend] `{status: "ACTIVE"\|"SUSPENDED", reason}`; lower-ranked accounts only; suspension revokes sessions |
 | DELETE | `/api/admin/users/:id/sessions` | [users:suspend] `{reason}` sign out everywhere |
 | POST | `/api/admin/users/:id/role` | [roles:manage] `{role, reason}`; ADMIN/OWNER only by owners; never the last active owner |
-| POST | `/api/admin/users/:id/grant` | [ledger:grant] `{amount (1…100,000,000 minor units), reason}` + `Idempotency-Key` → 201 `{transactionId, balance}`; retries replay (`Idempotent-Replayed: true`) |
-| POST | `/api/admin/users/:id/adjust` | [ledger:adjust] `{amount, reason, reversesTransactionId?}` + `Idempotency-Key` → 201; retries replay |
+| POST | `/api/admin/users/:id/grant` | [ledger:grant] `{amount (1…100,000,000 minor units), reason}` + `Idempotency-Key` → 201 `{transactionId, balance}` up to 1,000,000 minor units; above that 202 `{approvalRequired: true, request}` (four-eyes); retries replay (`Idempotent-Replayed: true`). 409 during the player's cool-off or self-exclusion |
+| POST | `/api/admin/users/:id/adjust` | [ledger:adjust] `{amount, reason, reversesTransactionId?}` + `Idempotency-Key` → 202 `{approvalRequired: true, request}`: corrections are always four-eyes; retries replay |
 | GET | `/api/admin/ledger?type&userId&transactionId&from&to&before&limit` | [ledger:read] `{rows, nextBefore}` |
 | GET | `/api/admin/ledger/:id` | [ledger:read] transaction with entries |
 | GET | `/api/admin/rounds`, `/api/admin/rounds/:id` | [rounds:read] |
@@ -146,9 +148,12 @@ A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settled
 | POST | `/api/admin/games/:id/config` | [games:manage] new immutable version; only the published reference configuration is accepted |
 | PUT | `/api/admin/games/:id/limits` | [risk:manage] `{limits, reason}` within the hard bounds ([admin.md](admin.md#games)) |
 | GET/PATCH | `/api/admin/platform` | [risk:manage] kill switch, exposure, reserve, caps, bonuses |
-| POST | `/api/admin/house/fund` | [house:fund] (owner) + `Idempotency-Key`; retries replay |
+| POST | `/api/admin/house/fund` | [house:fund] (owner) `{amount, reason}` + `Idempotency-Key` → 202 approval request (a second owner executes it); retries replay |
+| GET | `/api/admin/approvals?status=open\|closed` | [admin:access] four-eyes requests the viewer may decide or has made, with `canDecide` / `canCancel` |
+| POST | `/api/admin/approvals/:id` | [admin:access; the action's permission is re-checked] `{decision: approve\|reject\|cancel, note?}` → approve executes once and returns the request (`EXECUTED`); 403 for one's own request or without the permission; 409 when already decided, expired or failed (`details.status`) |
+| POST | `/api/admin/health/mail` | [system:operate] `{action: verify\|test}`: SMTP connect + authenticate; `test` also sends a test message to the operator's own address. Audited |
 | GET | `/api/admin/audit?action&actorId&actorName&resourceId&outcome&from&to&before&limit` | [audit:read] `{items, nextBefore}` |
-| GET, POST | `/api/admin/security` | [security:manage] staff MFA overview; `{staffMfaRequired, reason}` |
+| GET, POST | `/api/admin/security` | [security:manage] staff MFA overview; `{staffMfaRequired: true, reason}` applies at once; `{staffMfaRequired: false, reason}` + `Idempotency-Key` → 202 approval request |
 | GET/POST | `/api/admin/alerts`, `/api/admin/alerts/:id/ack` | [system:read] / [system:operate] |
 | GET/POST | `/api/admin/reconciliation` | [system:read] / [system:operate] run now |
 | GET | `/api/admin/health` | [system:read] |
