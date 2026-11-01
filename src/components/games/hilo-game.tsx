@@ -49,7 +49,7 @@ export function HiloGame({ config, limits, status }: { config: HiloConfig; limit
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card>
+        <Card className="overflow-hidden bg-[radial-gradient(ellipse_75%_60%_at_50%_35%,rgb(150_30_40/0.35),transparent_75%),linear-gradient(180deg,rgb(52_10_14/0.88),rgb(20_4_6/0.94))]">
           <CardBody className="flex flex-col items-center gap-6 py-8">
             <div className="flex w-full max-w-lg items-center justify-between text-sm">
               <span className="text-ink-400">{s ? `${correct} correct guess${correct === 1 ? '' : 'es'} · ${s.skipsLeft} skip${s.skipsLeft === 1 ? '' : 's'} left` : 'Start a round to turn over the first card'}</span>
@@ -57,12 +57,22 @@ export function HiloGame({ config, limits, status }: { config: HiloConfig; limit
                 {s ? `${(s.multiplierE4 / 10_000).toFixed(4)}×` : `up to ${(config.maxMultiplierE4 / 10_000).toLocaleString('en-US')}×`}
               </span>
             </div>
-            <div className="flex min-h-44 items-center justify-center" data-testid="hilo-current">
-              {s ? (
-                <Face key={`${round!.id}-${s.position}`} card={s.currentCard} />
-              ) : (
-                <PlayingCard faceDown size="lg" animation="none" />
-              )}
+            <div className="flex items-center gap-6 sm:gap-10">
+              {/* The deck the next card comes from (decorative). */}
+              <div className="relative hidden h-36 w-[6.2rem] sm:block sm:h-44 sm:w-[7.6rem]" aria-hidden="true">
+                {[2, 1, 0].map((k) => (
+                  <div key={k} className="absolute inset-0" style={{ transform: `translate(${k * -3}px, ${k * -3}px)` }}>
+                    <PlayingCard faceDown size="lg" animation="none" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex min-h-44 items-center justify-center" data-testid="hilo-current">
+                {s ? (
+                  <Face key={`${round!.id}-${s.position}`} card={s.currentCard} />
+                ) : (
+                  <PlayingCard faceDown size="lg" animation="none" />
+                )}
+              </div>
             </div>
             {s && !playing && (
               <p className="text-sm text-ink-400" role="status">

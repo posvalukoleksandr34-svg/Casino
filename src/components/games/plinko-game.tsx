@@ -17,6 +17,15 @@ const S = 10; // horizontal peg spacing (SVG units)
 const H = 9; // vertical row spacing
 const TOP = 8;
 
+/** Bucket colour by payout: hot (red) at the edges, cool amber in the middle. */
+function slotTone(m: number): string {
+  if (m >= 1000) return 'bg-[#e0484a] text-white';
+  if (m >= 300) return 'bg-[#f0683a] text-[#1a0a02]';
+  if (m >= 150) return 'bg-[#ff9330] text-[#1a0a02]';
+  if (m >= 100) return 'bg-[#ffbe4a] text-[#1a0a02]';
+  return 'bg-[#6b4a22] text-[#ffe2b0]';
+}
+
 const compact = (e2: number) => {
   const x = e2 / 100;
   return x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2);
@@ -110,13 +119,29 @@ export function PlinkoGame({ config, limits, status }: { config: PlinkoConfig; l
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card>
+        <Card className="overflow-hidden bg-[radial-gradient(ellipse_70%_55%_at_50%_0%,rgb(255_170_70/0.16),transparent_70%),linear-gradient(180deg,rgb(40_22_6/0.85),rgb(14_8_2/0.92))]">
           <CardBody className="py-6">
             <svg viewBox={`${-width / 2} 0 ${width} ${height}`} className="mx-auto w-full max-w-xl" role="img" aria-label={`Plinko board with ${boardRows} rows`}>
+              <defs>
+                <radialGradient id="plinko-peg" cx="35%" cy="30%" r="70%">
+                  <stop offset="0" stopColor="#fff6e6" />
+                  <stop offset="1" stopColor="#c99a5a" />
+                </radialGradient>
+                <radialGradient id="plinko-ball-fill" cx="35%" cy="30%" r="70%">
+                  <stop offset="0" stopColor="#fff3d6" />
+                  <stop offset="0.55" stopColor="#ffb547" />
+                  <stop offset="1" stopColor="#c46a12" />
+                </radialGradient>
+              </defs>
               {Array.from({ length: boardRows }, (_, i) =>
-                Array.from({ length: i + 3 }, (_, j) => <circle key={`${i}-${j}`} cx={(j - 1 - i / 2) * S} cy={TOP + i * H + H / 2} r={1.1} className="fill-ink-400" />),
+                Array.from({ length: i + 3 }, (_, j) => <circle key={`${i}-${j}`} cx={(j - 1 - i / 2) * S} cy={TOP + i * H + H / 2} r={1.25} fill="url(#plinko-peg)" />),
               )}
-              {ball && <circle cx={ball.x} cy={ball.y + H / 2 - 3} r={2.6} className="fill-gold-300 stroke-gold-600" strokeWidth={0.6} data-testid="plinko-ball" />}
+              {ball && (
+                <g>
+                  <circle cx={ball.x} cy={ball.y + H / 2 - 3} r={6} fill="#ffa53a" opacity={0.22} aria-hidden="true" />
+                  <circle cx={ball.x} cy={ball.y + H / 2 - 3} r={2.7} fill="url(#plinko-ball-fill)" stroke="#fff1d0" strokeWidth={0.4} data-testid="plinko-ball" />
+                </g>
+              )}
             </svg>
             <div className="mx-auto mt-2 grid w-full max-w-xl gap-0.5" style={{ gridTemplateColumns: `repeat(${boardRows + 1}, minmax(0, 1fr))`, paddingInline: `${(100 / (boardRows + 2)) * 0.5}%` }}>
               {table.map((m, k) => (
@@ -124,8 +149,9 @@ export function PlinkoGame({ config, limits, status }: { config: PlinkoConfig; l
                   key={k}
                   title={`Slot ${k}: ${(m / 100).toFixed(2)}×, chance ${(plinkoSlotProbability(boardRows, k) * 100).toPrecision(3)}%`}
                   className={cn(
-                    'num rounded py-1 text-center text-[9px] font-semibold leading-tight transition-colors sm:text-[11px]',
-                    landed === k ? 'bg-gold-400 text-ink-950 ring-2 ring-gold-200' : m >= 1000 ? 'bg-gold-700/70 text-gold-100' : m >= 100 ? 'bg-gold-800/40 text-gold-200' : 'bg-ink-800 text-ink-300',
+                    'num rounded-md py-1 text-center text-[9px] font-bold leading-tight shadow-[inset_0_1px_0_rgb(255_255_255/0.35),0_3px_0_rgb(0_0_0/0.35)] transition-transform duration-200 sm:text-[11px]',
+                    slotTone(m),
+                    landed === k && 'animate-slot-hit ring-2 ring-white/90',
                   )}
                 >
                   {compact(m)}

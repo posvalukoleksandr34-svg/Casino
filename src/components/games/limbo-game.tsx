@@ -83,11 +83,17 @@ export function LimboGame({ config, limits, status }: { config: LimboConfig; lim
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="overflow-hidden">
+        <Card className="flex flex-col justify-center overflow-hidden bg-[radial-gradient(ellipse_70%_60%_at_50%_30%,rgb(255_120_200/0.14),transparent_70%),linear-gradient(180deg,rgb(42_10_38/0.85),rgb(16_4_15/0.92))]">
           <div className="relative px-6 pb-10 pt-12 text-center sm:px-10">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top,rgb(199_163_91/0.10),transparent_70%)]" />
+            {/* Decorative rings behind the number; they light up on a win. */}
+            <svg viewBox="0 0 400 240" className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-64 w-full max-w-xl" aria-hidden="true" focusable="false">
+              {[110, 82, 56].map((r, i) => (
+                <circle key={r} cx="200" cy="112" r={r} fill="none" stroke={show && last!.won ? '#63b98f' : '#ff8fd2'} strokeOpacity={0.1 + i * 0.07} strokeWidth="1.5" className="transition-[stroke] duration-500" />
+              ))}
+            </svg>
+            {show && last!.won && <div key={round!.id} className="pointer-events-none absolute left-1/2 top-24 size-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-positive/20 blur-3xl animate-glow-pulse" aria-hidden="true" />}
             <div className="relative">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-400">{last ? 'Result' : 'Ready'}</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-300">{last ? 'Result' : 'Ready'}</div>
               <div
                 data-testid="limbo-result"
                 aria-live="polite"

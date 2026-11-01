@@ -126,9 +126,23 @@ Observed weaknesses, ranked:
 - Verified: typecheck, lint, build, 334 unit tests; e2e expansion, player-journey and
   accessibility specs, 10 passed.
 
+### 7. Plinko, Limbo and Hi-Lo stages (done)
+
+- **Plinko.** An amber board with lit pegs, a glowing ball, and buckets coloured by
+  payout: red at the high-paying edges, amber in the middle. The landed bucket
+  bounces and gets a white ring.
+- **Limbo.** A magenta stage with concentric rings behind the result. On a win the
+  rings turn green and a soft glow pulses.
+- **Hi-Lo.** A burgundy felt with a face-down deck beside the current card. Pip
+  columns on number cards moved inwards so they no longer crowd the corner indices
+  (this also applies to Blackjack).
+- New keyframes (`slot-hit`, `glow-pulse`). Reduced-motion users get the existing
+  global override.
+- Verified: typecheck, lint, build; e2e expansion, accessibility (axe on every game
+  page) and mobile specs, 11 passed.
+
 ## Next
 
-- Plinko, Limbo and Hi-Lo stages.
 - Auth and profile polish; admin pages still use line glyphs.
 - Review `backdrop-blur` cost on low-end mobile.
 - Full verification run (all suites, full e2e), then the final report.
