@@ -52,7 +52,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
           text ? (size === 'sm' ? 'h-9 px-3 text-xs' : 'h-11 px-4 text-sm') : size === 'sm' ? 'size-9' : 'size-11',
           tone === 'gold' || pressed
             ? 'border-gold-500/70 bg-gold-500/15 text-gold-200 hover:bg-gold-500/25'
-            : 'border-ink-600 bg-ink-850 text-ink-200 hover:border-gold-600 hover:bg-ink-750 hover:text-ink-100',
+            : 'border-white/12 bg-white/[0.06] text-ink-200 shadow-[inset_0_1px_0_rgb(255_255_255/0.07)] backdrop-blur-md hover:border-gold-400/50 hover:bg-white/[0.1] hover:text-ink-100',
           'aria-disabled:cursor-not-allowed aria-disabled:border-ink-700 aria-disabled:bg-ink-900 aria-disabled:text-ink-400 aria-disabled:hover:border-ink-700 aria-disabled:hover:bg-ink-900',
           className,
         )}
@@ -65,7 +65,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
         id={tipId}
         role="tooltip"
         className={cn(
-          'pointer-events-none absolute z-30 w-max max-w-[220px] rounded-lg border border-ink-600 bg-ink-800 px-2.5 py-1.5 text-center text-xs font-medium text-ink-100 opacity-0 shadow-lg transition-opacity duration-150',
+          'glass pointer-events-none absolute z-30 w-max max-w-[220px] rounded-lg px-2.5 py-1.5 text-center text-xs font-medium text-ink-100 opacity-0 transition-opacity duration-150',
           'group-hover/tip:opacity-100 group-has-[:focus-visible]/tip:opacity-100',
           tooltipSide === 'top' ? 'bottom-full mb-2' : 'top-full mt-2',
           { center: 'left-1/2 -translate-x-1/2', start: 'left-0', end: 'right-0', 'start-sm-end': 'left-0 sm:left-auto sm:right-0' }[tooltipAlign],

@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { api, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { GameGlyph } from '../games/game-glyph';
+import { GameCover } from './game-cover';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Callout, Chips, EmptyState } from '../ui/misc';
@@ -112,8 +112,8 @@ export function LobbyBrowser({
           <ul className="flex gap-3 overflow-x-auto pb-1" data-testid="recently-played">
             {recentGames.map(({ game, lastPlayedAt }) => (
               <li key={game!.id} className="shrink-0">
-                <Link href={`/games/${game!.id}`} className="surface flex w-52 items-center gap-3 px-3 py-2.5 hover:border-gold-600">
-                  <GameGlyph id={game!.id} className="size-10" />
+                <Link href={`/games/${game!.id}`} className="surface sheen flex w-56 items-center gap-3 p-2 pr-3 transition-[border-color,transform] hover:-translate-y-0.5 hover:border-gold-500/50">
+                  <GameCover id={game!.id} className="h-12 w-16 shrink-0 rounded-lg" />
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-ink-100">{game!.name}</div>
                     <div className="text-xs text-ink-400">{new Date(lastPlayedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</div>
@@ -130,13 +130,17 @@ export function LobbyBrowser({
           <label htmlFor="lobby-search" className="sr-only">
             Search games
           </label>
+          <svg viewBox="0 0 20 20" className="pointer-events-none absolute left-4 top-1/2 z-10 size-4 -translate-y-1/2 text-ink-300" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+            <circle cx="9" cy="9" r="5.5" />
+            <path d="M13.2 13.2L17 17" strokeLinecap="round" />
+          </svg>
           <input
             id="lobby-search"
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value.slice(0, 60))}
             placeholder="Search games"
-            className="h-11 w-full rounded-xl border border-ink-600 bg-ink-900 px-4 text-sm text-ink-100 placeholder:text-ink-400 focus:border-gold-500 focus:outline-none"
+            className="h-12 w-full rounded-2xl border border-white/12 bg-white/[0.04] pl-11 pr-4 text-sm text-ink-100 shadow-[inset_0_1px_0_rgb(255_255_255/0.05)] placeholder:text-ink-400 backdrop-blur-md transition-colors hover:border-white/20 focus:border-gold-400/70 focus:outline-none focus:ring-2 focus:ring-gold-500/20"
           />
         </div>
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Game categories">
@@ -148,8 +152,8 @@ export function LobbyBrowser({
               aria-checked={filter === c.id}
               onClick={() => setFilter(c.id)}
               className={cn(
-                'rounded-full border px-3.5 py-1.5 text-sm transition-colors',
-                filter === c.id ? 'border-gold-500 bg-gold-800/30 text-gold-200' : 'border-ink-700 text-ink-300 hover:border-ink-500',
+                'rounded-full border px-3.5 py-1.5 text-sm backdrop-blur-md transition-[background-color,border-color,color]',
+                filter === c.id ? 'border-gold-400/60 bg-gold-500/15 text-gold-100 shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]' : 'border-white/10 bg-white/[0.03] text-ink-300 hover:border-white/20 hover:bg-white/[0.06] hover:text-ink-100',
               )}
             >
               {c.label} <span className="num text-ink-400">{c.count}</span>
@@ -190,68 +194,60 @@ export function LobbyBrowser({
           />
         )
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3" data-testid="lobby-grid">
+        <div className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" data-testid="lobby-grid">
           {visible.map((g) => {
             const fav = favorites.includes(g.id);
             return (
-              <article key={g.id} className="surface flex flex-col overflow-hidden" data-game={g.id}>
-                <div className="relative flex items-center justify-center border-b border-ink-700/70 bg-[radial-gradient(circle_at_50%_30%,rgb(199_163_91/0.12),transparent_65%)] py-8">
-                  <GameGlyph id={g.id} className="size-24" />
-                  <div className="absolute left-4 top-4 flex gap-1.5">{g.isNew && <Badge tone="gold">New</Badge>}</div>
-                  <div className="absolute right-4 top-4 flex items-center gap-2">
-                    {g.status === 'ACTIVE' ? <Badge tone="positive">Open</Badge> : <Badge tone="warning">Paused</Badge>}
-                    {signedIn && (
-                      <button
-                        type="button"
-                        onClick={() => void toggleFavorite(g.id)}
-                        disabled={pendingFav !== null}
-                        aria-pressed={fav}
-                        aria-label={fav ? `Remove ${g.name} from favourites` : `Add ${g.name} to favourites`}
-                        title={fav ? 'Remove from favourites' : 'Add to favourites'}
-                        className={cn('grid size-8 place-items-center rounded-full border transition-colors disabled:opacity-60', fav ? 'border-gold-500 bg-gold-800/40 text-gold-200' : 'border-ink-600 text-ink-300 hover:border-gold-600')}
-                      >
-                        <svg viewBox="0 0 20 20" className="size-4" aria-hidden="true">
-                          <path d="M10 2.5l2.3 4.7 5.2.8-3.8 3.7.9 5.2L10 14.4l-4.6 2.5.9-5.2-3.8-3.7 5.2-.8z" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-                        </svg>
-                      </button>
-                    )}
+              <article key={g.id} className="surface group flex flex-col overflow-hidden transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-1 hover:border-gold-500/40 hover:shadow-[0_24px_50px_-24px_rgb(0_0_0/0.9),0_0_0_1px_rgb(199_163_91/0.15)]" data-game={g.id}>
+                <GameCover id={g.id} className="sheen aspect-[16/10]">
+                  <div className="absolute left-3 top-3 flex gap-1.5">
+                    {g.isNew && <Badge tone="gold">New</Badge>}
+                    {g.status !== 'ACTIVE' && <Badge tone="warning">Paused</Badge>}
                   </div>
-                </div>
-                <div className="flex flex-1 flex-col p-5">
-                  <h2 className="font-display text-3xl font-semibold text-ink-100">{g.name}</h2>
-                  <p className="mt-1 text-sm text-ink-400">{g.tagline}</p>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
+                  {signedIn && (
+                    <button
+                      type="button"
+                      onClick={() => void toggleFavorite(g.id)}
+                      disabled={pendingFav !== null}
+                      aria-pressed={fav}
+                      aria-label={fav ? `Remove ${g.name} from favourites` : `Add ${g.name} to favourites`}
+                      title={fav ? 'Remove from favourites' : 'Add to favourites'}
+                      className={cn(
+                        'absolute right-3 top-3 grid size-8 place-items-center rounded-full border backdrop-blur-md transition-colors disabled:opacity-60',
+                        fav ? 'border-gold-400/70 bg-gold-500/25 text-gold-100' : 'border-white/20 bg-black/30 text-ink-100 hover:border-gold-400/60',
+                      )}
+                    >
+                      <svg viewBox="0 0 20 20" className="size-4" aria-hidden="true">
+                        <path d="M10 2.5l2.3 4.7 5.2.8-3.8 3.7.9 5.2L10 14.4l-4.6 2.5.9-5.2-3.8-3.7 5.2-.8z" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                  )}
+                  <div className="absolute inset-x-3 bottom-2.5 flex items-end justify-between gap-2">
+                    <h2 className="font-display text-2xl font-semibold leading-none text-ink-100 drop-shadow-[0_2px_6px_rgb(0_0_0/0.8)]">{g.name}</h2>
+                    <span className="num shrink-0 rounded-full border border-white/15 bg-black/40 px-2 py-0.5 text-[11px] font-semibold text-gold-200 backdrop-blur-md" title="Theoretical return to player">
+                      RTP {g.rtp}
+                    </span>
+                  </div>
+                </GameCover>
+                <div className="flex flex-1 flex-col gap-3 p-4">
+                  <p className="text-sm leading-snug text-ink-300">{g.tagline}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
                     {g.categories.map((c) => (
                       <Badge key={c}>{categories.find((x) => x.id === c)?.label ?? c}</Badge>
                     ))}
+                    <span className="num ml-auto">
+                      <Chips amount={g.minStake} suffix={false} />–<Chips amount={g.maxStake} suffix={false} />
+                    </span>
                   </div>
-                  <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
-                    <div className="surface-raised px-2 py-2.5">
-                      <dt className="text-[10px] uppercase tracking-wider text-ink-400">RTP</dt>
-                      <dd className="num mt-1 text-sm font-semibold text-gold-300">{g.rtp}</dd>
-                    </div>
-                    <div className="surface-raised px-2 py-2.5">
-                      <dt className="text-[10px] uppercase tracking-wider text-ink-400">Min</dt>
-                      <dd className="mt-1 text-sm font-semibold">
-                        <Chips amount={g.minStake} suffix={false} />
-                      </dd>
-                    </div>
-                    <div className="surface-raised px-2 py-2.5">
-                      <dt className="text-[10px] uppercase tracking-wider text-ink-400">Max</dt>
-                      <dd className="mt-1 text-sm font-semibold">
-                        <Chips amount={g.maxStake} suffix={false} />
-                      </dd>
-                    </div>
-                  </dl>
-                  {g.status !== 'ACTIVE' && g.statusReason && <p className="mt-4 text-xs text-warning">{g.statusReason}</p>}
-                  <div className="mt-auto flex gap-2 pt-6">
+                  {g.status !== 'ACTIVE' && g.statusReason && <p className="text-xs text-warning">{g.statusReason}</p>}
+                  <div className="mt-auto flex gap-2 pt-1">
                     <Link
                       href={`/games/${g.id}`}
-                      className="inline-flex h-10 flex-1 items-center justify-center rounded-xl bg-gradient-to-b from-gold-400 to-gold-600 text-sm font-semibold text-ink-950 hover:from-gold-300 hover:to-gold-500"
+                      className="inline-flex h-10 flex-1 items-center justify-center rounded-xl border border-gold-300/40 bg-gradient-to-b from-gold-300 via-gold-400 to-gold-600 text-sm font-semibold text-ink-950 shadow-[0_1px_0_rgb(255_255_255/0.45)_inset,0_8px_22px_-12px_rgb(199_163_91/0.8)] transition-[filter] hover:brightness-110"
                     >
                       {g.status === 'ACTIVE' ? 'Play' : 'View'}
                     </Link>
-                    <Link href={`/rules/${g.id}`} className="inline-flex h-10 items-center justify-center rounded-xl border border-ink-600 px-4 text-sm text-ink-200 hover:border-gold-600">
+                    <Link href={`/rules/${g.id}`} className="inline-flex h-10 items-center justify-center rounded-xl border border-white/12 bg-white/[0.05] px-4 text-sm text-ink-200 backdrop-blur-md transition-colors hover:border-gold-400/50 hover:bg-white/[0.09]">
                       Rules
                     </Link>
                   </div>

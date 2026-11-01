@@ -1,4 +1,5 @@
 import { LobbyBrowser, type LobbyGame } from '@/components/lobby/lobby-browser';
+import { FeaturedTable } from '@/components/lobby/featured-table';
 import Link from 'next/link';
 import { Callout, PageHeader } from '@/components/ui/misc';
 import { pageSession } from '@/server/auth/current';
@@ -44,6 +45,7 @@ export default async function LobbyPage({ searchParams }: { searchParams: Promis
           .
         </Callout>
       )}
+      {!sp.q && (!sp.c || sp.c === 'all') && <FeaturedTable />}
       <LobbyBrowser
         games={games}
         categories={categories}

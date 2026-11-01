@@ -50,6 +50,14 @@
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 12px 40px -16px rgb(0 0 0 / 0.7);
   --shadow-gold: 0 0 0 1px rgb(199 163 91 / 0.35), 0 8px 30px -12px rgb(199 163 91 / 0.35);
 
+  /* Glass: translucent surfaces over the dark backdrop (effective colour ≈ ink-900, so
+     text contrast stays at the token values checked by the contrast test). */
+  --glass-fill: rgb(18 19 24 / 0.62);
+  --glass-tint: linear-gradient(180deg, rgb(255 255 255 / 0.055), rgb(255 255 255 / 0.012));
+  --glass-border: rgb(255 255 255 / 0.085);
+  --glass-highlight: inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --glass-blur: 16px;
+
   --animate-fade-in: fade-in 240ms ease-out both;
   --animate-rise: rise 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-shimmer: shimmer 2.4s linear infinite;
@@ -86,9 +94,12 @@
   }
   body {
     background-color: var(--color-ink-950);
+    /* A quiet "aurora" behind the glass: warm gold top right, cool teal and violet low left. */
     background-image:
-      radial-gradient(1200px 600px at 80% -10%, rgb(199 163 91 / 0.07), transparent 60%),
-      radial-gradient(900px 500px at -10% 10%, rgb(126 168 216 / 0.04), transparent 60%);
+      radial-gradient(1100px 620px at 85% -12%, rgb(199 163 91 / 0.10), transparent 62%),
+      radial-gradient(900px 560px at -12% 18%, rgb(64 150 140 / 0.07), transparent 60%),
+      radial-gradient(800px 520px at 40% 115%, rgb(120 90 190 / 0.06), transparent 62%),
+      linear-gradient(180deg, #0b0c10, #08090c 60%, #07080a);
     background-attachment: fixed;
     color: var(--color-ink-100);
     font-family: var(--font-sans);
@@ -115,16 +126,45 @@
 }
 
 @layer components {
+  /* Frosted glass panel: the default card surface. */
   .surface {
-    background: linear-gradient(180deg, var(--color-ink-850), var(--color-ink-900));
-    border: 1px solid var(--color-ink-700);
+    background: var(--glass-tint), var(--glass-fill);
+    border: 1px solid var(--glass-border);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--glass-highlight), var(--shadow-card);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   }
   .surface-raised {
-    background: var(--color-ink-800);
-    border: 1px solid var(--color-ink-700);
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.06), rgb(255 255 255 / 0.02)), rgb(26 27 32 / 0.7);
+    border: 1px solid var(--glass-border);
     border-radius: 0.75rem;
+    box-shadow: var(--glass-highlight);
+  }
+  /* Glass for small floating elements (menus, popovers, toasts). */
+  .glass {
+    background: var(--glass-tint), rgb(22 23 28 / 0.78);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-highlight), 0 18px 40px -18px rgb(0 0 0 / 0.8);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+  }
+  /* A light sweeping across a hovered tile (decorative; disabled with reduced motion). */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .sheen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 35%, rgb(255 255 255 / 0.09) 50%, transparent 65%);
+    transform: translateX(-120%);
+    transition: transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    pointer-events: none;
+  }
+  .sheen:hover::after {
+    transform: translateX(120%);
   }
   .gold-text {
     background: linear-gradient(180deg, var(--color-gold-200), var(--color-gold-500) 70%, var(--color-gold-600));
@@ -144,6 +184,13 @@
     background-size: 200% 100%;
     animation: var(--animate-shimmer);
     border-radius: 0.5rem;
+  }
+}
+
+/* With the mobile tab bar, scrolled-to elements (anchors, focus, tests) stop above it. */
+@media (max-width: 1023px) {
+  html:has(.mobile-tabbar) {
+    scroll-padding-bottom: 5.5rem;
   }
 }
 

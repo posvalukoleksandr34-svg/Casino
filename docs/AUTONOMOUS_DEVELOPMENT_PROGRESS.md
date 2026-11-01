@@ -44,6 +44,34 @@ Observed weaknesses, ranked:
   roulette status panel shows that message.
 - Test: `roulette-table.test.ts` (10 tests passed).
 
+### 2. Glass design system (done)
+
+- **Tokens.** New glass tokens in `globals.css`: fill, tint, border, highlight and
+  blur. `.surface` (every card) is now frosted glass, and there are new `.glass`
+  (menus, tooltips) and `.sheen` (hover light sweep) classes. The colour tokens are
+  unchanged, so the contrast test still holds: the glass sits over a dark "aurora"
+  backdrop with an effective colour of about ink-900.
+- **Controls.** Buttons have a glossy gold primary variant and glass secondary,
+  subtle, ghost and danger variants, with pressed states. Inputs, badges and icon
+  buttons are glass too.
+- **Header.** A glass bar, a segmented glass navigation pill with an active state,
+  and a glass balance pill, avatar button and menu.
+- **Mobile.** A new bottom tab bar for signed-in players (Lobby, Sports, History,
+  Wallet, Profile), with safe-area padding and scroll padding so it never hides
+  content.
+
+### 3. Lobby redesign (done)
+
+- `GameCover`: original inline-SVG cover art for each of the nine games, each in its
+  own colour world. No image files and no third-party assets.
+- Dense tiles: four columns on desktop, two on small tablets. Each tile has the name
+  and RTP over the art, hover lift with a sheen, and keeps Play, Rules and the
+  favourite star. The e2e hooks are unchanged.
+- A featured "Live table" banner for the automatic roulette, and a glass search box
+  with an icon and glass category chips.
+- Verified: build; e2e accessibility (axe), mobile, expansion (lobby search and
+  favourites) and owner-admin specs, 14 passed.
+
 ## Next
 
 - Batch 2: design system — glass surfaces and buttons, a richer background, a glass

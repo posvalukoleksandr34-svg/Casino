@@ -4,8 +4,8 @@ import { cn } from '@/lib/cn';
 export type Tone = 'neutral' | 'gold' | 'positive' | 'negative' | 'warning' | 'info';
 
 const TONES: Record<Tone, string> = {
-  neutral: 'border-ink-600 bg-ink-800 text-ink-200',
-  gold: 'border-gold-700 bg-gold-800/40 text-gold-300',
+  neutral: 'border-white/12 bg-white/[0.05] text-ink-200 backdrop-blur-sm',
+  gold: 'border-gold-500/40 bg-gold-500/10 text-gold-300 backdrop-blur-sm',
   positive: 'border-positive/40 bg-positive/10 text-positive',
   negative: 'border-negative/40 bg-negative/10 text-negative',
   warning: 'border-warning/40 bg-warning/10 text-warning',

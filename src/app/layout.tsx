@@ -5,6 +5,7 @@ import './globals.css';
 import { RealityCheck } from '@/components/layout/reality-check';
 import { SessionProvider, type ClientUser } from '@/components/layout/session-provider';
 import { SiteFooter } from '@/components/layout/site-footer';
+import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 import { SiteHeader } from '@/components/layout/site-header';
 import { ToastProvider } from '@/components/ui/toast';
 import { hasPermission } from '@/server/auth/rbac';
@@ -73,6 +74,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               {children}
             </main>
             <SiteFooter />
+            <MobileTabBar />
             <RealityCheck />
           </ToastProvider>
         </SessionProvider>
