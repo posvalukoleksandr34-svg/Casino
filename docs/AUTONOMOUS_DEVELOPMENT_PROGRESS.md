@@ -92,6 +92,26 @@ Observed weaknesses, ranked:
 - Verified: build; e2e blackjack, expansion (Limbo, Keno, Plinko, Hi-Lo rounds) and
   resilience specs, 10 passed.
 
+### 5. Personal insights and consistent artwork (done)
+
+- **30-day chart on `/stats`.** Daily net result as diverging bars:
+  - one measure on one axis, green for a gain and coral for a loss, a neutral zero
+    line;
+  - hover and keyboard-focus tooltips (rounds, staked, returned, net), a colour key,
+    and a screen-reader table;
+  - labelled "a record of the past, not a forecast".
+
+  Backed by `dailyResults()` in `src/server/users/stats.ts`: settled rounds only,
+  every UTC day present, a window of 1–365 days.
+- **Why not missions.** I deliberately did **not** add "play N rounds"
+  missions or challenges: they reward play volume, which conflicts with Aurovane's
+  responsible-play stance. The insights view supports self-awareness instead.
+- **Artwork.** The landing page and the rules index now use the game cover art
+  instead of line glyphs.
+- **Tests.** A new integration test covers `dailyResults` (window, totals agree
+  with `playerStats`, open rounds excluded, bounds). `/stats` was added to the axe
+  accessibility sweep. Accessibility and player-journey e2e: 6 passed.
+
 ## Next
 
 - Batch 2: design system — glass surfaces and buttons, a richer background, a glass

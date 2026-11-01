@@ -71,3 +71,39 @@ export async function playerStats(userId: string): Promise<{ games: PlayerGameSt
   );
   return { games, totals };
 }
+
+export interface DailyResult {
+  /** UTC calendar day, YYYY-MM-DD. */
+  day: string;
+  rounds: number;
+  wagered: number;
+  paidOut: number;
+  net: number;
+}
+
+/**
+ * The player's settled rounds per UTC day over the last `days` days (oldest
+ * first), with every day present — days without play have zero rounds — so
+ * charts show gaps honestly.
+ */
+export async function dailyResults(userId: string, days = 30, now = new Date()): Promise<DailyResult[]> {
+  const span = Math.min(Math.max(Math.trunc(days), 1), 365);
+  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const start = new Date(end.getTime() - (span - 1) * 86_400_000);
+  const res = await getDb().execute<{ day: string; rounds: number; wagered: string; paid: string }>(sql`
+    SELECT to_char((settled_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS day,
+           count(*)::int AS rounds,
+           sum(stake_total)::text AS wagered,
+           sum(payout_total)::text AS paid
+    FROM game_rounds
+    WHERE user_id = ${userId} AND status = 'SETTLED' AND settled_at >= ${start.toISOString()}::timestamptz
+    GROUP BY 1`);
+  const byDay = new Map(res.rows.map((r) => [r.day, r]));
+  return Array.from({ length: span }, (_, i) => {
+    const day = new Date(start.getTime() + i * 86_400_000).toISOString().slice(0, 10);
+    const r = byDay.get(day);
+    const wagered = r ? Number(r.wagered) : 0;
+    const paidOut = r ? Number(r.paid) : 0;
+    return { day, rounds: r?.rounds ?? 0, wagered, paidOut, net: paidOut - wagered };
+  });
+}

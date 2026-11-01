@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { GameGlyph } from '@/components/games/game-glyph';
+import { GameCover } from '@/components/lobby/game-cover';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
@@ -35,7 +35,7 @@ export default async function RulesPage() {
                 <Tr key={g.id}>
                   <Td>
                     <div className="flex items-center gap-3">
-                      <GameGlyph id={g.id} className="size-8" />
+                      <GameCover id={g.id} className="h-8 w-11 shrink-0 rounded-md ring-1 ring-white/10" />
                       <span className="font-medium text-ink-100">{g.name}</span>
                     </div>
                   </Td>

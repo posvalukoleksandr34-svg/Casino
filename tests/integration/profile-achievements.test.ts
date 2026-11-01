@@ -14,7 +14,7 @@ import { addFavorite } from '@/server/games/favorites';
 import { actOnRound, expireRoundIfDue, startRound } from '@/server/games/round-service';
 import { updateLimits } from '@/server/responsible/limits';
 import { deleteAccount, exportUserData } from '@/server/users/accounts';
-import { playerStats } from '@/server/users/stats';
+import { dailyResults, playerStats } from '@/server/users/stats';
 import { expectDbError, key, newPlayer } from './helpers';
 
 const BASE = 'http://localhost:3000';
@@ -164,6 +164,27 @@ describe('statistics, export and deletion', () => {
     expect(totals.wins + totals.losses + totals.draws).toBe(totals.rounds);
     expect(totals.wagered).toBe(600);
     expect(totals.net).toBe(totals.paidOut - totals.wagered);
+  });
+
+  it('daily results cover every day of the window, sum to the totals, and only count settled rounds', async () => {
+    const p = await newPlayer('daily');
+    for (let i = 0; i < 4; i += 1) await startRound({ userId: p.userId, gameId: 'dice', bet: { amount: 250, target: 5000, direction: 'under' }, idempotencyKey: key() });
+    // An open (unsettled) round is not counted.
+    await startRound({ userId: p.userId, gameId: 'mines', bet: { amount: 100, mines: 3 }, idempotencyKey: key() });
+    const days = await dailyResults(p.userId, 30);
+    expect(days).toHaveLength(30);
+    expect(days[29]!.day).toBe(new Date().toISOString().slice(0, 10));
+    expect(new Set(days.map((d) => d.day)).size).toBe(30);
+    const today = days[29]!;
+    expect(today.rounds).toBe(4);
+    expect(today.wagered).toBe(1000);
+    expect(today.net).toBe(today.paidOut - today.wagered);
+    expect(days.slice(0, 29).every((d) => d.rounds === 0 && d.net === 0)).toBe(true);
+    const { totals } = await playerStats(p.userId);
+    expect(days.reduce((a, d) => a + d.net, 0)).toBe(totals.net);
+    // Window bounds.
+    expect(await dailyResults(p.userId, 0)).toHaveLength(1);
+    expect(await dailyResults(p.userId, 10_000)).toHaveLength(365);
   });
 
   it('the data export includes profile, favourites and achievements; deletion erases profile and favourites', async () => {

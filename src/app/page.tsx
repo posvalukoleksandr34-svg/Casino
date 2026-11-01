@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { GameGlyph } from '@/components/games/game-glyph';
+import { GameCover } from '@/components/lobby/game-cover';
 import { Badge } from '@/components/ui/badge';
 import { pageSession } from '@/server/auth/current';
 import { listGames } from '@/server/games/lobby';
@@ -48,7 +48,7 @@ export default async function HomePage() {
             {games.map((g) => (
               <li key={g.id} className="flex items-center justify-between gap-4 py-3">
                 <div className="flex items-center gap-3">
-                  <GameGlyph id={g.id} className="size-9" />
+                  <GameCover id={g.id} className="h-9 w-12 shrink-0 rounded-md ring-1 ring-white/10" />
                   <div>
                     <div className="text-sm font-medium text-ink-100">{g.name}</div>
                     <div className="text-xs text-ink-400">{g.theoretical.method === 'exact' ? 'Exact, analytical' : 'Simulation estimate'}</div>
@@ -98,8 +98,8 @@ export default async function HomePage() {
         </div>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {games.map((g) => (
-            <Link key={g.id} href={`/games/${g.id}`} className="surface group flex items-center gap-5 p-5 transition-shadow hover:shadow-[var(--shadow-gold)]">
-              <GameGlyph id={g.id} className="size-16 shrink-0 transition-transform group-hover:scale-105" />
+            <Link key={g.id} href={`/games/${g.id}`} className="surface sheen group flex items-center gap-4 p-3 pr-5 transition-[transform,border-color,box-shadow] hover:-translate-y-0.5 hover:border-gold-500/40 hover:shadow-[var(--shadow-gold)]">
+              <GameCover id={g.id} className="h-20 w-28 shrink-0 rounded-xl ring-1 ring-white/10 transition-transform group-hover:scale-[1.03]" />
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-display text-2xl font-semibold text-ink-100">{g.name}</span>

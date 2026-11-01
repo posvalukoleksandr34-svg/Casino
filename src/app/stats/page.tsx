@@ -4,14 +4,15 @@ import { Chips, EmptyState, PageHeader, Pct, Stat } from '@/components/ui/misc';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { requireUser } from '@/server/auth/current';
 import { listGames } from '@/server/games/lobby';
-import { playerStats } from '@/server/users/stats';
+import { dailyResults, playerStats } from '@/server/users/stats';
+import { DailyNetChart } from '@/components/account/daily-net-chart';
 import { rtpText } from '@/lib/format';
 
 export const metadata = { title: 'Statistics' };
 
 export default async function StatsPage() {
   const session = await requireUser('/stats');
-  const [stats, games] = await Promise.all([playerStats(session.userId), listGames({ includeDisabled: true })]);
+  const [stats, games, daily] = await Promise.all([playerStats(session.userId), listGames({ includeDisabled: true }), dailyResults(session.userId, 30)]);
   const theory = new Map(games.map((g) => [g.id, g.theoretical]));
   const t = stats.totals;
   return (
@@ -27,6 +28,12 @@ export default async function StatsPage() {
         <Stat label="Net result" value={<Chips amount={t.net} sign colored />} />
         <Stat label="Your realised RTP" value={<Pct value={t.wagered ? t.paidOut / t.wagered : null} />} sub="Payouts ÷ stakes" />
       </div>
+      <Card className="mt-6">
+        <CardHeader title="Last 30 days" subtitle="Net result per day (payouts minus stakes, UTC days). A record of the past, not a forecast." />
+        <CardBody>
+          {daily.some((d) => d.rounds > 0) ? <DailyNetChart data={daily} /> : <p className="text-sm text-ink-400">No settled rounds in the last 30 days.</p>}
+        </CardBody>
+      </Card>
       <Card className="mt-6">
         <CardHeader title="By game" />
         <CardBody>
