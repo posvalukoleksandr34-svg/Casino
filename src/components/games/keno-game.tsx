@@ -116,15 +116,15 @@ export function KenoGame({ config, limits, status }: { config: KenoConfig; limit
                     disabled={busy || (!picked && n >= KENO_MAX_PICKS)}
                     onClick={() => toggle(x)}
                     className={cn(
-                      'num grid aspect-square place-items-center rounded-lg border text-sm font-medium transition-all duration-300',
+                      'num grid aspect-square place-items-center rounded-full border text-sm font-bold transition-[transform,box-shadow,background-color,border-color] duration-300 sm:text-base',
                       hit
-                        ? 'border-positive bg-positive/25 text-positive'
+                        ? 'animate-card-flip border-[#c9ffe9] bg-[radial-gradient(circle_at_35%_30%,#d8fff0,#38d6b0_55%,#0d6b57)] text-[#062b23] shadow-[0_0_18px_-2px_rgb(94_230_200/0.85)] ring-2 ring-[#5ee6c8]/60'
                         : picked
-                          ? 'border-gold-500 bg-gold-800/40 text-gold-100'
+                          ? 'border-gold-200/80 bg-[radial-gradient(circle_at_35%_30%,#fff1c8,#d9b25e_55%,#7b622f)] text-ink-950 shadow-[0_0_14px_-3px_rgb(232_196_120/0.75)]'
                           : isDrawn
-                            ? 'border-ink-400 bg-ink-700 text-ink-100'
-                            : 'border-ink-700 bg-ink-850 text-ink-300 hover:border-ink-500',
-                      'disabled:cursor-not-allowed disabled:opacity-60',
+                            ? 'animate-card-flip border-white/70 bg-[radial-gradient(circle_at_35%_30%,#ffffff,#d9d4c7_60%,#8e887a)] text-ink-950'
+                            : 'border-white/10 bg-gradient-to-b from-white/[0.09] to-white/[0.02] text-ink-200 shadow-[inset_0_1px_0_rgb(255_255_255/0.12),0_6px_12px_-8px_rgb(0_0_0/0.9)] hover:-translate-y-0.5 hover:border-gold-400/50 hover:text-ink-100',
+                      'disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0',
                     )}
                   >
                     {x}
@@ -133,9 +133,9 @@ export function KenoGame({ config, limits, status }: { config: KenoConfig; limit
               })}
             </div>
             <div className="flex flex-wrap gap-3 text-xs text-ink-400" aria-hidden="true">
-              <span className="flex items-center gap-1.5"><span className="size-3 rounded border border-gold-500 bg-gold-800/40" /> your pick</span>
-              <span className="flex items-center gap-1.5"><span className="size-3 rounded border border-ink-400 bg-ink-700" /> drawn</span>
-              <span className="flex items-center gap-1.5"><span className="size-3 rounded border border-positive bg-positive/25" /> hit</span>
+              <span className="flex items-center gap-1.5"><span className="size-3 rounded-full bg-[radial-gradient(circle_at_35%_30%,#fff1c8,#d9b25e_55%,#7b622f)]" /> your pick</span>
+              <span className="flex items-center gap-1.5"><span className="size-3 rounded-full bg-[radial-gradient(circle_at_35%_30%,#ffffff,#d9d4c7_60%,#8e887a)]" /> drawn</span>
+              <span className="flex items-center gap-1.5"><span className="size-3 rounded-full bg-[radial-gradient(circle_at_35%_30%,#d8fff0,#38d6b0_55%,#0d6b57)]" /> hit</span>
             </div>
           </CardBody>
         </Card>

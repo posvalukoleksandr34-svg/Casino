@@ -112,10 +112,23 @@ Observed weaknesses, ranked:
   with `playerStats`, open rounds excluded, bounds). `/stats` was added to the axe
   accessibility sweep. Accessibility and player-journey e2e: 6 passed.
 
+### 6. Controls and number games (done)
+
+- **Disabled primary buttons.** The gold gradient leaked through the disabled state:
+  Keno's "Pick 1 to 10 numbers" was hard to read. Disabled primary buttons are now a
+  flat ink fill with muted text.
+- **Keno.** The number tiles are balls: glass when empty, glossy gold when picked,
+  ivory when drawn (with a flip-in), and emerald with a glow when a pick is hit. The
+  legend matches.
+- **Dice.** A deep-blue stage over the whole card. The roll sits in a glass display
+  that glows green on a win. The track is green for the winning zone and dark red
+  for the rest, and the marker is a small ivory die.
+- Verified: typecheck, lint, build, 334 unit tests; e2e expansion, player-journey and
+  accessibility specs, 10 passed.
+
 ## Next
 
-- Batch 2: design system — glass surfaces and buttons, a richer background, a glass
-  header.
-- Batch 3: lobby redesign — original cover art per game, a featured hero, dense tiles.
-- Batch 4: game tables — blackjack felt and dealt cards; Mines gem tiles.
-- Then: reassess features (personal statistics charts, missions, leaderboards).
+- Plinko, Limbo and Hi-Lo stages.
+- Auth and profile polish; admin pages still use line glyphs.
+- Review `backdrop-blur` cost on low-end mobile.
+- Full verification run (all suites, full e2e), then the final report.

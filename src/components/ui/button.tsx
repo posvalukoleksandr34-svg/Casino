@@ -7,7 +7,7 @@ type Size = 'sm' | 'md' | 'lg';
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    'border border-gold-300/40 bg-gradient-to-b from-gold-300 via-gold-400 to-gold-600 text-ink-950 font-semibold shadow-[0_1px_0_rgb(255_255_255/0.45)_inset,0_-1px_0_rgb(0_0_0/0.15)_inset,0_8px_24px_-10px_rgb(199_163_91/0.7)] hover:brightness-110 hover:shadow-[0_1px_0_rgb(255_255_255/0.5)_inset,0_10px_30px_-10px_rgb(199_163_91/0.85)] active:brightness-95 disabled:border-transparent disabled:from-ink-600 disabled:to-ink-700 disabled:text-ink-400 disabled:shadow-none disabled:brightness-100',
+    'border border-gold-300/40 bg-gradient-to-b from-gold-300 via-gold-400 to-gold-600 text-ink-950 font-semibold shadow-[0_1px_0_rgb(255_255_255/0.45)_inset,0_-1px_0_rgb(0_0_0/0.15)_inset,0_8px_24px_-10px_rgb(199_163_91/0.7)] hover:brightness-110 hover:shadow-[0_1px_0_rgb(255_255_255/0.5)_inset,0_10px_30px_-10px_rgb(199_163_91/0.85)] active:brightness-95 disabled:border-white/10 disabled:from-ink-700 disabled:via-ink-700 disabled:to-ink-750 disabled:text-ink-400 disabled:shadow-none disabled:brightness-100',
   secondary:
     'border border-white/12 bg-white/[0.06] text-ink-100 shadow-[inset_0_1px_0_rgb(255_255_255/0.07)] backdrop-blur-md hover:border-gold-400/50 hover:bg-white/[0.1] active:bg-white/[0.04] disabled:text-ink-400 disabled:hover:border-white/12 disabled:hover:bg-white/[0.06]',
   ghost: 'text-ink-200 hover:bg-white/[0.07] hover:text-ink-100 active:bg-white/[0.04] disabled:text-ink-400',

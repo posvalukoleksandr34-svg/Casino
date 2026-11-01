@@ -111,20 +111,27 @@ export function DiceGame({ config, limits, status }: Props) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <Card className="overflow-hidden">
+        <Card className="flex flex-col justify-center overflow-hidden bg-[radial-gradient(ellipse_70%_60%_at_50%_0%,rgb(90_140_255/0.2),transparent_70%),linear-gradient(180deg,rgb(11_20_48/0.85),rgb(6_10_24/0.9))]">
           <div className="relative px-6 pb-8 pt-10 sm:px-10">
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-48 bg-[radial-gradient(ellipse_at_top,rgb(199_163_91/0.10),transparent_70%)]" />
             <div className="relative text-center">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-400">{last ? 'Roll' : 'Ready'}</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-ink-300">{last ? 'Roll' : 'Ready'}</div>
               <div
-                data-testid="dice-roll"
                 className={cn(
-                  'num mt-2 text-7xl font-light tracking-tight transition-colors duration-300 sm:text-8xl',
-                  !showOutcome ? 'text-ink-200' : last!.won ? 'text-positive' : 'text-ink-300',
+                  'mx-auto mt-3 inline-flex min-w-[15rem] items-center justify-center rounded-[1.75rem] border px-8 py-4 backdrop-blur-md transition-[border-color,box-shadow,background-color] duration-300',
+                  !showOutcome
+                    ? 'border-white/12 bg-white/[0.05] shadow-[inset_0_1px_0_rgb(255_255_255/0.08)]'
+                    : last!.won
+                      ? 'border-positive/60 bg-positive/10 shadow-[0_0_40px_-8px_rgb(99_185_143/0.7),inset_0_1px_0_rgb(255_255_255/0.1)]'
+                      : 'border-white/12 bg-white/[0.04] shadow-[inset_0_1px_0_rgb(255_255_255/0.06)]',
                 )}
-                aria-live="polite"
               >
-                {display === null ? '—' : (display / 100).toFixed(2)}
+                <div
+                  data-testid="dice-roll"
+                  className={cn('num text-7xl font-light tracking-tight transition-colors duration-300 sm:text-8xl', !showOutcome ? 'text-ink-100' : last!.won ? 'text-positive' : 'text-ink-300')}
+                  aria-live="polite"
+                >
+                  {display === null ? '—' : (display / 100).toFixed(2)}
+                </div>
               </div>
               <div className="mt-4 h-5 text-sm text-ink-400">
                 {showOutcome && (last!.won ? `Win — needed ${last!.direction} ${(last!.target / 100).toFixed(2)}` : `No win — needed ${last!.direction} ${(last!.target / 100).toFixed(2)}`)}
@@ -132,16 +139,25 @@ export function DiceGame({ config, limits, status }: Props) {
             </div>
 
             <div className="relative mt-10">
-              <div className="relative h-4 overflow-hidden rounded-full border border-ink-600 bg-ink-800">
-                <div className="absolute inset-y-0 bg-gradient-to-r from-gold-700/80 to-gold-500/80 transition-all duration-300" style={{ left: `${zoneStart}%`, width: `${zoneWidth}%` }} />
+              <div className="relative h-4 overflow-hidden rounded-full border border-white/10 bg-[#5a2226]/70 shadow-[inset_0_2px_4px_rgb(0_0_0/0.5)]">
+                <div className="absolute inset-y-0 bg-gradient-to-r from-[#2f9e74] to-[#63b98f] shadow-[0_0_14px_rgb(99_185_143/0.5)] transition-all duration-300" style={{ left: `${zoneStart}%`, width: `${zoneWidth}%` }} />
               </div>
               <div className="absolute -top-2 h-8 w-0.5 rounded bg-ink-100 transition-all duration-300" style={{ left: `${(target / DICE_OUTCOMES) * 100}%` }} aria-hidden="true" />
               {display !== null && (
                 <div
-                  className={cn('absolute -top-3 size-10 -translate-x-1/2 rotate-45 rounded-md border-2 shadow-lg', showOutcome && last?.won ? 'border-positive bg-positive/20' : 'border-ink-200 bg-ink-900')}
+                  className={cn(
+                    'absolute -top-3.5 grid size-10 -translate-x-1/2 place-items-center rounded-xl border bg-[radial-gradient(circle_at_35%_30%,#ffffff,#e6e1d6_60%,#a9a395)] shadow-[0_8px_16px_-6px_rgb(0_0_0/0.8)]',
+                    showOutcome && last?.won ? 'border-positive ring-2 ring-positive/60' : 'border-white/70',
+                  )}
                   style={{ left: `${(display / DICE_OUTCOMES) * 100}%` }}
                   aria-hidden="true"
-                />
+                >
+                  <span className="grid grid-cols-2 gap-1">
+                    {[0, 1, 2, 3].map((k) => (
+                      <span key={k} className="size-1.5 rounded-full bg-[#1b2235]" />
+                    ))}
+                  </span>
+                </div>
               )}
               <div className="mt-4 flex justify-between text-[11px] text-ink-400">
                 {[0, 25, 50, 75, 100].map((v) => (
