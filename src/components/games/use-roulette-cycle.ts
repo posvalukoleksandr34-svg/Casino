@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { joinTable, reduceCycle, type Cycle, type CycleEvent } from './roulette-cycle';
 
 export interface TableSpin {
@@ -30,6 +30,8 @@ const TICK_MS = 200;
 export function useRouletteTable() {
   const [info, setInfo] = useState<TableInfo | null>(null);
   const [failed, setFailed] = useState(false);
+  /** Why the table could not be loaded (the server's message), for the status panel. */
+  const [failure, setFailure] = useState<string | null>(null);
   const offset = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -39,6 +41,7 @@ export function useRouletteTable() {
     offset.current = Date.parse(res.serverNow) - (t0 + t1) / 2;
     setInfo(res);
     setFailed(false);
+    setFailure(null);
     return res;
   }, []);
 
@@ -46,9 +49,10 @@ export function useRouletteTable() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const load = () =>
-      refresh().catch(() => {
+      refresh().catch((err) => {
         if (cancelled) return;
         setFailed(true);
+        setFailure(err instanceof ApiError ? err.message : null);
         timer = setTimeout(load, 5000);
       });
     void load();
@@ -66,7 +70,7 @@ export function useRouletteTable() {
     setInfo((i) => (i ? { ...i, recent: [spin, ...i.recent.filter((s) => s.slot !== spin.slot)].sort((a, b) => b.slot - a.slot).slice(0, 50) } : i));
   }, []);
 
-  return { info, failed, refresh, now, remember };
+  return { info, failed, failure, refresh, now, remember };
 }
 
 /**

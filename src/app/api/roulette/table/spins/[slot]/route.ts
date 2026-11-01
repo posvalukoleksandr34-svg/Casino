@@ -1,6 +1,6 @@
 import { route } from '@/server/http/handler';
 import { RATE_LIMITS } from '@/server/http/rate-limit';
-import { revealTableSpin } from '@/server/games/roulette-table';
+import { revealTableSpin, whenMigrated } from '@/server/games/roulette-table';
 import { errors } from '@/server/errors';
 
 /**
@@ -10,5 +10,5 @@ import { errors } from '@/server/errors';
  */
 export const GET = route<'public', { slot: string }>({ name: 'roulette.table.spin', auth: 'public', rateLimit: [RATE_LIMITS.tableIp] }, async ({ params }) => {
   if (!/^\d{1,12}$/.test(params.slot)) throw errors.validation('Invalid spin');
-  return { spin: await revealTableSpin(Number(params.slot)), serverNow: new Date().toISOString() };
+  return { spin: await whenMigrated(() => revealTableSpin(Number(params.slot))), serverNow: new Date().toISOString() };
 });

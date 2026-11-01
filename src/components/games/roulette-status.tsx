@@ -18,6 +18,7 @@ export function RouletteStatus({
   onWarn,
   note,
   connecting,
+  failure,
 }: {
   cycle: Cycle | null;
   now: () => number;
@@ -26,6 +27,7 @@ export function RouletteStatus({
   onWarn: () => void;
   note?: string | null;
   connecting: boolean;
+  failure?: string | null;
 }) {
   const [t, setT] = useState(() => now());
   const open = cycle?.phase === 'BETTING_OPEN';
@@ -54,7 +56,7 @@ export function RouletteStatus({
   let detail: string;
   if (!cycle) {
     label = connecting ? 'Connecting to the table…' : 'Table unavailable';
-    detail = connecting ? '' : 'Retrying in a moment';
+    detail = connecting ? '' : failure ? `${failure} Retrying in a moment.` : 'Retrying in a moment';
   } else
     switch (cycle.phase) {
       case 'BETTING_OPEN':

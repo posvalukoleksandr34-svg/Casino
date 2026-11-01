@@ -101,7 +101,7 @@ export function RouletteGame({ config, limits, status }: { config: RouletteConfi
 
   const problem = !user ? 'Sign in to play' : status !== 'ACTIVE' ? 'Game paused' : boardProblem(board, config, limits, balance);
   const canWager = Boolean(user) && status === 'ACTIVE' && pending === null && held === null && board.size > 0 && problem === null;
-  const { info: tableInfo, failed: tableFailed, refresh: refreshTable, now: tableNow, remember: rememberSpin } = useRouletteTable();
+  const { info: tableInfo, failed: tableFailed, failure: tableFailure, refresh: refreshTable, now: tableNow, remember: rememberSpin } = useRouletteTable();
   const [cycle, dispatch] = useRouletteCycle(canWager, tableInfo !== null, tableNow);
   const open = cycle !== null && bettingOpen(cycle) && pending === null;
   const locked = !open;
@@ -435,7 +435,7 @@ export function RouletteGame({ config, limits, status }: { config: RouletteConfi
               <RouletteWheel spin={wheelSpin} windup={windup} reduced={reduced} onSettled={onSettled} onSpinStart={onSpinStart} onBallDrop={onBallDrop} onTick={onTick} />
             </div>
             <div className="space-y-5">
-              <RouletteStatus cycle={cycle} now={tableNow} hasBets={board.size > 0} wagerPending={busy} onWarn={onWarn} note={closedNote} connecting={!tableFailed} />
+              <RouletteStatus cycle={cycle} now={tableNow} hasBets={board.size > 0} wagerPending={busy} onWarn={onWarn} note={closedNote} connecting={!tableFailed} failure={tableFailure} />
               {showResult && result !== null ? (
                 <div className={cn('rounded-2xl border border-gold-700/40 bg-black/35 p-4 backdrop-blur-sm transition-opacity duration-300', !inReveal && 'opacity-80')}>
                   <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-gold-300/80">{inReveal ? 'Your result' : 'Your last result'}</div>

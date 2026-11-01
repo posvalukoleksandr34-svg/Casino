@@ -104,6 +104,22 @@ export async function recentTableSpins(limit = 20): Promise<TableSpinView[]> {
   return rows.map((r) => view(r.slot, r.result, r.day, hashes.get(r.day)!));
 }
 
+/** Postgres "undefined_table": the code is newer than the database. */
+function notMigrated(err: unknown): boolean {
+  const e = err as { code?: string; cause?: { code?: string } };
+  return e?.code === '42P01' || e?.cause?.code === '42P01';
+}
+
+/** Turns a missing-table error into a clear, actionable 503 (no internals exposed). */
+export async function whenMigrated<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (notMigrated(err)) throw new AppError('SERVICE_UNAVAILABLE', 'The roulette table is not ready: the database needs updating (npm run db:migrate).', { reason: 'pending_migrations' });
+    throw err;
+  }
+}
+
 /** The schedule, the current slot, today's commitment and the recent history. */
 export async function tableState(now = Date.now()) {
   const commitments = await ensureCommitments(now);

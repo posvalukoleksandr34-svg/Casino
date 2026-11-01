@@ -17,7 +17,7 @@ import { verifyCommitment } from '@/engine/rng/provably-fair';
 import { SESSION_COOKIE_DEV } from '@/server/auth/sessions';
 import { decryptSecret } from '@/server/crypto';
 import { getDb } from '@/server/db/client';
-import { ensureCommitments, recentTableSpins, revealTableSpin, tableDay, REVEAL_WINDOW_MS } from '@/server/games/roulette-table';
+import { ensureCommitments, recentTableSpins, revealTableSpin, tableDay, whenMigrated, REVEAL_WINDOW_MS } from '@/server/games/roulette-table';
 import { newPlayer } from './helpers';
 
 const BASE = 'http://localhost:3000';
@@ -156,6 +156,18 @@ describe('automatic roulette table: spectator spins', () => {
     expect(later.serverSeed).toMatch(/^[0-9a-f]{64}$/);
     expect(verifyCommitment(later.serverSeed!, later.serverSeedHash)).toBe(true);
     expect((await tableDay('2030-02-31').catch((e) => e)).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('a database that has not been migrated yet gives a clear 503, not an internal error', async () => {
+    const missing = Object.assign(new Error('relation "roulette_table_days" does not exist'), { code: '42P01' });
+    const wrapped = Object.assign(new Error('Failed query'), { cause: missing });
+    for (const err of [missing, wrapped]) {
+      const res = await whenMigrated(() => Promise.reject(err)).catch((e) => e);
+      expect(res.code).toBe('SERVICE_UNAVAILABLE');
+      expect(res.message).toMatch(/db:migrate/);
+    }
+    const other = await whenMigrated(() => Promise.reject(new Error('boom'))).catch((e) => e);
+    expect(other.message).toBe('boom');
   });
 
   it('HTTP: public schedule and history; validation; "not yet" for an open spin', async () => {

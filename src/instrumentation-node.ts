@@ -11,6 +11,8 @@ import { env, metricsToken } from './server/env';
 import { logger } from './server/observability/logger';
 import { startScheduler } from './server/jobs/scheduler';
 import { verifyMailTransport } from './server/mail/mailer';
+import { pendingMigrations } from './server/db/migrator';
+import { getPool } from './server/db/client';
 
 export function startNodeServer(): void {
   if (process.env.NEXT_PHASE === 'phase-production-build') return;
@@ -31,6 +33,12 @@ export function startNodeServer(): void {
   } else {
     logger.warn(env().MAIL_TRANSPORT === 'disabled' ? 'MAIL_TRANSPORT=disabled: registration is closed and password recovery is unavailable' : 'MAIL_TRANSPORT=console: e-mail is printed, not delivered (development only)');
   }
+  // A database behind the code (e.g. after pulling an update) breaks features in confusing ways: say so at once.
+  void pendingMigrations(getPool())
+    .then((pending) => {
+      if (pending.length) logger.error('database migrations are pending: run `npm run db:migrate` and restart', { pending });
+    })
+    .catch((err) => logger.error('could not check database migrations at start-up', { reason: (err as Error).message }));
   if (process.env.BACKGROUND_JOBS === 'false') return;
   startScheduler();
 }
