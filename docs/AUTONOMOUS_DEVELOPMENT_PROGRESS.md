@@ -141,6 +141,19 @@ Observed weaknesses, ranked:
 - Verified: typecheck, lint, build; e2e expansion, accessibility (axe on every game
   page) and mobile specs, 11 passed.
 
+## Full verification (after batch 7)
+
+Run on commit `def3337` against a local PostgreSQL 16:
+
+- typecheck, lint, `check:bundle`, `check:docs`, `check:secrets`,
+  `check:workflows`: passed;
+- audio check: 46 files match their recipes;
+- unit tests: 334 passed;
+- integration tests: 297 passed;
+- statistical tests: 24 passed;
+- production build: passed;
+- full Playwright e2e: 44 passed (9.4 min), none failed.
+
 ## Next
 
 - Auth and profile polish; admin pages still use line glyphs.
