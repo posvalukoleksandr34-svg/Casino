@@ -22,6 +22,7 @@ import { lockWalletAccount, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
 import { requestFingerprint, runIdempotent, type IdempotentResult } from '../idempotency';
 import { getPlatformSettings } from '../risk/risk-service';
+import { getLimits } from '../responsible/limits';
 import type { AdminCtx } from './admin-service';
 
 /** Largest single grant: 1,000,000 chips (minor units). */
@@ -73,6 +74,11 @@ export async function executeGrant(tx: Tx, ctx: AdminCtx, userId: string, amount
   const wallet = await lockWalletAccount(tx, userId);
   await requireStaff(tx, ctx.adminId, 'ledger:grant');
   await requireTarget(tx, userId, { activeOnly: true });
+  // No play incentives while a player has chosen a break (same rule as the daily bonus).
+  const rg = await getLimits(tx, userId);
+  if (rg.selfExcludedUntil || rg.coolOffUntil) {
+    throw errors.conflict('This player is on a self-exclusion or cool-off break: chips cannot be granted until it ends', { reason: 'responsible_break' });
+  }
   const settings = await getPlatformSettings(tx);
   if (wallet.balance + amount > settings.maxPlayerBalance) {
     throw errors.validation(`The grant would take the balance above the player balance cap of ${(settings.maxPlayerBalance / 100).toLocaleString('en-US')} chips`, {

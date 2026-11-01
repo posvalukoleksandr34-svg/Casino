@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import './globals.css';
 import { RealityCheck } from '@/components/layout/reality-check';
@@ -11,6 +12,7 @@ import { currentSession } from '@/server/auth/current';
 import { getDb } from '@/server/db/client';
 import { getWalletAccount } from '@/server/ledger/accounts';
 import { getPlatformSettings } from '@/server/risk/risk-service';
+import { getLimits } from '@/server/responsible/limits';
 
 export const metadata: Metadata = {
   title: { default: 'Aurovane — virtual casino, verifiable odds', template: '%s · Aurovane' },
@@ -26,6 +28,9 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   const db = getDb();
   const balance = session ? ((await getWalletAccount(db, session.userId))?.balance ?? 0) : 0;
   const settings = await getPlatformSettings(db).catch(() => null);
+  // Active breaks are shown on every page, not only where play is refused.
+  const rg = session && !session.onboardingPending ? await getLimits(db, session.userId).catch(() => null) : null;
+  const breakUntil = rg?.selfExcludedUntil ?? rg?.coolOffUntil ?? null;
   const user: ClientUser | null = session
     ? {
         id: session.userId,
@@ -52,6 +57,15 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
             {settings && !settings.newRoundsEnabled && (
               <div role="status" className="border-b border-warning/40 bg-warning/10 px-4 py-2 text-center text-sm text-warning">
                 {settings.incidentMessage || 'New game rounds are temporarily paused. Open rounds can still be completed.'}
+              </div>
+            )}
+            {breakUntil && (
+              <div role="status" className="border-b border-gold-700/40 bg-gold-500/10 px-4 py-2 text-center text-sm text-gold-100" data-testid="break-banner">
+                {rg?.selfExcludedUntil ? 'Self-exclusion' : 'Cool-off break'} active until{' '}
+                {breakUntil.toISOString().slice(0, 16).replace('T', ' ')} UTC: games, predictions and bonus chips are paused. You can still view your history and settings.{' '}
+                <Link href="/responsible-play" className="underline underline-offset-2">
+                  Responsible play
+                </Link>
               </div>
             )}
             <SiteHeader />

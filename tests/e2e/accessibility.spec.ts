@@ -31,7 +31,7 @@ async function unnamed(page: Page) {
 }
 
 test('interactive elements have accessible names and form controls have labels', async ({ page }) => {
-  for (const path of ['/', '/login', '/register', '/forgot-password', '/rules', '/sports', '/sports/how-it-works', '/terms', '/privacy', '/verify-email']) {
+  for (const path of ['/', '/login', '/register', '/forgot-password', '/rules', '/sports', '/sports/how-it-works', '/terms', '/privacy', '/help', '/verify-email']) {
     await page.goto(path);
     expect(await unnamed(page), path).toEqual([]);
   }

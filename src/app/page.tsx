@@ -12,7 +12,7 @@ export default async function HomePage() {
       <section className="relative grid items-center gap-12 lg:grid-cols-[1.15fr_1fr]">
         <div className="animate-rise">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-gold-700/60 bg-ink-900/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-gold-400">
-            Virtual chips · Verifiable odds
+            Free to play · Virtual chips · Verifiable odds
           </div>
           <h1 className="font-display text-5xl font-semibold leading-[1.02] text-ink-100 sm:text-7xl">
             The house edge,
@@ -34,7 +34,12 @@ export default async function HomePage() {
               </Link>
             )}
           </div>
-          <p className="mt-4 text-xs text-ink-400">18+ only. Chips cannot be purchased, withdrawn or exchanged.</p>
+          <p className="mt-4 text-xs text-ink-400">
+            18+ only. Free to play: there are no deposits or withdrawals, and chips cannot be purchased, sold, transferred or exchanged.{' '}
+            <Link href="/help" className="text-gold-400 hover:text-gold-300">
+              How it works
+            </Link>
+          </p>
         </div>
         <div className="surface relative overflow-hidden p-6 animate-fade-in">
           <div className="pointer-events-none absolute -right-20 -top-20 size-72 rounded-full bg-gold-500/10 blur-3xl" />

@@ -108,3 +108,24 @@ test.describe('registration, e-mail verification and onboarding', () => {
     await page.waitForURL('**/onboarding');
   });
 });
+
+test.describe('responsible-play restrictions', () => {
+  test('a cool-off break is visible on every page and blocks play, predictions and daily chips', async ({ page, baseURL }) => {
+    const { registerPlayer } = await import('./helpers');
+    await registerPlayer(page);
+    const res = await page.request.post('/api/responsible/cool-off', { data: { hours: 24 }, headers: { Origin: baseURL! } });
+    expect(res.status()).toBe(200);
+    for (const path of ['/lobby', '/wallet', '/profile']) {
+      await page.goto(path);
+      await expect(page.getByTestId('break-banner')).toContainText('Cool-off break active until');
+    }
+    const bet = await page.request.post('/api/games/dice/rounds', {
+      data: { bet: { amount: 100, target: 5000, direction: 'under' } },
+      headers: { Origin: baseURL!, 'Idempotency-Key': crypto.randomUUID() },
+    });
+    expect(bet.status()).toBe(403);
+    expect((await bet.json()).error.code).toBe('RESPONSIBLE_GAMING');
+    const bonus = await page.request.post('/api/wallet/daily-bonus', { data: {}, headers: { Origin: baseURL!, 'Idempotency-Key': crypto.randomUUID() } });
+    expect(bonus.ok()).toBe(false);
+  });
+});

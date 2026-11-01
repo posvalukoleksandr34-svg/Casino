@@ -9,8 +9,8 @@ export const MINIMUM_AGE = 18;
 export const MAXIMUM_AGE = 120;
 
 /** Versions of /terms and /privacy; bump when their substance changes. */
-export const TERMS_VERSION = '2026-10-27';
-export const PRIVACY_VERSION = '2026-10-27';
+export const TERMS_VERSION = '2026-11-01';
+export const PRIVACY_VERSION = '2026-11-01';
 
 export const VERIFICATION_CODE_LENGTH = 6;
 export const VERIFICATION_TTL_MINUTES = 10;

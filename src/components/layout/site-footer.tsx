@@ -17,7 +17,7 @@ export function SiteFooter() {
         </div>
         <FooterCol title="Play" links={[['/lobby', 'Game lobby'], ['/sports', 'Sports predictions'], ['/history', 'Game history'], ['/stats', 'Statistics']]} />
         <FooterCol title="Transparency" links={[['/rules', 'Rules & odds'], ['/fairness', 'Provably fair'], ['/fairness#verify', 'Verify a round']]} />
-        <FooterCol title="Your account" links={[['/wallet', 'Wallet'], ['/settings', 'Settings & privacy'], ['/responsible-play', 'Responsible play']]} />
+        <FooterCol title="Your account" links={[['/wallet', 'Wallet'], ['/settings', 'Settings & privacy'], ['/responsible-play', 'Responsible play'], ['/help', 'Help & support']]} />
       </div>
       <div className="border-t border-ink-800/70">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-ink-400 sm:px-6">

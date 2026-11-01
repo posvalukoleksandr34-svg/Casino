@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/ui/misc';
 import { PolicySection } from '@/components/ui/prose';
 import { MINIMUM_AGE, TERMS_VERSION } from '@/lib/account-policy';
+import { supportEmail } from '@/server/env';
 
 export const metadata = { title: 'Terms of Service' };
 
 export default function TermsPage() {
+  const support = supportEmail();
   return (
     <>
       <PageHeader eyebrow="Legal" title="Terms of Service" subtitle={`Version ${TERMS_VERSION}. The version you accepted is recorded with your account.`} />
@@ -18,7 +20,7 @@ export default function TermsPage() {
         </PolicySection>
         <PolicySection title="2. Virtual chips">
           <ul>
-            <li>Chips are free. They cannot be bought, sold, withdrawn, exchanged for money, goods or services, or transferred between accounts.</li>
+            <li>Chips are free. They cannot be bought, sold, withdrawn, exchanged for money, goods or services, or transferred between accounts. There are no deposits and no withdrawals.</li>
             <li>Chips have no monetary value and are not your property; balances may be adjusted to correct errors, and every adjustment is recorded in the ledger.</li>
             <li>No prize, payment or reward of value is ever offered for chips, results or achievements.</li>
           </ul>
@@ -57,7 +59,20 @@ export default function TermsPage() {
             You can export your data or delete your account from Settings. We may suspend or close an account that breaks these terms. The service is provided as is and may change, pause or end.
           </p>
         </PolicySection>
-        <PolicySection title="7. Changes">
+        <PolicySection title="7. Contact">
+          {support ? (
+            <p>
+              Questions about these terms or your account:{' '}
+              <a href={`mailto:${support}`} className="text-gold-400">
+                {support}
+              </a>
+              .
+            </p>
+          ) : (
+            <p>The operator of this site has not published a contact address yet.</p>
+          )}
+        </PolicySection>
+        <PolicySection title="8. Changes">
           <p>When these terms change in substance we publish a new version here with a new date; the version you accepted stays recorded with your account.</p>
         </PolicySection>
         <p className="text-xs text-ink-400">
