@@ -16,6 +16,7 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
+  smallint,
   text,
   timestamp,
   uuid,
@@ -663,4 +664,23 @@ export const phoneVerificationChallenges = pgTable('phone_verification_challenge
   expiresAt: ts('expires_at').notNull(),
   consumedAt: ts('consumed_at'),
   supersededAt: ts('superseded_at'),
+});
+
+/** Automatic roulette table: one committed server seed per UTC day (migration 0011; append-only). */
+export const rouletteTableDays = pgTable('roulette_table_days', {
+  day: date('day', { mode: 'string' }).primaryKey(),
+  serverSeedEnc: text('server_seed_enc').notNull(),
+  serverSeedHash: text('server_seed_hash').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+/** Public history of table (spectator) spins — not wagers; no user, wallet or ledger link (migration 0011; append-only). */
+export const rouletteTableSpins = pgTable('roulette_table_spins', {
+  slot: bigint('slot', { mode: 'number' }).primaryKey(),
+  day: date('day', { mode: 'string' })
+    .notNull()
+    .references(() => rouletteTableDays.day),
+  result: smallint('result').notNull(),
+  closedAt: ts('closed_at').notNull(),
+  recordedAt: ts('recorded_at').notNull().defaultNow(),
 });

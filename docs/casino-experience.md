@@ -64,7 +64,7 @@ Every game has its own pitches and textures:
 
 | Game | Cues | When they play |
 |---|---|---|
-| Roulette | chip place, chip remove, countdown warning, "no more bets", wheel spin, ball rolling (loop), pocket ticks, win, lose | Chip actions and toolbar; one tick per second for the last 3 seconds, only with chips on the table; bets sent; wheel start; ball on the track; each pocket the dropping ball passes; result after landing |
+| Roulette | chip place, chip remove, countdown warning, "no more bets", wheel spin, ball rolling (loop), pocket ticks, win, lose, neutral result (table spins), wheel hum and room ambience (ambience loops) | Chip actions and toolbar; one tick per second for the last 3 seconds, only with chips on the table; bets sent; wheel start; ball on the track; each pocket the dropping ball passes; result after landing |
 | Dice | roll, land, result / win | Count-up start; reveal |
 | Mines | select, safe, explosion, cash-out | Tile or start click; server reveal; cash-out |
 | Crash | launch, rise (ambience loop; its rate follows the multiplier), cash-out, crash | Round start; while flying; cash-out; bust (also when found by polling) |
@@ -80,7 +80,7 @@ the player causes, or later steps of a round, are sounded.
 
 ### Assets: origin and licence
 
-All 43 files in `public/audio/` are **original works**.
+All 46 files in `public/audio/` are **original works**.
 
 - **How they are made.** The project's own deterministic synthesiser
   (`scripts/audio/synth.ts`) renders one recipe per file
@@ -99,60 +99,57 @@ All 43 files in `public/audio/` are **original works**.
 
 ## 2. Roulette
 
-### The automatic table
+### The automatic table — the wheel spins every round
 
-Roulette runs as a continuous table. There is **no Spin button**.
+Roulette runs as a continuous table on a **shared server schedule**: a
+15-second betting window, then the spin, then the result, every 28 seconds.
+There is no Spin button. **Every window ends in exactly one spin, with or
+without bets.**
 
-| Phase | What happens | Ends when |
+| Phase | What happens |
+|---|---|
+| `BETTING_OPEN` | A large 15-second countdown. The player places, removes, undoes, repeats and doubles chips. A soft tick sounds in the last 3 seconds, only with chips on the table |
+| `BETTING_CLOSED` | "No more bets"; the board is frozen and the wheel winds up. **With valid bets:** the player's board is sent once through the existing round API (`POST /api/games/roulette/rounds`, idempotency key, `useRound` recovery). **Without bets:** the client fetches the slot's **table spin** from the server |
+| `SPINNING` | The wheel carries its speed into the spin and stops exactly on the server's pocket: the player's round result, or the table spin's |
+| `RESULT_REVEAL` | The number and its colour. For a round: the winning and losing positions, stake, payout, net and the balance, then the board is cleared and kept for Rebet. For a table spin: "nothing was wagered", the day's seed commitment, and the table history updated |
+| `RECOVERY` | An interrupted wager request: bets are kept and locked, and no new window opens, until "Retry safely" (same key) or "Discard" |
+
+**Spectator (table) spins vs player rounds**
+
+| | Table spin (no bets) | Player round (bets) |
 |---|---|---|
-| `BETTING_OPEN` | A 15-second countdown (`BETTING_SECONDS` in `roulette-cycle.ts`). The player places, removes, undoes, repeats and doubles chips; the board, total stake and balance update at once. A soft tick sounds in the last 3 seconds, only with chips on the table | The countdown reaches 0 |
-| `BETTING_CLOSED` | "No more bets": the board is frozen. **With a valid, non-empty board**, the board is sent once through the existing round API and the wheel winds up. **With no bets (or bets that cannot be placed)**, nothing is sent and nothing is deducted; after 2.5 s the next window opens | The server returns the round, or the request fails |
-| `SPINNING` | The wheel carries its current speed into the spin and stops exactly on the server's pocket | The wheel lands |
-| `RESULT_REVEAL` | The board is cleared. The number, its colour, each position's win or loss, stake, payout and net are shown; the balance is applied; history is refreshed; the win or lose cue plays. Betting stays locked | 5 s have passed; the next window then opens on its own, empty |
-| `RECOVERY` | The request was interrupted. The bets stay on the table, locked, and no new window opens. The player retries safely (same idempotency key) or discards | A retry returns the round (→ `SPINNING`), or nothing is outstanding any more (→ a new window) |
+| Result source | The server: the day seed committed in advance + slot number ([fairness.md](fairness.md#automatic-roulette-table-spins)) | The server: the player's own seed pair, client seed and nonce (unchanged) |
+| Stored in | `roulette_table_spins` (public, append-only, no user link) | `game_rounds`, `bets`, `payouts`, ledger |
+| Chips, ledger, balance | Never touched | Normal settlement |
+| History | Table strip ("Table") | Player strip ("You"), history drawer, `/history/<id>` |
 
-**Design**
+**Safety rules**
 
-- **A pure state machine.** `src/components/games/roulette-cycle.ts`
-  (`reduceCycle`) is the only place phases change. Every event is accepted
-  in exactly one phase and otherwise ignored, so a timer or animation
-  callback that fires twice cannot advance the cycle twice, and two phases
-  can never hold at once.
-- **One timer.** `use-roulette-cycle.ts` drives it with a single 200 ms
-  interval and the page's visibility events. Both are removed on unmount.
-- **Absolute deadlines.** Deadlines are monotonic timestamps
-  (`performance.now()`), so a throttled or late timer only notices a
-  deadline later. It can never skip a phase or add time.
-- **Hidden tab.** An open window **pauses** while the page is hidden and
-  resumes with at least 5 s left, so bets never close unseen.
-- **Leaving the page.** The interval stops, and nothing is sent afterwards.
-  This is covered by an end-to-end test.
-
-**Wagering safety**
-
-- **Only the player's own chips are sent.** A wager goes out only for a
-  board the player built in that window. Each window starts empty, and Rebet
-  is a button the player presses.
-- **Checked at the moment of sending.** The board is re-checked when it is
-  sent. If it changed or became invalid, nothing is sent
-  (`WAGER_SKIPPED`).
-- **One request per window.** Each window's wager is sent once
-  (`sentWindow` ref). The request uses `useRound`, with its idempotency key,
-  safe retries and pending-request record.
-- **A refused wager is held, not repeated.** If the server definitively
-  refuses a wager (e.g. a responsible-play limit or insufficient funds), the
-  bets stay on the table **held**. They are not re-sent every window until
-  the player changes them or confirms them ("Use these bets next round"). A
-  discarded interrupted request is held the same way, and the balance is
-  refreshed.
-- **The backend stays authoritative.** Results, payouts, balance checks,
-  table limits, responsible-play checks, idempotency and provably-fair
-  verification are those of the existing `POST /api/games/roulette/rounds`.
-  The client never draws a number. A window without a wager shows no
-  number at all.
+- **Server results only.** The browser never draws a number. If a table
+  spin cannot be fetched in time, the window ends with "No spin this round"
+  and no result is made up.
+- **One request per wager.** A wager is sent once per slot (`sentSlot`).
+  Duplicate events are ignored by the state machine
+  (`src/components/games/roulette-cycle.ts`, pure and unit-tested).
+- **No wagers from a hidden tab.** A window that closes while the page is
+  hidden ends in a table spin, and the bets stay on the table.
+- **Re-entering the page** joins the table where it is: the open window
+  (with at least 3 s left), this slot's spin, or the next window.
+- **Leaving the page** stops the client's interval, polling, animation and
+  sound loops.
+- **A refused or discarded wager is held.** It is not re-sent every window
+  until the player changes or confirms it.
 
 ### Wheel
 
+- **Look.** The wheel is rebuilt after the reference photo of a physical European wheel, viewed at a camera tilt:
+  - a walnut bowl with a polished ebony ball track and brass diamonds;
+  - a number ring over red, black and green pockets with brass frets;
+  - a turned-wood cone with a gold turret;
+  - an ivory ball;
+  - soft overhead light and shadow.
+
+  The betting layout sits on deep green baize with a walnut rail and a gold pinstripe.
 - **Idle.** The wheel turns slowly (9°/s) while bets are placed. This is
   decorative only: no request, no chips, no number.
 - **Wind-up.** When betting closes on a wager, the wheel eases up to

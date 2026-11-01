@@ -28,7 +28,7 @@ describe('audio assets', () => {
       expect(b.readUInt16LE(34)).toBe(16);
       const seconds = b.readUInt32LE(40) / 2 / SAMPLE_RATE;
       expect(seconds).toBeGreaterThan(0.01);
-      expect(seconds).toBeLessThanOrEqual(3.5);
+      expect(seconds).toBeLessThanOrEqual(6); // one-shots are short; ambience loops are a few seconds
       total += statSync(p).size;
     }
     expect(total).toBeLessThan(2 * 1024 * 1024);

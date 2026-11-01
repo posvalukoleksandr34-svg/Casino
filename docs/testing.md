@@ -145,6 +145,30 @@ Hardening without a prior failure:
 * The backup and restore scripts are tested by the restore drill.
 * New `casino_rate_limited_total` and `casino_login_failures_total` metrics.
 
+## Results of the continuous roulette table update (2026-11-01, this repository's environment)
+
+This update makes the wheel spin after **every** betting window. The client follows a
+shared server schedule (`src/engine/games/roulette/table.ts`). Windows without bets end
+in a server-generated **table (spectator) spin**, which is committed per day, revealed
+after the close and recorded append-only in `roulette_table_spins` (migration 0011).
+Spectator spins never touch rounds, bets, the ledger or balances. The wheel and table
+were rebuilt after the reference photo, and wheel and room ambience loops were added.
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` | pass / 0 problems |
+| `npm run test:unit` | **331 passed** (35 files; the cycle tests were rewritten for the shared schedule: a spin after every window, table spins without bets, one spin per window over 20 cycles, no invented results) |
+| `npm run test:integration` | **295 passed** (31 files; new `roulette-table.test.ts`, 9 tests: commitments, reveal only after close, verifiable from the seed, recorded once under concurrency, **no rounds/bets/ledger entries/balance changes**, a real wager still settles normally, append-only, day seed only after the day) |
+| `npm run test:stats` | **24 passed** |
+| `npm run build` / `npm run check:bundle` | pass / 161 files, no server secrets |
+| `npm run test:e2e` | **44 passed** (9.3 min, desktop and Pixel 7; the roulette tests run the real 28-second table cycle) |
+| `npm run check:docs` | links OK |
+| `npm run audio:generate -- --check` | 46 files match their recipes |
+
+**Found and fixed during this work:** the new day-seed endpoint first accepted impossible
+dates such as `2030-02-31` (JavaScript's `Date` rolls them over). The integration test
+caught it, and validation is now a strict round trip.
+
 ## Results of the automatic roulette update (2026-11-01, this repository's environment)
 
 The roulette table now runs an automatic 15-second betting cycle (state machine in

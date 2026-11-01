@@ -86,7 +86,7 @@ describe('sound profiles', () => {
   it('give every game its own profile with the required cues', () => {
     expect(GAME_SOUND_IDS.sort()).toEqual(['blackjack', 'crash', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette']);
     const required: Record<string, string[]> = {
-      roulette: ['chip-place', 'chip-remove', 'wheel-spin', 'ball-roll', 'pocket-tick', 'win', 'lose', 'countdown', 'no-more-bets'],
+      roulette: ['chip-place', 'chip-remove', 'wheel-spin', 'ball-roll', 'pocket-tick', 'win', 'lose', 'result', 'countdown', 'no-more-bets', 'wheel-ambience', 'room'],
       dice: ['roll', 'land', 'result'],
       mines: ['select', 'safe', 'explosion', 'cashout'],
       crash: ['launch', 'rise', 'cashout', 'crash'],

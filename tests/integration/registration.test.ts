@@ -422,6 +422,10 @@ describe('server-side gates while onboarding is pending', () => {
     'health',
     'health/ready',
     'metrics',
+    // The public automatic-roulette table (no session needed; no wagers).
+    'roulette/table',
+    'roulette/table/spins/[slot]',
+    'roulette/table/days/[day]',
   ]);
 
   it('every other API route answers 403 ONBOARDING_REQUIRED', async () => {

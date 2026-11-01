@@ -19,7 +19,9 @@ import {
   WINDUP_DEG_PER_SEC,
 } from './wheel-motion';
 
-const FILL = { red: '#b8322c', black: '#17181c', green: '#1f7a4d' } as const;
+/** Number ring and pocket floor colours (pocket floors slightly deeper). */
+const FILL = { red: '#b3261e', black: '#121214', green: '#13804a' } as const;
+const POCKET = { red: '#8f1d17', black: '#0a0a0b', green: '#0d6238' } as const;
 
 function polar(r: number, deg: number) {
   const a = ((deg - 90) * Math.PI) / 180;
@@ -235,61 +237,137 @@ export function RouletteWheel({
   }, []);
 
   return (
-    <div ref={root} className="relative mx-auto aspect-square w-full max-w-[340px]" data-testid="roulette-wheel" data-state={phase} data-landed={landed ?? undefined}>
-      <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,rgb(199_163_91/0.18),transparent_70%)] blur-2xl" aria-hidden="true" />
-      <svg
-        viewBox="0 0 200 200"
-        className="relative size-full drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
-        role="img"
-        aria-label={phase === 'spinning' ? 'Roulette wheel, spinning' : landed !== null ? `Roulette wheel showing ${landed} ${pocketColor(landed)}` : 'Roulette wheel'}
-      >
-        <defs>
-          <radialGradient id="rw-rim" cx="50%" cy="50%" r="50%">
-            <stop offset="0.82" stopColor="#3a2e17" />
-            <stop offset="0.9" stopColor="#c7a35b" />
-            <stop offset="1" stopColor="#4a3c1f" />
-          </radialGradient>
-          <radialGradient id="rw-hub" cx="40%" cy="35%" r="70%">
-            <stop offset="0" stopColor="#f3e6c2" />
-            <stop offset="0.5" stopColor="#c7a35b" />
-            <stop offset="1" stopColor="#4a3c1f" />
-          </radialGradient>
-          <radialGradient id="rw-ball" cx="35%" cy="30%" r="70%">
-            <stop offset="0" stopColor="#ffffff" />
-            <stop offset="0.6" stopColor="#ebe8e2" />
-            <stop offset="1" stopColor="#9a968e" />
-          </radialGradient>
-        </defs>
-        <circle cx="100" cy="100" r="99" fill="url(#rw-rim)" />
-        <circle cx="100" cy="100" r="96.5" fill="none" stroke="#0a0b0d" strokeOpacity="0.55" strokeWidth="5" />
-        <g ref={wheel} transform="rotate(0 100 100)">
-          {WHEEL_ORDER.map((n, i) => {
-            const a0 = i * SECTOR - SECTOR / 2;
-            const a1 = a0 + SECTOR;
-            const [x0, y0] = polar(90, a0);
-            const [x1, y1] = polar(90, a1);
-            const [x2, y2] = polar(58, a1);
-            const [x3, y3] = polar(58, a0);
-            const [tx, ty] = polar(80, i * SECTOR);
-            return (
-              <g key={n}>
-                <path d={`M${x0} ${y0} A90 90 0 0 1 ${x1} ${y1} L${x2} ${y2} A58 58 0 0 0 ${x3} ${y3}Z`} fill={FILL[pocketColor(n)]} stroke="#c7a35b" strokeOpacity="0.45" strokeWidth="0.4" />
-                <text x={tx} y={ty} fill="#ebe8e2" fontSize="6.4" fontWeight="600" textAnchor="middle" dominantBaseline="central" transform={`rotate(${i * SECTOR} ${tx} ${ty})`} fontFamily="Inter Variable, sans-serif">
-                  {n}
-                </text>
-              </g>
-            );
-          })}
-          <circle cx="100" cy="100" r="58" fill="#101114" stroke="#c7a35b" strokeOpacity="0.5" strokeWidth="0.6" />
+    <div ref={root} className="relative mx-auto aspect-square w-full max-w-[420px]" data-testid="roulette-wheel" data-state={phase} data-landed={landed ?? undefined}>
+      {/* Table shadow under the bowl. */}
+      <div className="absolute inset-x-[6%] bottom-[2%] top-[22%] rounded-[50%] bg-black/70 blur-2xl" aria-hidden="true" />
+      <div className="relative size-full [transform:perspective(1200px)_rotateX(26deg)] [transform-origin:50%_60%]">
+        <svg
+          viewBox="0 0 200 200"
+          className="size-full drop-shadow-[0_18px_28px_rgba(0,0,0,0.65)]"
+          role="img"
+          aria-label={phase === 'spinning' ? 'Roulette wheel, spinning' : landed !== null ? `Roulette wheel showing ${landed} ${pocketColor(landed)}` : 'Roulette wheel'}
+        >
+          <defs>
+            <radialGradient id="rw-wood" cx="50%" cy="45%" r="55%">
+              <stop offset="0.80" stopColor="#3b1a07" />
+              <stop offset="0.86" stopColor="#8a4515" />
+              <stop offset="0.92" stopColor="#c0702a" />
+              <stop offset="0.97" stopColor="#7a3810" />
+              <stop offset="1" stopColor="#2b1205" />
+            </radialGradient>
+            <radialGradient id="rw-track" cx="50%" cy="50%" r="50%">
+              <stop offset="0.88" stopColor="#060606" />
+              <stop offset="0.94" stopColor="#25211d" />
+              <stop offset="1" stopColor="#0b0a09" />
+            </radialGradient>
+            <radialGradient id="rw-cone" cx="46%" cy="40%" r="62%">
+              <stop offset="0" stopColor="#e2a35a" />
+              <stop offset="0.45" stopColor="#b8722f" />
+              <stop offset="0.8" stopColor="#7c4116" />
+              <stop offset="1" stopColor="#3c1d08" />
+            </radialGradient>
+            <linearGradient id="rw-gold" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#fff1c4" />
+              <stop offset="0.35" stopColor="#d9b25e" />
+              <stop offset="0.7" stopColor="#8a6a2a" />
+              <stop offset="1" stopColor="#e8cf8a" />
+            </linearGradient>
+            <radialGradient id="rw-turret" cx="40%" cy="35%" r="70%">
+              <stop offset="0" stopColor="#fff6d8" />
+              <stop offset="0.4" stopColor="#d9b25e" />
+              <stop offset="1" stopColor="#5e4513" />
+            </radialGradient>
+            <radialGradient id="rw-ball" cx="35%" cy="30%" r="70%">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset="0.55" stopColor="#f1ede4" />
+              <stop offset="1" stopColor="#a8a296" />
+            </radialGradient>
+            <radialGradient id="rw-pocket-shade" cx="50%" cy="50%" r="50%">
+              <stop offset="0.66" stopColor="#000" stopOpacity="0.55" />
+              <stop offset="0.76" stopColor="#000" stopOpacity="0.1" />
+              <stop offset="0.82" stopColor="#000" stopOpacity="0.35" />
+            </radialGradient>
+            <radialGradient id="rw-sheen" cx="35%" cy="22%" r="60%">
+              <stop offset="0" stopColor="#fff" stopOpacity="0.16" />
+              <stop offset="0.5" stopColor="#fff" stopOpacity="0.03" />
+              <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          {/* Stationary bowl: wooden rim, polished ebony ball track, brass diamonds. */}
+          <circle cx="100" cy="100" r="100" fill="url(#rw-wood)" />
+          {Array.from({ length: 5 }, (_, i) => (
+            <circle key={i} cx="100" cy="100" r={98.6 - i * 0.55} fill="none" stroke="#2a1205" strokeOpacity={0.18 + (i % 2) * 0.12} strokeWidth="0.25" />
+          ))}
+          <circle cx="100" cy="100" r="97.4" fill="none" stroke="url(#rw-gold)" strokeWidth="0.9" />
+          <circle cx="100" cy="100" r="96.9" fill="url(#rw-track)" />
           {Array.from({ length: 8 }, (_, i) => {
-            const [x, y] = polar(44, i * 45);
-            return <line key={i} x1="100" y1="100" x2={x} y2={y} stroke="#c7a35b" strokeOpacity="0.55" strokeWidth="1.6" strokeLinecap="round" />;
+            const a = 22.5 + i * 45;
+            const [x, y] = polar(93.6, a);
+            return <path key={i} d="M0 -2.6 L1.05 0 L0 2.6 L-1.05 0 Z" fill="url(#rw-gold)" stroke="#5e4513" strokeWidth="0.15" transform={`translate(${x} ${y}) rotate(${a})`} />;
           })}
-          <circle cx="100" cy="100" r="13" fill="url(#rw-hub)" />
-        </g>
-        <path d="M100 13 L94 1 L106 1 Z" fill="#ebe8e2" stroke="#0a0b0d" strokeWidth="0.8" />
-        <circle ref={ball} cx="100" cy="34" r="3.3" fill="url(#rw-ball)" stroke="#0a0b0d" strokeWidth="0.5" visibility="hidden" data-testid="roulette-ball" />
-      </svg>
+          <circle cx="100" cy="100" r="90.6" fill="none" stroke="url(#rw-gold)" strokeWidth="0.7" />
+
+          {/* Rotor: number ring, pockets with brass frets, wooden cone, turret. */}
+          <g ref={wheel} transform="rotate(0 100 100)">
+            {WHEEL_ORDER.map((n, i) => {
+              const a0 = i * SECTOR - SECTOR / 2;
+              const a1 = a0 + SECTOR;
+              const ring = (ro: number, ri: number) => {
+                const [x0, y0] = polar(ro, a0);
+                const [x1, y1] = polar(ro, a1);
+                const [x2, y2] = polar(ri, a1);
+                const [x3, y3] = polar(ri, a0);
+                return `M${x0} ${y0} A${ro} ${ro} 0 0 1 ${x1} ${y1} L${x2} ${y2} A${ri} ${ri} 0 0 0 ${x3} ${y3}Z`;
+              };
+              const [tx, ty] = polar(85.6, i * SECTOR);
+              return (
+                <g key={n}>
+                  <path d={ring(90.2, 81.4)} fill={FILL[pocketColor(n)]} />
+                  <path d={ring(81.4, 63.5)} fill={POCKET[pocketColor(n)]} />
+                  <text x={tx} y={ty} fill="#f6f1e6" fontSize="5.4" fontWeight="700" textAnchor="middle" dominantBaseline="central" transform={`rotate(${i * SECTOR} ${tx} ${ty})`} fontFamily="Inter Variable, sans-serif">
+                    {n}
+                  </text>
+                </g>
+              );
+            })}
+            {/* Pocket shading, then brass frets between pockets. */}
+            <circle cx="100" cy="100" r="81.4" fill="url(#rw-pocket-shade)" />
+            {WHEEL_ORDER.map((_, i) => {
+              const a = i * SECTOR - SECTOR / 2;
+              const [x0, y0] = polar(90.2, a);
+              const [x1, y1] = polar(63.5, a);
+              return <line key={i} x1={x0} y1={y0} x2={x1} y2={y1} stroke="url(#rw-gold)" strokeWidth="0.55" />;
+            })}
+            <circle cx="100" cy="100" r="81.4" fill="none" stroke="url(#rw-gold)" strokeWidth="0.6" />
+            <circle cx="100" cy="100" r="63.5" fill="url(#rw-cone)" stroke="url(#rw-gold)" strokeWidth="1" />
+            {Array.from({ length: 8 }, (_, i) => {
+              const [x0, y0] = polar(17, i * 45 + 22.5);
+              const [x1, y1] = polar(56, i * 45 + 22.5);
+              return <line key={i} x1={x0} y1={y0} x2={x1} y2={y1} stroke="#f3d48f" strokeOpacity="0.35" strokeWidth="0.5" />;
+            })}
+            {/* Turret with four arms. */}
+            {Array.from({ length: 4 }, (_, i) => {
+              const [x, y] = polar(27, i * 90);
+              return (
+                <g key={i}>
+                  <line x1="100" y1="100" x2={x} y2={y} stroke="url(#rw-gold)" strokeWidth="2.6" strokeLinecap="round" />
+                  <circle cx={x} cy={y} r="2.4" fill="url(#rw-turret)" stroke="#5e4513" strokeWidth="0.3" />
+                </g>
+              );
+            })}
+            <circle cx="100" cy="100" r="11" fill="url(#rw-turret)" stroke="#5e4513" strokeWidth="0.5" />
+            <circle cx="100" cy="100" r="5" fill="url(#rw-gold)" />
+            <circle cx="98.4" cy="98" r="1.6" fill="#fffbe8" opacity="0.85" />
+          </g>
+
+          {/* Light: a soft sheen over the bowl. */}
+          <circle cx="100" cy="100" r="99" fill="url(#rw-sheen)" pointerEvents="none" />
+          {/* Marker at the top: the winning pocket comes to rest under it. */}
+          <path d="M100 6.4 L97.4 0.8 L102.6 0.8 Z" fill="url(#rw-gold)" stroke="#3b2a0a" strokeWidth="0.4" />
+          <circle ref={ball} cx="100" cy="34" r="2.9" fill="url(#rw-ball)" stroke="#5b564c" strokeWidth="0.3" visibility="hidden" data-testid="roulette-ball" />
+        </svg>
+      </div>
     </div>
   );
 }

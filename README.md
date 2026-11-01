@@ -29,9 +29,10 @@ ledger, and every game publishes its rules, payouts and house edge.
 * **Lobby**: search, categories, favourites, recently played, "new" badges and a details
   view for each game; every card opens a playable game.
 * **Table feel**: an original sound profile for every game (no autoplay; mute, master,
-  effects and ambience levels saved per browser); an **automatic roulette table** (a 15-second
-  betting countdown, the player's own bets sent once when it closes, no bets → no round, a
-  wheel that idles, winds up and spins to the server's result); numbers covered by a bet
+  effects and ambience levels saved per browser); an **automatic roulette table** on a shared
+  server schedule (a 15-second betting countdown; the wheel spins after every window: to the
+  player's own round if they bet, otherwise to a committed, server-drawn table spin that moves no
+  chips; a realistic walnut-and-brass wheel); numbers covered by a bet
   highlighted on hover, focus or tap (from the engine's `betWins`); coloured chip stacks with
   Undo, Clear, Rebet, 2× and a touch-friendly remove tool; bets cleared after each settled
   spin; the player's own last 20 results and a history drawer —

@@ -37,6 +37,9 @@ Amounts are integers in minor units (100 = 1 chip).
 | GET | `/api/metrics` | Prometheus text; `Authorization: Bearer $METRICS_TOKEN`. Optional: 403 for every request when no token is configured |
 | GET | `/api/games` | Catalogue: status, config version, limits, theoretical RTP |
 | GET | `/api/games/:gameId` | One game |
+| GET | `/api/roulette/table` | Automatic roulette table: schedule (`bettingMs` 15 000, `cycleMs`), server time, current slot, today's and tomorrow's seed commitments, latest recorded table spins. Public, `table:ip` rate limit |
+| GET | `/api/roulette/table/spins/:slot` | Reveals a **table (spectator) spin** once its betting window has closed (409 `CONFLICT` with `retryAfterMs` before) and records it in the public history. Not a wager: no session, round, ledger entry or balance. Unrecorded spins older than 10 minutes: 404 |
+| GET | `/api/roulette/table/days/:day` | A table day's seed commitment; the seed itself only after that UTC day has ended |
 
 ## Authentication & account
 

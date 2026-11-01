@@ -83,8 +83,8 @@ export interface SpinFrame {
   ballRadius: number;
 }
 
-export const BALL_TRACK_R = 94;
-export const BALL_POCKET_R = 66;
+export const BALL_TRACK_R = 93.8;
+export const BALL_POCKET_R = 72;
 
 /** The wheel and ball at progress p (0–1) of a spin from `from` to `to`, starting with slope m0. */
 export function spinFrame(p: number, from: number, to: number, m0 = 0): SpinFrame {

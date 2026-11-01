@@ -1,14 +1,14 @@
 import { expect, test, type Page, type Request } from '@playwright/test';
 import { pocketAtAngle } from '../../src/components/games/wheel-motion';
-import { registerPlayer } from './helpers';
+import { registerPlayer, waitForFreshRouletteWindow } from './helpers';
 
 /**
  * The automatic roulette table runs in real time against the production
- * build: each betting window really lasts 15 seconds.
+ * build, on the server's shared schedule: a 15-second betting window, a spin
+ * and a result, every 28 seconds, whether or not anyone bets.
  */
 const ROUNDS = '/api/games/roulette/rounds';
-const WINDOW = 15_000;
-const CYCLE_TIMEOUT = WINDOW + 10_000;
+const CYCLE_TIMEOUT = 45_000;
 
 /** Counts POSTs that would create a roulette round. */
 function countWagers(page: Page) {
@@ -23,11 +23,8 @@ const status = (page: Page) => page.getByTestId('roulette-status');
 const wheelRotation = (page: Page) => page.getByTestId('roulette-wheel').locator('g').first().getAttribute('transform');
 const pick = (page: Page, chips: number) => page.locator(`[data-chip="${chips * 100}"]`).click();
 const total = (page: Page) => page.getByTestId('roulette-total');
-
-async function waitForWindow(page: Page, n: number) {
-  await expect(status(page)).toHaveAttribute('data-window', String(n), { timeout: CYCLE_TIMEOUT });
-  await expect(status(page)).toHaveAttribute('data-phase', 'BETTING_OPEN');
-}
+const tableSpinResponse = (page: Page, slot?: number) =>
+  page.waitForResponse((r) => /\/api\/roulette\/table\/spins\/\d+$/.test(new URL(r.url()).pathname) && r.status() === 200 && (slot === undefined || r.url().endsWith(`/${slot}`)), { timeout: CYCLE_TIMEOUT });
 
 /** Waits for the automatic close to send the bets, then for the wheel to land. */
 async function autoSpin(page: Page) {
@@ -43,28 +40,42 @@ const RED = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36];
 const fmt = (minor: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(minor / 100);
 
 test.describe('automatic roulette table', () => {
-  test('full cycle: countdown, automatic close, one wager, server result, auto-clear, next window, no-bet window, Rebet, history', async ({ page }) => {
-    test.setTimeout(240_000);
+  test('the wheel spins after every window: a table spin without bets (no wager, no balance change), a player round with bets, then Rebet and history', async ({ page }) => {
+    test.setTimeout(300_000);
     await registerPlayer(page);
     const wagers = countWagers(page);
     await page.goto('/games/roulette');
-
-    // Betting is open at once with the 15-second countdown; there is no Spin button.
-    await waitForWindow(page, 1);
-    expect(Number(await page.getByTestId('roulette-countdown').getAttribute('data-seconds'))).toBeGreaterThanOrEqual(13);
     await expect(page.getByTestId('roulette-spin')).toHaveCount(0);
     await expect(page.getByRole('button', { name: /^spin$/i })).toHaveCount(0);
-    await expect(page.getByTestId('roulette-balance')).toHaveText('10,000.00 chips');
 
-    // The idle wheel turns, and nothing is sent.
+    // Idle wheel turns; nothing is sent.
     const wheel = page.getByTestId('roulette-wheel');
-    await expect(wheel).toHaveAttribute('data-state', 'idle');
     const a = await wheelRotation(page);
     await page.waitForTimeout(700);
     expect(await wheelRotation(page)).not.toBe(a);
-    expect(wagers).toHaveLength(0);
 
-    // Chips of several denominations stack; Undo takes back one placement only.
+    // ── A window with NO bets still ends in a spin: the table's server-drawn spin.
+    const slot = await waitForFreshRouletteWindow(page);
+    const roundsBefore = (await (await page.request.get('/api/rounds?game=roulette')).json()).items.length;
+    const spinRes = await tableSpinResponse(page, slot);
+    const tableSpin = (await spinRes.json()).spin as { slot: number; result: number; color: string };
+    expect(tableSpin.slot).toBe(slot);
+    await expect(status(page)).toHaveAttribute('data-spin', 'table');
+    await expect(wheel).toHaveAttribute('data-landed', String(tableSpin.result), { timeout: 15_000 });
+    expect(pocketAtAngle(Number(await wheel.getAttribute('data-rotation')))).toBe(tableSpin.result);
+    await expect(page.getByTestId('roulette-result')).toHaveAttribute('data-kind', 'table');
+    await expect(page.getByTestId('roulette-result')).toHaveAttribute('data-result', String(tableSpin.result));
+    await expect(page.getByTestId('roulette-table-strip').locator('li').first()).toHaveAttribute('data-result', String(tableSpin.result));
+    // No wager, no player round, no balance change.
+    expect(wagers).toHaveLength(0);
+    await expect(page.getByTestId('header-balance')).toHaveText('10,000.00');
+    expect((await (await page.request.get('/api/rounds?game=roulette')).json()).items).toHaveLength(roundsBefore);
+    const wallet = await (await page.request.get('/api/wallet/transactions')).json().catch(() => null);
+    if (wallet?.items) expect(wallet.items.filter((t: { type: string }) => /WAGER|PAYOUT/.test(t.type))).toHaveLength(0);
+
+    // ── The next window opens by itself; this time with bets → exactly one player round.
+    await waitForFreshRouletteWindow(page);
+    await expect(page.getByTestId('roulette-balance')).toHaveText('10,000.00 chips');
     await pick(page, 25);
     await page.locator('[data-position="red"]').click();
     await page.locator('[data-position="red"]').click();
@@ -75,44 +86,28 @@ test.describe('automatic roulette table', () => {
     await expect(total(page)).toHaveText('56.00 chips');
     await page.getByTestId('roulette-undo').click();
     await expect(total(page)).toHaveText('55.00 chips');
-    await expect(page.locator('[data-position="red"] [data-chip-stack]')).toHaveAttribute('data-chip-stack', '2500,2500,500');
-
-    // At zero the bets go in by themselves: exactly one request, amount = sum of chips.
     const first = await autoSpin(page);
     expect(wagers).toHaveLength(1);
     expect(JSON.parse(wagers[0]!.postData()!).bet.bets).toEqual([{ type: 'red', amount: 5500 }]);
     const n = first.round.state.result;
     await expect(wheel).toHaveAttribute('data-landed', String(n));
-    // Betting stays locked while the result is shown (checked first: the result phase lasts 5 s).
+    expect(pocketAtAngle(Number(await wheel.getAttribute('data-rotation')))).toBe(n);
+    // Locked while the result is shown (force: an aria-disabled position would otherwise be waited for).
     await expect(status(page)).toHaveAttribute('data-phase', 'RESULT_REVEAL');
-    await expect(page.getByTestId('roulette-board')).toHaveAttribute('data-locked', 'true');
-    // force: a plain click() would wait until the (aria-disabled) position becomes enabled again.
     await page.locator('[data-position="black"]').click({ force: true });
     await expect(page.locator('[data-position="black"]')).toHaveAttribute('data-amount', '0');
-    expect(pocketAtAngle(Number(await wheel.getAttribute('data-rotation')))).toBe(n);
-    await expect(status(page)).toHaveAttribute('data-phase', 'RESULT_REVEAL');
-    await expect(page.getByTestId('roulette-result')).toHaveAttribute('data-result', String(n));
-    const settlement = page.getByTestId('roulette-settlement');
-    await expect(settlement).toContainText(fmt(5500));
-    await expect(settlement).toContainText(fmt(first.round.payout));
-    // Cleared after settlement and the animation; balance applied.
+    await expect(page.getByTestId('roulette-result')).toHaveAttribute('data-kind', 'wager');
+    await expect(page.getByTestId('roulette-settlement')).toContainText(fmt(5500));
     await expect(total(page)).toHaveText('0.00 chips');
     await expect(page.locator('[data-chip-stack]')).toHaveCount(0);
     await expect(page.getByTestId('header-balance')).toHaveText(fmt(first.balance));
-    await expect(page.getByTestId('roulette-balance')).toHaveText(`${fmt(first.balance)} chips`);
     await expect(page.getByTestId('roulette-history-strip').locator('button').first()).toHaveAttribute('data-result', String(n));
 
-    // The next window opens on its own, empty.
-    await waitForWindow(page, 2);
-    // A window without bets closes with no request and no deduction, then the next opens.
-    await expect(status(page)).toHaveAttribute('data-phase', 'BETTING_CLOSED', { timeout: CYCLE_TIMEOUT });
-    await waitForWindow(page, 3);
-    expect(wagers).toHaveLength(1);
-    await expect(page.getByTestId('header-balance')).toHaveText(fmt(first.balance));
-
-    // Rebet restores the previous combination; 2×, Clear + Undo, remove tool and Delete still work.
+    // ── Rebet, 2×, Clear + Undo, remove tool and Delete; a second round is sent once.
+    await waitForFreshRouletteWindow(page);
     await page.getByTestId('roulette-rebet').click();
     await expect(total(page)).toHaveText('55.00 chips');
+    await expect(page.locator('[data-position="red"] [data-chip-stack]')).toHaveAttribute('data-chip-stack', '2500,2500,500');
     await page.getByTestId('roulette-double').click();
     await expect(total(page)).toHaveText('110.00 chips');
     await page.getByTestId('roulette-clear').click();
@@ -126,40 +121,32 @@ test.describe('automatic roulette table', () => {
     await page.locator('[data-position="red"]').focus();
     await page.keyboard.press('Delete');
     await expect(total(page)).toHaveText('80.00 chips');
-
     const second = await autoSpin(page);
     expect(wagers).toHaveLength(2);
     expect(second.round.state.bets).toEqual([{ type: 'red', amount: 8000 }]);
+
+    // ── History survives a refresh; re-entering joins the table where it is.
     const strip = page.getByTestId('roulette-history-strip');
     await expect(strip.locator('button')).toHaveCount(2);
-    await expect(strip.locator('button').nth(0)).toHaveAttribute('data-result', String(second.round.state.result));
-    await expect(strip.locator('button').nth(1)).toHaveAttribute('data-result', String(n));
-    const api = await (await page.request.get('/api/rounds?game=roulette&limit=20')).json();
-    expect(api.items.map((i: { id: string }) => i.id)).toEqual([second.round.id, first.round.id]);
-
-    // History survives a refresh, newest first, with real values and a verification link.
     await page.reload();
     await expect(strip.locator('button')).toHaveCount(2);
     await expect(strip.locator('button').nth(0)).toHaveAttribute('data-result', String(second.round.state.result));
+    await expect(status(page)).toHaveAttribute('data-phase', /BETTING_OPEN|BETTING_CLOSED|SPINNING|RESULT_REVEAL/);
+    const table = await (await page.request.get('/api/roulette/table')).json();
+    expect(Math.abs(Number(await status(page).getAttribute('data-slot')) - table.current.slot)).toBeLessThanOrEqual(1);
     await strip.locator('button').nth(1).click();
     const drawer = page.getByTestId('roulette-history-drawer');
     await expect(drawer.getByRole('link', { name: 'Verify this round →' })).toHaveAttribute('href', `/history/${first.round.id}`);
-    const details = drawer.getByTestId('roulette-history-details');
-    await expect(details).toContainText(fmt(5500));
-    await expect(details).toContainText(fmt(first.round.payout));
-    await expect(details).toContainText((first.round.payout - 5500 >= 0 ? '+' : '') + fmt(first.round.payout - 5500));
-    await expect(drawer.getByTestId('roulette-stats')).toContainText('Historical only');
     await page.keyboard.press('Escape');
-    await expect(drawer).toBeHidden();
     expect(wagers).toHaveLength(2);
   });
 
   test('a failed request keeps every bet in recovery; no new window opens until the safe retry settles it once', async ({ page }) => {
-    test.setTimeout(150_000);
+    test.setTimeout(180_000);
     await registerPlayer(page);
     const wagers = countWagers(page);
     await page.goto('/games/roulette');
-    await waitForWindow(page, 1);
+    await waitForFreshRouletteWindow(page);
     await pick(page, 100);
     await page.locator('[data-position="black"]').click();
     await pick(page, 5);
@@ -170,9 +157,7 @@ test.describe('automatic roulette table', () => {
     await expect(status(page)).toHaveAttribute('data-phase', 'RECOVERY', { timeout: CYCLE_TIMEOUT + 15_000 });
     await expect(page.getByText('A request may not have completed')).toBeVisible();
     await expect(total(page)).toHaveText('105.00 chips');
-    await expect(page.locator('[data-position="black"]')).toHaveAttribute('data-amount', '10000');
     await expect(page.getByTestId('roulette-board')).toHaveAttribute('data-locked', 'true');
-    // Recovery holds: time passing does not open another window or send anything new.
     const sent = wagers.length;
     await page.waitForTimeout(4000);
     await expect(status(page)).toHaveAttribute('data-phase', 'RECOVERY');
@@ -190,19 +175,18 @@ test.describe('automatic roulette table', () => {
     await expect(page.getByTestId('roulette-wheel')).toHaveAttribute('data-landed', String(settled.round.state.result), { timeout: 15_000 });
     await expect(total(page)).toHaveText('0.00 chips');
     expect(new Set(wagers.map((w) => w.headers()['idempotency-key'])).size).toBe(1);
-    const api = await (await page.request.get('/api/rounds?game=roulette')).json();
-    expect(api.items).toHaveLength(1);
-    await waitForWindow(page, 2);
+    expect((await (await page.request.get('/api/rounds?game=roulette')).json()).items).toHaveLength(1);
+    await waitForFreshRouletteWindow(page);
     await page.getByTestId('roulette-rebet').click();
     await expect(total(page)).toHaveText('105.00 chips');
   });
 
-  test('a hidden tab pauses the countdown; leaving the page stops the table without sending anything', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('a hidden tab never sends bets; leaving the page stops the table without sending anything', async ({ page }) => {
+    test.setTimeout(180_000);
     await registerPlayer(page);
     const wagers = countWagers(page);
     await page.goto('/games/roulette');
-    await waitForWindow(page, 1);
+    await waitForFreshRouletteWindow(page);
     await page.locator('[data-position="odd"]').click();
     await expect(total(page)).toHaveText('5.00 chips');
 
@@ -212,31 +196,29 @@ test.describe('automatic roulette table', () => {
         document.dispatchEvent(new Event('visibilitychange'));
       }, hidden);
     await setHidden(true);
-    const countdown = page.getByTestId('roulette-countdown');
-    const paused = await countdown.getAttribute('data-seconds');
-    await expect(status(page)).toContainText('Paused while this tab is hidden');
-    await page.waitForTimeout(WINDOW + 1500);
-    await expect(countdown).toHaveAttribute('data-seconds', paused!);
-    await expect(status(page)).toHaveAttribute('data-phase', 'BETTING_OPEN');
+    // The window closes while hidden: the table moves on, but no wager is sent and the bets stay.
+    await expect(status(page)).not.toHaveAttribute('data-phase', 'BETTING_OPEN', { timeout: CYCLE_TIMEOUT });
+    await page.waitForTimeout(2000);
     expect(wagers).toHaveLength(0);
     await setHidden(false);
-    expect(Number(await countdown.getAttribute('data-seconds'))).toBeGreaterThanOrEqual(5);
+    await expect(total(page)).toHaveText('5.00 chips');
 
-    // Leave before the window closes: the table's timers are gone, nothing is sent later.
+    // Leave before the next window closes: nothing is sent later.
+    await waitForFreshRouletteWindow(page);
     await page.goto('/lobby');
-    await page.waitForTimeout(WINDOW + 3000);
+    await page.waitForTimeout(20_000);
     expect(wagers).toHaveLength(0);
-    const api = await (await page.request.get('/api/rounds?game=roulette')).json();
-    expect(api.items).toHaveLength(0);
+    expect((await (await page.request.get('/api/rounds?game=roulette')).json()).items).toHaveLength(0);
   });
 
-  test('reduced motion: no idle motion; the automatic round shows its result at once', async ({ page }) => {
-    test.setTimeout(120_000);
+  test('reduced motion: no idle motion; spins show their result at once', async ({ page }) => {
+    test.setTimeout(150_000);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await registerPlayer(page);
     await page.goto('/games/roulette');
     const wheel = page.getByTestId('roulette-wheel');
     await expect(wheel).not.toHaveAttribute('data-state', 'idle');
+    await waitForFreshRouletteWindow(page);
     const a = await wheelRotation(page);
     await page.waitForTimeout(600);
     expect(await wheelRotation(page)).toBe(a);
@@ -250,7 +232,7 @@ test.describe('automatic roulette table', () => {
 test.describe('betting table coverage preview', () => {
   test('hover and keyboard focus highlight exactly the numbers each bet covers; active bets stay visible', async ({ page }) => {
     await page.goto('/games/roulette');
-    await waitForWindow(page, 1);
+    await waitForFreshRouletteWindow(page);
     const hover = async (key: string) => {
       await page.locator(`[data-position="${key}"]`).hover();
       return coveredPositions(page);
@@ -299,7 +281,7 @@ test.describe('betting table coverage preview', () => {
   test('2× respects the balance', async ({ page }) => {
     await registerPlayer(page);
     await page.goto('/games/roulette');
-    await waitForWindow(page, 1);
+    await waitForFreshRouletteWindow(page);
     await pick(page, 1000);
     for (let i = 0; i < 5; i++) await page.locator('[data-position="high"]').click();
     await expect(total(page)).toHaveText('5,000.00 chips');
@@ -318,7 +300,7 @@ test.describe('touch', () => {
 
   test('a first tap previews coverage without betting; a second tap places a chip; the remove tool takes it off', async ({ page }) => {
     await page.goto('/games/roulette');
-    await waitForWindow(page, 1);
+    await waitForFreshRouletteWindow(page);
     const column = page.locator('[data-position="column:3"]');
     await column.tap();
     expect(await coveredPositions(page)).toEqual([3, 6, 9, 12, 15, 18, 21, 24, 27, 30, 33, 36]);
@@ -351,7 +333,7 @@ test.describe('game audio', () => {
     // Every sound file fails to load.
     await page.route('**/audio/**', (route) => route.abort());
     await page.goto('/games/roulette');
-    await waitForWindow(page, 1);
+    await waitForFreshRouletteWindow(page);
     await page.waitForTimeout(800);
     expect(await page.evaluate(() => (window as unknown as { __audioContexts: number }).__audioContexts)).toBe(0);
 

@@ -37,6 +37,21 @@
       "seconds": 0.8,
       "sha256": "f99c7d781a1da0d2747d38422db000e89c0650c3ec56fc0e6a9ec8f962df68e0"
     },
+    "roulette/result.wav": {
+      "bytes": 39734,
+      "seconds": 0.9,
+      "sha256": "70809d1e12a7191d4c9b89da5f70b05baf0270e9e0a705119a9ffc30212a5737"
+    },
+    "roulette/wheel-ambience.wav": {
+      "bytes": 176444,
+      "seconds": 4,
+      "sha256": "efd31d06857cfbf71218cb9f70761451f8492c52cb667aaa991ac824c9eceeeb"
+    },
+    "roulette/room.wav": {
+      "bytes": 255824,
+      "seconds": 5.8,
+      "sha256": "8738c512a88ef3f206edb6ca219f8b4195e2e9bfa97970a5fb478361ebc6f364"
+    },
     "roulette/win.wav": {
       "bytes": 48554,
       "seconds": 1.1,

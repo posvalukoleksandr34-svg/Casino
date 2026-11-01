@@ -1,116 +1,172 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BETTING_MS,
   BETTING_SECONDS,
   countdownWarning,
-  initialCycle,
-  NO_WAGER_PAUSE_MS,
+  joinTable,
+  JOIN_SPECTATE_MS,
+  MIN_JOIN_BETTING_MS,
+  MIN_RESULT_MS,
   reduceCycle,
-  RESULT_MS,
-  RESUME_MIN_MS,
   secondsLeft,
   type Cycle,
   type CycleEvent,
 } from '@/components/games/roulette-cycle';
 import { CHIP_DENOMINATIONS, coverageCounts, coveredNumbers, EMPTY_BOARD, placeChip } from '@/components/games/roulette-board';
 import { betWins, RED_NUMBERS, type RouletteBet } from '@/engine/games/roulette';
+import { slotAt, slotDay, slotTimes, tableSpinResult, TABLE_BETTING_MS, TABLE_CYCLE_MS, TABLE_EPOCH_MS } from '@/engine/games/roulette/table';
+import { HmacRandomStream } from '@/engine/rng/provably-fair';
 
 const run = (s: Cycle, ...events: CycleEvent[]) => events.reduce(reduceCycle, s);
 const tick = (now: number, canWager = false): CycleEvent => ({ type: 'TICK', now, canWager });
+/** A slot well after the epoch, and its times. */
+const T = slotTimes(5000);
+
+describe('table schedule (shared by server and client)', () => {
+  it('cycles a 15-second betting window, a spin and a result, back to back', () => {
+    expect(BETTING_SECONDS).toBe(15);
+    expect(T.closesAt - T.startsAt).toBe(15_000);
+    expect(T.endsAt - T.startsAt).toBe(TABLE_CYCLE_MS);
+    expect(slotTimes(5001).startsAt).toBe(T.endsAt);
+    for (const at of [T.startsAt, T.closesAt - 1, T.closesAt, T.endsAt - 1]) expect(slotAt(at).slot).toBe(5000);
+    expect(slotAt(T.endsAt).slot).toBe(5001);
+    expect(slotAt(TABLE_EPOCH_MS - 1e9).slot).toBe(0);
+    expect(slotDay(5000)).toBe(new Date(T.closesAt).toISOString().slice(0, 10));
+  });
+
+  it('derives a table result exactly as a player round draws its pocket', () => {
+    const seed = 'ab'.repeat(32);
+    for (const slot of [0, 1, 5000, 123_456]) {
+      const r = tableSpinResult(seed, slot);
+      expect(r).toBe(new HmacRandomStream({ serverSeed: seed, clientSeed: 'aurovane-table', nonce: slot }).nextInt(37));
+      expect(r).toBeGreaterThanOrEqual(0);
+      expect(r).toBeLessThanOrEqual(36);
+    }
+  });
+});
 
 describe('automatic roulette cycle', () => {
-  it('opens betting immediately with the configured duration', () => {
-    expect(BETTING_SECONDS).toBe(15);
-    const s = initialCycle(1000);
-    expect(s).toMatchObject({ phase: 'BETTING_OPEN', window: 1, closesAt: 1000 + BETTING_MS });
-    expect(secondsLeft(s, 1000)).toBe(15);
-    expect(secondsLeft(s, 1000 + BETTING_MS - 1)).toBe(1);
-    expect(secondsLeft(s, 1000 + BETTING_MS)).toBe(0);
+  it('joins the open window with its countdown; late arrivals watch the spin or wait for the next window', () => {
+    const open = joinTable(T.startsAt);
+    expect(open).toMatchObject({ phase: 'BETTING_OPEN', slot: 5000, closesAt: T.closesAt });
+    expect(secondsLeft(open, T.startsAt)).toBe(15);
+    expect(secondsLeft(open, T.closesAt - 1)).toBe(1);
+    // Too little betting time left: watch this slot's spin instead.
+    expect(joinTable(T.closesAt - MIN_JOIN_BETTING_MS + 1)).toMatchObject({ phase: 'BETTING_CLOSED', wager: false, slot: 5000 });
+    expect(joinTable(T.closesAt + JOIN_SPECTATE_MS - 1)).toMatchObject({ phase: 'BETTING_CLOSED', wager: false });
+    // Later in the slot: wait for the next window (re-entering restores the current state).
+    expect(joinTable(T.closesAt + JOIN_SPECTATE_MS)).toMatchObject({ phase: 'RESULT_REVEAL', spin: null, revealUntil: T.endsAt });
   });
 
-  it('closes at zero; with valid bets it waits for exactly one server round; without, it reopens with no round', () => {
-    const s = initialCycle(0);
-    expect(reduceCycle(s, tick(BETTING_MS - 1, true))).toBe(s); // not yet
-    const closed = reduceCycle(s, tick(BETTING_MS, true));
-    expect(closed).toMatchObject({ phase: 'BETTING_CLOSED', wager: true, reopenAt: null });
-    // With a wager outstanding, time alone never reopens betting.
-    expect(reduceCycle(closed, tick(BETTING_MS * 10, true))).toBe(closed);
-
-    const empty = reduceCycle(s, tick(BETTING_MS, false));
-    expect(empty).toMatchObject({ phase: 'BETTING_CLOSED', wager: false, reopenAt: BETTING_MS + NO_WAGER_PAUSE_MS });
-    expect(reduceCycle(empty, { type: 'ROUND_RECEIVED', roundId: 'x' })).toBe(empty); // no wager → no round accepted
-    const next = reduceCycle(empty, tick(BETTING_MS + NO_WAGER_PAUSE_MS));
-    expect(next).toMatchObject({ phase: 'BETTING_OPEN', window: 2, closesAt: BETTING_MS + NO_WAGER_PAUSE_MS + BETTING_MS });
+  it('ALWAYS spins: without bets, the window closes into the table spin served for that slot', () => {
+    let s = joinTable(T.startsAt);
+    s = reduceCycle(s, tick(T.closesAt, false));
+    expect(s).toMatchObject({ phase: 'BETTING_CLOSED', wager: false });
+    // A result for another slot is not accepted.
+    expect(reduceCycle(s, { type: 'TABLE_RESULT', slot: 4999, result: 7 })).toBe(s);
+    expect(reduceCycle(s, { type: 'ROUND_RECEIVED', roundId: 'x' })).toBe(s); // no wager → no player round
+    s = reduceCycle(s, { type: 'TABLE_RESULT', slot: 5000, result: 17 });
+    expect(s).toMatchObject({ phase: 'SPINNING', spin: { kind: 'table', key: 'table:5000', result: 17 } });
+    s = reduceCycle(s, { type: 'LANDED', key: 'table:5000', now: T.closesAt + 5000 });
+    expect(s).toMatchObject({ phase: 'RESULT_REVEAL', revealUntil: T.endsAt });
+    s = reduceCycle(s, tick(T.endsAt));
+    expect(s).toMatchObject({ phase: 'BETTING_OPEN', slot: 5001, closesAt: slotTimes(5001).closesAt, spin: null });
   });
 
-  it('runs a full round: spin → result → next window, and ignores duplicate callbacks', () => {
-    let s = run(initialCycle(0), tick(BETTING_MS, true), { type: 'ROUND_RECEIVED', roundId: 'r1' });
-    expect(s).toMatchObject({ phase: 'SPINNING', roundId: 'r1' });
-    // A second "round received" (e.g. a repeated callback) cannot start another spin.
-    expect(reduceCycle(s, { type: 'ROUND_RECEIVED', roundId: 'r2' })).toBe(s);
-    // Landing for another round is ignored.
-    expect(reduceCycle(s, { type: 'LANDED', roundId: 'other', now: 5 })).toBe(s);
-    s = reduceCycle(s, { type: 'LANDED', roundId: 'r1', now: 20_000 });
-    expect(s).toMatchObject({ phase: 'RESULT_REVEAL', reopenAt: 20_000 + RESULT_MS });
-    // The wheel reporting twice changes nothing.
-    expect(reduceCycle(s, { type: 'LANDED', roundId: 'r1', now: 20_100 })).toBe(s);
-    expect(reduceCycle(s, tick(20_000 + RESULT_MS - 1))).toBe(s);
-    s = reduceCycle(s, tick(20_000 + RESULT_MS));
-    expect(s).toMatchObject({ phase: 'BETTING_OPEN', window: 2, roundId: null, wager: false });
+  it('with valid bets, the window closes into exactly one player round', () => {
+    let s = run(joinTable(T.startsAt), tick(T.closesAt, true));
+    expect(s).toMatchObject({ phase: 'BETTING_CLOSED', wager: true });
+    expect(reduceCycle(s, { type: 'TABLE_RESULT', slot: 5000, result: 3 })).toBe(s); // not a table spin
+    expect(reduceCycle(s, tick(T.endsAt * 2, true))).toBe(s); // waits for the server however long
+    s = reduceCycle(s, { type: 'ROUND_RECEIVED', roundId: 'r1' });
+    expect(s).toMatchObject({ phase: 'SPINNING', spin: { kind: 'wager', key: 'r1' } });
+    expect(reduceCycle(s, { type: 'ROUND_RECEIVED', roundId: 'r2' })).toBe(s); // no second spin
+    // A late answer still gets a minimum result display before the next window.
+    const late = T.endsAt - 1000;
+    s = reduceCycle(s, { type: 'LANDED', key: 'r1', now: late });
+    expect(s.revealUntil).toBe(late + MIN_RESULT_MS);
+    expect(reduceCycle(s, { type: 'LANDED', key: 'r1', now: late + 10 })).toBe(s);
+  });
+
+  it('every window ends in exactly one spin over many cycles', () => {
+    let s = joinTable(T.startsAt);
+    const spins: string[] = [];
+    for (let k = 0; k < 20; k++) {
+      const slot = 5000 + k;
+      const t = slotTimes(slot);
+      expect(s).toMatchObject({ phase: 'BETTING_OPEN', slot });
+      const bet = k % 3 === 0;
+      s = reduceCycle(s, tick(t.closesAt, bet));
+      s = reduceCycle(s, tick(t.closesAt + 100, bet)); // repeated ticks change nothing
+      s = bet ? reduceCycle(s, { type: 'ROUND_RECEIVED', roundId: `r${k}` }) : reduceCycle(s, { type: 'TABLE_RESULT', slot, result: k % 37 });
+      // Duplicates from retries/reconnects are ignored.
+      s = bet ? reduceCycle(s, { type: 'ROUND_RECEIVED', roundId: `dup${k}` }) : reduceCycle(s, { type: 'TABLE_RESULT', slot, result: 0 });
+      spins.push(s.spin!.key);
+      s = reduceCycle(s, { type: 'LANDED', key: s.spin!.key, now: t.closesAt + 5000 });
+      s = reduceCycle(s, tick(t.endsAt));
+    }
+    expect(spins).toHaveLength(20);
+    expect(new Set(spins).size).toBe(20);
+  });
+
+  it('never invents a result: a failed table request ends the window without a spin', () => {
+    let s = run(joinTable(T.startsAt), tick(T.closesAt, false));
+    s = reduceCycle(s, { type: 'TABLE_FAILED', slot: 5000, now: T.closesAt + 6000 });
+    expect(s).toMatchObject({ phase: 'RESULT_REVEAL', spin: null, notice: 'TABLE_UNAVAILABLE' });
+    expect(reduceCycle(s, tick(s.revealUntil!))).toMatchObject({ phase: 'BETTING_OPEN', slot: 5001, notice: null });
+  });
+
+  it('a stale spectator window (long-hidden tab) moves on to the current slot', () => {
+    const s = run(joinTable(T.startsAt), { type: 'HIDDEN' }, tick(T.closesAt, false));
+    expect(s.hidden).toBe(true);
+    const later = slotTimes(5003).startsAt + 1000;
+    expect(reduceCycle(s, tick(later))).toMatchObject({ phase: 'BETTING_OPEN', slot: 5003, hidden: true });
   });
 
   it('never enters two phases at once: each event is accepted only in its own phase', () => {
     const phases: Cycle['phase'][] = [];
-    let s = initialCycle(0);
+    let s = joinTable(T.startsAt);
     const events: CycleEvent[] = [
-      { type: 'LANDED', roundId: 'r', now: 1 },
+      { type: 'LANDED', key: 'r', now: 1 },
       { type: 'REQUEST_FAILED' },
       { type: 'RECOVERY_RESOLVED', now: 1 },
-      tick(BETTING_MS, true),
-      tick(BETTING_MS, true),
+      { type: 'TABLE_RESULT', slot: 5000, result: 1 },
+      tick(T.closesAt, true),
+      tick(T.closesAt, true),
       { type: 'RECOVERY_NEEDED' },
       { type: 'ROUND_RECEIVED', roundId: 'r' },
       { type: 'ROUND_RECEIVED', roundId: 'r' },
-      tick(BETTING_MS * 3, true),
-      { type: 'LANDED', roundId: 'r', now: BETTING_MS * 3 },
+      tick(T.endsAt * 3, true),
+      { type: 'LANDED', key: 'r', now: T.closesAt + 5000 },
     ];
     for (const e of events) {
       s = reduceCycle(s, e);
       phases.push(s.phase);
     }
-    expect(phases).toEqual(['BETTING_OPEN', 'BETTING_OPEN', 'BETTING_OPEN', 'BETTING_CLOSED', 'BETTING_CLOSED', 'BETTING_CLOSED', 'SPINNING', 'SPINNING', 'SPINNING', 'RESULT_REVEAL']);
+    expect(phases).toEqual(['BETTING_OPEN', 'BETTING_OPEN', 'BETTING_OPEN', 'BETTING_OPEN', 'BETTING_CLOSED', 'BETTING_CLOSED', 'BETTING_CLOSED', 'SPINNING', 'SPINNING', 'SPINNING', 'RESULT_REVEAL']);
   });
 
-  it('a failed request goes to recovery; betting reopens only when nothing is outstanding, or a retry delivers the round', () => {
-    const failed = run(initialCycle(0), tick(BETTING_MS, true), { type: 'REQUEST_FAILED' });
+  it('a failed wager request goes to recovery; time never ends it; a retry delivers the round, or the table is rejoined', () => {
+    const failed = run(joinTable(T.startsAt), tick(T.closesAt, true), { type: 'REQUEST_FAILED' });
     expect(failed.phase).toBe('RECOVERY');
-    expect(reduceCycle(failed, tick(BETTING_MS * 20, true))).toBe(failed); // time never ends recovery
-    expect(reduceCycle(failed, { type: 'ROUND_RECEIVED', roundId: 'r' })).toMatchObject({ phase: 'SPINNING', roundId: 'r' });
-    expect(reduceCycle(failed, { type: 'RECOVERY_RESOLVED', now: 99 })).toMatchObject({ phase: 'BETTING_OPEN', window: 2, closesAt: 99 + BETTING_MS });
+    expect(reduceCycle(failed, tick(T.endsAt * 5, true))).toBe(failed);
+    expect(reduceCycle(failed, { type: 'TABLE_RESULT', slot: 5000, result: 3 })).toBe(failed);
+    expect(reduceCycle(failed, { type: 'ROUND_RECEIVED', roundId: 'r' })).toMatchObject({ phase: 'SPINNING', spin: { kind: 'wager' } });
+    const now = slotTimes(5002).startsAt + 1000;
+    expect(reduceCycle(failed, { type: 'RECOVERY_RESOLVED', now })).toMatchObject({ phase: 'BETTING_OPEN', slot: 5002 });
     // An interrupted request found while betting is open stops the window.
-    expect(reduceCycle(initialCycle(0), { type: 'RECOVERY_NEEDED' })).toMatchObject({ phase: 'RECOVERY', closesAt: null });
+    expect(reduceCycle(joinTable(T.startsAt), { type: 'RECOVERY_NEEDED' })).toMatchObject({ phase: 'RECOVERY' });
   });
 
-  it('skips a wager that became invalid at the moment of sending (nothing sent, short pause)', () => {
-    const s = run(initialCycle(0), tick(BETTING_MS, true), { type: 'WAGER_SKIPPED', now: BETTING_MS });
-    expect(s).toMatchObject({ phase: 'BETTING_CLOSED', wager: false, reopenAt: BETTING_MS + NO_WAGER_PAUSE_MS });
+  it('a wager that became invalid at the moment of sending falls back to watching the table spin', () => {
+    const s = run(joinTable(T.startsAt), tick(T.closesAt, true), { type: 'WAGER_SKIPPED' });
+    expect(s).toMatchObject({ phase: 'BETTING_CLOSED', wager: false });
+    expect(reduceCycle(s, { type: 'TABLE_RESULT', slot: 5000, result: 9 }).phase).toBe('SPINNING');
   });
 
-  it('pauses an open window while the page is hidden and resumes with a minimum, unaffected by throttled timers', () => {
-    let s = initialCycle(0);
-    s = reduceCycle(s, { type: 'HIDDEN', now: BETTING_MS - 2000 });
-    expect(s).toMatchObject({ closesAt: null, pausedLeft: 2000, hidden: true });
-    // However late the next tick arrives, a paused window does not close.
-    expect(reduceCycle(s, tick(BETTING_MS * 100, true)).phase).toBe('BETTING_OPEN');
-    expect(secondsLeft(s, 1e9)).toBe(2);
-    s = reduceCycle(s, { type: 'VISIBLE', now: 500_000 });
-    expect(s).toMatchObject({ hidden: false, closesAt: 500_000 + RESUME_MIN_MS });
-    // A window that opens while hidden starts paused with the full duration.
-    const result = run(initialCycle(0), tick(BETTING_MS, true), { type: 'ROUND_RECEIVED', roundId: 'r' }, { type: 'LANDED', roundId: 'r', now: 1 }, { type: 'HIDDEN', now: 2 });
-    expect(reduceCycle(result, tick(1 + RESULT_MS))).toMatchObject({ phase: 'BETTING_OPEN', closesAt: null, pausedLeft: BETTING_MS });
-    // A late tick after the deadline closes once, at that tick — never twice.
-    const late = reduceCycle(initialCycle(0), tick(BETTING_MS + 9000, false));
-    expect(late).toMatchObject({ phase: 'BETTING_CLOSED', reopenAt: BETTING_MS + 9000 + NO_WAGER_PAUSE_MS });
+  it('a late tick closes the window once, at that tick', () => {
+    const s = reduceCycle(joinTable(T.startsAt), tick(T.closesAt + 9000, false));
+    expect(s).toMatchObject({ phase: 'BETTING_CLOSED', wager: false });
+    expect(T.closesAt - T.startsAt).toBe(TABLE_BETTING_MS);
   });
 
   it('sounds the countdown warning once per second for the last three seconds, only with bets on the table', () => {

@@ -75,6 +75,26 @@ export const SOUNDS: Record<string, () => Buf> = {
   // A soft wooden "tock" for each of the last seconds of betting; a two-note chime when betting closes.
   'roulette/countdown.wav': () => finish(mix(0.16, [[tone(0.16, 1046, { decay: 0.03, partials: [[2.4, 0.2]] }), 0, 1], [envelope(filter(noise(0.03, 18), 'bandpass', 1800, { q: 4 }), 0.0005, 0.005), 0, 0.5]]), 0.5),
   'roulette/no-more-bets.wav': () => arpeggio(0.8, [[76, 0, 0.45], [72, 0.16, 0.6]], (len, f) => bell(len, f, 0.2), 0.5),
+  // A neutral result chime for table spins (no wager: neither a win nor a loss).
+  'roulette/result.wav': () => arpeggio(0.9, [[72, 0, 0.6], [79, 0.05, 0.7]], (len, f) => bell(len, f, 0.28), 0.5),
+  'roulette/wheel-ambience.wav': () => {
+    // The rotor turning on its bearing: a low wooden hum with a slow rotational swell; loops seamlessly.
+    const dur = 4.4;
+    const hum = mix(dur, [[tone(dur, 62, { wave: 'triangle', attack: 0.001, decay: 1000 }), 0, 0.5], [tone(dur, 93.5, { attack: 0.001, decay: 1000 }), 0, 0.25]]);
+    const air = filter(filter(noise(dur, 19), 'lowpass', 900), 'highpass', 120);
+    return seamless(shape(mix(dur, [[hum, 0, 1], [air, 0, 0.6]]), (k) => 0.7 + 0.3 * Math.sin(2 * Math.PI * k * 4.4 * 0.5)), 0.4, 0.4);
+  },
+  'roulette/room.wav': () => {
+    // A distant, quiet casino room: soft murmur and the odd chip clink; loops seamlessly.
+    const dur = 6.4;
+    const murmur = shape(filter(filter(noise(dur, 20), 'bandpass', 520, { q: 0.6 }), 'lowpass', 1400), (k) => 0.75 + 0.25 * Math.sin(2 * Math.PI * k * 3.2) * Math.sin(2 * Math.PI * k * 1.1));
+    const clinks = mix(dur, [
+      [chipClick(24, 3600, 0.08), 1.3, 0.25],
+      [chipClick(25, 3100, 0.08), 1.42, 0.18],
+      [chipClick(26, 3900, 0.08), 4.1, 0.2],
+    ]);
+    return seamless(mix(dur, [[murmur, 0, 1], [clinks, 0, 1]]), 0.6, 0.35);
+  },
   'roulette/win.wav': () => arpeggio(1.1, [[72, 0, 0.6], [76, 0.09, 0.6], [79, 0.18, 0.6], [84, 0.27, 0.8]], (len, f) => bell(len, f, 0.25)),
   'roulette/lose.wav': () => arpeggio(0.7, [[67, 0, 0.35], [62, 0.16, 0.5]], (len, f) => tone(len, f, { wave: 'triangle', decay: 0.14 }), 0.45),
 

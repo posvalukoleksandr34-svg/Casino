@@ -47,6 +47,8 @@ export const RATE_LIMITS = {
   actionUser: { name: 'action:user', limit: 60, windowSeconds: 10, by: 'user' },
   mutateUser: { name: 'mutate:user', limit: 30, windowSeconds: 60, by: 'user' },
   readUser: { name: 'read:user', limit: 300, windowSeconds: 60, by: 'user' },
+  /** Public automatic-roulette table reads (schedule, spins, history) per client address. */
+  tableIp: { name: 'table:ip', limit: 240, windowSeconds: 60, by: 'ip' },
   adminUser: { name: 'admin:user', limit: 600, windowSeconds: 60, by: 'user' },
   /** A manual reconciliation run re-reads every ledger table: a handful per staff member per 10 minutes. */
   reconcileRun: { name: 'reconcile:user', limit: 5, windowSeconds: 600, by: 'user' },

@@ -115,3 +115,23 @@ export function toMinor(text: string): number {
   const sign = clean.startsWith('-') ? -1 : 1;
   return sign * (Math.abs(Number(whole)) * 100 + Number(frac.padEnd(2, '0').slice(0, 2)));
 }
+
+/**
+ * The roulette table runs on a shared 28-second schedule, so a page can open
+ * mid-cycle. Waits until a betting window is open with enough time left to
+ * place chips (`minSeconds`).
+ */
+export async function waitForFreshRouletteWindow(page: Page, minSeconds = 11) {
+  await expect
+    .poll(
+      async () => {
+        const status = page.getByTestId('roulette-status');
+        const phase = await status.getAttribute('data-phase');
+        const secs = Number((await page.getByTestId('roulette-countdown').getAttribute('data-seconds')) || 0);
+        return phase === 'BETTING_OPEN' && secs >= minSeconds;
+      },
+      { timeout: 45_000, intervals: [250] },
+    )
+    .toBe(true);
+  return Number(await page.getByTestId('roulette-status').getAttribute('data-slot'));
+}

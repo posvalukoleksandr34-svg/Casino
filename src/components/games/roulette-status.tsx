@@ -2,33 +2,41 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
-import { BETTING_MS, BETTING_SECONDS, countdownWarning, secondsLeft, type Cycle } from './roulette-cycle';
-import { cycleNow } from './use-roulette-cycle';
-
-const PHASE_LABEL: Record<Cycle['phase'], string> = {
-  BETTING_OPEN: 'Place your bets',
-  BETTING_CLOSED: 'No more bets',
-  SPINNING: 'No more bets — spinning',
-  RESULT_REVEAL: 'Result',
-  RECOVERY: 'Connection interrupted',
-};
+import { BETTING_SECONDS, countdownWarning, secondsLeft, type Cycle } from './roulette-cycle';
+import { TABLE_BETTING_MS } from '@/engine/games/roulette/table';
 
 /**
- * The table's phase and the betting countdown. Re-renders only itself a few
- * times a second; plays the warning for the last seconds (once per second,
- * only with bets on the table).
+ * The table's phase and the large betting countdown. Re-renders only itself
+ * a few times a second; plays the warning for the last seconds (once per
+ * second, only with bets on the table).
  */
-export function RouletteStatus({ cycle, hasBets, wagerPending, onWarn, note }: { cycle: Cycle | null; hasBets: boolean; wagerPending: boolean; onWarn: () => void; note?: string | null }) {
-  const [now, setNow] = useState(() => cycleNow());
+export function RouletteStatus({
+  cycle,
+  now,
+  hasBets,
+  wagerPending,
+  onWarn,
+  note,
+  connecting,
+}: {
+  cycle: Cycle | null;
+  now: () => number;
+  hasBets: boolean;
+  wagerPending: boolean;
+  onWarn: () => void;
+  note?: string | null;
+  connecting: boolean;
+}) {
+  const [t, setT] = useState(() => now());
   const open = cycle?.phase === 'BETTING_OPEN';
   useEffect(() => {
     if (!open) return;
-    setNow(cycleNow());
-    const id = setInterval(() => setNow(cycleNow()), 200);
+    setT(now());
+    const id = setInterval(() => setT(now()), 200);
     return () => clearInterval(id);
-  }, [open, cycle?.window, cycle?.closesAt]);
+  }, [open, cycle?.slot, now]);
 
-  const secs = cycle ? secondsLeft(cycle, now) : null;
+  const secs = cycle ? secondsLeft(cycle, t) : null;
   const prev = useRef<number | null>(null);
   const warn = useRef(onWarn);
   warn.current = onWarn;
@@ -37,53 +45,75 @@ export function RouletteStatus({ cycle, hasBets, wagerPending, onWarn, note }: {
     prev.current = secs;
   }, [secs, hasBets]);
 
-  const leftMs = cycle && open ? (cycle.closesAt !== null ? Math.max(0, cycle.closesAt - now) : (cycle.pausedLeft ?? BETTING_MS)) : 0;
-  const fraction = open ? Math.min(1, leftMs / BETTING_MS) : 0;
+  const leftMs = cycle && open ? Math.max(0, cycle.closesAt - t) : 0;
+  const fraction = open ? Math.min(1, leftMs / TABLE_BETTING_MS) : 0;
   const urgent = open && secs !== null && secs <= 3;
-  const label = !cycle ? 'Opening the table…' : cycle.phase === 'BETTING_CLOSED' && !cycle.wager ? 'Betting closed' : PHASE_LABEL[cycle.phase];
-  const paused = open && cycle?.closesAt === null;
+  const tableSpin = cycle?.spin?.kind === 'table';
+
+  let label: string;
+  let detail: string;
+  if (!cycle) {
+    label = connecting ? 'Connecting to the table…' : 'Table unavailable';
+    detail = connecting ? '' : 'Retrying in a moment';
+  } else
+    switch (cycle.phase) {
+      case 'BETTING_OPEN':
+        label = 'Place your bets';
+        detail = hasBets ? 'Your bets go in automatically when time runs out' : 'No chips, no wager — the wheel spins anyway';
+        break;
+      case 'BETTING_CLOSED':
+        label = 'No more bets';
+        detail = cycle.wager ? (wagerPending ? 'Sending your bets…' : 'Your bets are in') : (note ?? 'No bets from you this round — watching the table spin');
+        break;
+      case 'SPINNING':
+        label = 'No more bets — spinning';
+        detail = tableSpin ? 'Table spin: the result was drawn by the server; nothing is wagered' : 'Your spin: the result was drawn by the server';
+        break;
+      case 'RESULT_REVEAL':
+        label = cycle.notice === 'TABLE_UNAVAILABLE' ? 'No spin this round' : cycle.spin ? 'Result' : 'Next round shortly';
+        detail = cycle.notice === 'TABLE_UNAVAILABLE' ? 'The table result could not be loaded — nothing was made up. Next round shortly.' : 'Next betting round opens automatically';
+        break;
+      case 'RECOVERY':
+        label = 'Connection interrupted';
+        detail = 'Your bets are kept until this is resolved';
+        break;
+    }
 
   return (
-    <div className="space-y-2" data-testid="roulette-status" data-phase={cycle?.phase ?? 'STARTING'} data-window={cycle?.window ?? 0}>
-      <div className="flex items-end justify-between gap-3">
-        <div aria-live="polite" aria-atomic="true">
-          <div className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', open ? 'text-gold-300' : 'text-ink-300')} data-testid="roulette-phase">
-            {label}
-          </div>
-          <div className="mt-0.5 text-xs text-ink-400">
-            {open
-              ? paused
-                ? 'Paused while this tab is hidden'
-                : hasBets
-                  ? 'Your bets go in automatically when time runs out'
-                  : 'Bets close automatically — no chips, no spin for you'
-              : cycle?.phase === 'BETTING_CLOSED'
-                ? wagerPending
-                  ? 'Sending your bets…'
-                  : (note ?? 'No bets this round — the next round opens shortly')
-                : cycle?.phase === 'SPINNING'
-                  ? 'The result is already drawn by the server'
-                  : cycle?.phase === 'RESULT_REVEAL'
-                    ? 'Next betting round opens shortly'
-                    : cycle?.phase === 'RECOVERY'
-                      ? 'Your bets are kept until this is resolved'
-                      : ''}
-          </div>
-        </div>
-        <div
-          role="timer"
-          aria-label={open && secs !== null ? `${secs} seconds left to bet` : 'Betting closed'}
-          className={cn('num grid size-14 shrink-0 place-items-center rounded-full border-2 text-2xl font-semibold tabular-nums transition-colors duration-300', urgent ? 'border-negative/70 text-[#ff9b93]' : open ? 'border-gold-500/70 text-gold-200' : 'border-ink-600 text-ink-400')}
-          data-testid="roulette-countdown"
-          data-seconds={secs ?? ''}
-        >
-          {open && secs !== null ? secs : '–'}
-        </div>
+    <div className="flex items-center gap-4" data-testid="roulette-status" data-phase={cycle?.phase ?? 'STARTING'} data-slot={cycle?.slot ?? ''} data-spin={cycle?.spin?.kind ?? ''}>
+      <div
+        role="timer"
+        aria-label={open && secs !== null ? `${secs} seconds left to bet` : 'Betting closed'}
+        className={cn(
+          'relative grid size-20 shrink-0 place-items-center rounded-full sm:size-24',
+          'bg-[radial-gradient(circle_at_35%_30%,#2a2c33,#0b0c0f_70%)] shadow-[0_8px_24px_-8px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.06)]',
+        )}
+        data-testid="roulette-countdown"
+        data-seconds={secs ?? ''}
+      >
+        <svg viewBox="0 0 100 100" className="absolute inset-0 size-full -rotate-90" aria-hidden="true">
+          <circle cx="50" cy="50" r="45" fill="none" stroke="rgb(255 255 255 / 0.07)" strokeWidth="6" />
+          <circle
+            cx="50"
+            cy="50"
+            r="45"
+            fill="none"
+            stroke={urgent ? '#e06a62' : '#d9bb76'}
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeDasharray={`${(fraction * 2 * Math.PI * 45).toFixed(2)} 1000`}
+            className="transition-[stroke-dasharray] duration-200 ease-linear"
+          />
+        </svg>
+        <span className={cn('num relative text-3xl font-bold tabular-nums sm:text-4xl', urgent ? 'text-[#ff9b93]' : open ? 'text-gold-100' : 'text-ink-400')}>{open && secs !== null ? secs : '–'}</span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-ink-800" aria-hidden="true">
-        <div className={cn('h-full rounded-full transition-[width] duration-200 ease-linear', urgent ? 'bg-negative/80' : 'bg-gold-500')} style={{ width: `${fraction * 100}%` }} />
+      <div className="min-w-0" aria-live="polite" aria-atomic="true">
+        <div className={cn('font-display text-2xl font-semibold leading-tight sm:text-3xl', open ? 'text-gold-200' : 'text-ink-100')} data-testid="roulette-phase">
+          {label}
+        </div>
+        <div className="mt-1 text-sm text-ink-300">{detail}</div>
       </div>
-      <p className="sr-only">Each betting round lasts {BETTING_SECONDS} seconds.</p>
+      <p className="sr-only">Each betting round lasts {BETTING_SECONDS} seconds; the wheel spins after every round.</p>
     </div>
   );
 }

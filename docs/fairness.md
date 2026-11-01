@@ -91,6 +91,39 @@ mismatch rather than hiding it.
 **Demo sports results** use a per-event seed committed (SHA-256 published) before
 predictions open and revealed with the result; see [sports.md](sports.md#demo-model-and-fairness).
 
+## Automatic roulette table spins
+
+When a player has no bets in a roulette betting window, the wheel shows the
+**table's** spin for that window: a public, server-generated result that is
+not a wager. It moves no chips and creates no round or ledger entry.
+
+**How a table spin's result is fixed**
+
+- **The schedule.** Table slot k starts at `2026-01-01T00:00:00Z + k × 28 s`
+  and betting closes 15 s later (`src/engine/games/roulette/table.ts`).
+- **One seed per day.** Each UTC day has a 32-byte server seed (from the
+  CSPRNG, encrypted at rest). Its SHA-256 commitment is published by
+  `GET /api/roulette/table` before the day's spins close: today's and
+  tomorrow's are always committed. A slot belongs to the day its betting
+  closes in.
+- **The result.** Slot k's pocket is the first draw of the standard stream
+  with `serverSeed = day seed`, `clientSeed = "aurovane-table"` and
+  `nonce = k`: `HmacRandomStream(…).nextInt(37)`. This is the same mapping
+  a player round uses for its pocket.
+- **When it is revealed.** `GET /api/roulette/table/spins/:slot` answers only
+  after betting for that slot has closed, and only from a seed that was
+  committed beforehand. The spin is then recorded, append-only, in
+  `roulette_table_spins`.
+- **Checking it.** After the day ends, `GET /api/roulette/table/days/:day`
+  reveals the seed. Check that `SHA-256(seed)` equals the commitment, then
+  recompute any slot's result.
+
+**Limits.** The operator knows a day's seed in advance, so table spins are
+committed rather than client-influenced. This is acceptable because table
+spins decide nothing: no stake depends on them. A player's **wager** always
+uses the player's own seed pair and client seed, as described above, never
+the table seed.
+
 ## What this proves — and what it does not
 
 It proves that each outcome was fixed by a seed committed before the wager and was not
