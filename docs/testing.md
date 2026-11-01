@@ -165,6 +165,14 @@ were rebuilt after the reference photo, and wheel and room ambience loops were a
 | `npm run check:docs` | links OK |
 | `npm run audio:generate -- --check` | 46 files match their recipes |
 
+**Windows checkouts (fixed after this run):** on Windows, Git checked the migrations
+out with CRLF line endings. A database migrated from an LF copy then refused to start
+with `migration 0001_init.sql was modified after being applied (checksum mismatch)`.
+Checksums are now independent of line endings, and existing records in either form are
+accepted. `.gitattributes` keeps text files LF on every platform. Reproduced against
+PostgreSQL with a CRLF copy of all migrations: refused before the fix, accepted after it.
+Covered by `tests/unit/migrator.test.ts`.
+
 **Found and fixed during this work:** the new day-seed endpoint first accepted impossible
 dates such as `2030-02-31` (JavaScript's `Date` rolls them over). The integration test
 caught it, and validation is now a strict round trip.

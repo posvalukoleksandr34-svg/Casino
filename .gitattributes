@@ -1,0 +1,13 @@
+# Check out text files with LF on every platform (Windows included), so
+# migrations, scripts and sources are byte-identical everywhere.
+* text=auto eol=lf
+*.sh text eol=lf
+*.sql text eol=lf
+
+# Binary assets
+*.wav binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

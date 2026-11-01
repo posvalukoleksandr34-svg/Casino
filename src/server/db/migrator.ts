@@ -11,6 +11,27 @@ import type pg from 'pg';
 
 const LOCK_ID = 7_342_001;
 
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+
+/**
+ * A migration's checksum, independent of line endings: a Windows checkout
+ * (CRLF) and a Linux one (LF) of the same file are the same migration.
+ */
+export function migrationChecksum(sql: string): string {
+  return sha256(sql.replace(/\r\n/g, '\n'));
+}
+
+/**
+ * Whether a recorded checksum matches the file. Accepts the line-ending
+ * independent checksum and, for databases migrated before it existed, the
+ * checksum of the raw file in either line-ending form. Any real edit still
+ * fails.
+ */
+export function checksumMatches(recorded: string, sql: string): boolean {
+  const lf = sql.replace(/\r\n/g, '\n');
+  return recorded === sha256(lf) || recorded === sha256(lf.replace(/\n/g, '\r\n')) || recorded === sha256(sql);
+}
+
 export interface MigrationResult {
   applied: string[];
   skipped: string[];
@@ -34,10 +55,10 @@ export async function migrate(pool: pg.Pool, dir = path.resolve(process.cwd(), '
     const applied = new Map(rows.map((r) => [r.version, r.checksum]));
     for (const file of files) {
       const sql = await readFile(path.join(dir, file), 'utf8');
-      const checksum = createHash('sha256').update(sql).digest('hex');
+      const checksum = migrationChecksum(sql);
       const existing = applied.get(file);
       if (existing) {
-        if (existing !== checksum) {
+        if (!checksumMatches(existing, sql)) {
           throw new Error(`migration ${file} was modified after being applied (checksum mismatch)`);
         }
         result.skipped.push(file);
