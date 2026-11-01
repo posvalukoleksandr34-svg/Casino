@@ -106,7 +106,7 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
           sub={
             'provided' in d.personal
               ? 'Visible to roles with personal-data access'
-              : [d.personal.dateOfBirth ? `Born ${d.personal.dateOfBirth}` : null, d.personal.countryName, d.personal.phone ? `${d.personal.phone} (${d.personal.phoneVerified ? 'verified' : 'unverified'})` : null].filter(Boolean).join(' · ') || undefined
+              : [d.personal.dateOfBirth ? `Born ${d.personal.dateOfBirth} (${d.personal.age === 'provider_verified' ? 'age verified by provider' : 'self-declared'})` : null, d.personal.countryName, d.personal.phone ? `${d.personal.phone} (${d.personal.phoneVerified ? 'verified' : 'unverified'})` : null].filter(Boolean).join(' · ') || undefined
           }
         />
         <Stat label="Sign-in security" value={d.mfaEnabled ? 'MFA on' : 'Password only'} sub={`${d.user.failedLoginCount} failed attempts${d.user.lockedUntil && d.user.lockedUntil > new Date() ? ` · locked until ${utc(d.user.lockedUntil)}` : ''}`} />

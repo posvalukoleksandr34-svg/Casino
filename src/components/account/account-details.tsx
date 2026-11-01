@@ -298,7 +298,7 @@ export function DetailsForm({ initial, countries, phoneRegions, required }: { in
             error={errors.phoneNumber}
             hint={
               <>
-                {initial.phoneVerified ? 'Verified.' : 'Not verified — we do not send text messages.'} Changing it keeps it unverified.
+                {initial.phoneVerified ? 'Verified by SMS.' : 'Unverified.'} A changed number is unverified until it is confirmed by SMS (when available).
               </>
             }
           >

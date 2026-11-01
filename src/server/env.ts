@@ -31,6 +31,17 @@ const schema = z.object({
    * reach the operator. Never invented by the application.
    */
   SUPPORT_EMAIL: z.string().optional(),
+  /**
+   * SMS provider for phone verification. Only "disabled" exists until an
+   * operator adds an adapter for a real provider (src/server/verification/sms.ts);
+   * phone numbers then stay unverified and the UI says so.
+   */
+  SMS_PROVIDER: z.enum(['disabled']).default('disabled'),
+  /**
+   * Third-party age / identity verification. "none": the only age signal is the
+   * self-declared date of birth, checked 18+ on the server (src/server/verification/age.ts).
+   */
+  AGE_VERIFICATION_PROVIDER: z.enum(['none']).default('none'),
   BACKGROUND_JOBS: boolish.default(true),
   RECONCILE_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
   /**

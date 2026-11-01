@@ -13,6 +13,7 @@ import {
   bonuses,
   emailVerificationChallenges,
   gameRounds,
+  phoneVerificationChallenges,
   ledgerAccounts,
   passwordResetTokens,
   responsibleLimits,
@@ -37,6 +38,7 @@ import { consume, type RateLimitRule } from '../http/rate-limit';
 import { getMailer, runInBackground, sendInBackground } from '../mail/mailer';
 import { passwordResetEmail } from '../mail/templates';
 import { listTransactions } from '../wallet/wallet';
+import { ERASED_PHONE } from './phone-verification';
 import { MINIMUM_AGE, PRIVACY_VERSION, TERMS_VERSION } from '@/lib/account-policy';
 import {
   activateAccount,
@@ -456,6 +458,8 @@ export async function exportUserData(userId: string) {
       termsAcceptedAt: users.termsAcceptedAt,
       privacyVersion: users.privacyVersion,
       privacyAcceptedAt: users.privacyAcceptedAt,
+      ageVerifiedAt: users.ageVerifiedAt,
+      ageVerificationProvider: users.ageVerificationProvider,
     })
     .from(users)
     .where(eq(users.id, userId));
@@ -472,6 +476,17 @@ export async function exportUserData(userId: string) {
     .from(emailVerificationChallenges)
     .where(eq(emailVerificationChallenges.userId, userId))
     .orderBy(desc(emailVerificationChallenges.createdAt));
+  const phoneVerifications = await db
+    .select({
+      phone: phoneVerificationChallenges.phoneE164,
+      provider: phoneVerificationChallenges.provider,
+      delivery: phoneVerificationChallenges.delivery,
+      createdAt: phoneVerificationChallenges.createdAt,
+      consumedAt: phoneVerificationChallenges.consumedAt,
+    })
+    .from(phoneVerificationChallenges)
+    .where(eq(phoneVerificationChallenges.userId, userId))
+    .orderBy(desc(phoneVerificationChallenges.createdAt));
   const wallet = await getWalletAccount(db, userId);
   const favorites = await db.select({ gameId: userFavorites.gameId, createdAt: userFavorites.createdAt }).from(userFavorites).where(eq(userFavorites.userId, userId));
   const achievements = await db
@@ -540,6 +555,7 @@ export async function exportUserData(userId: string) {
     seeds,
     sessions: sessionRows,
     emailVerifications,
+    phoneVerifications,
     activity,
     favorites,
     achievements,
@@ -601,10 +617,17 @@ export async function deleteAccount(userId: string, password: string, meta: Requ
         countryCode: null,
         phoneE164: null,
         phoneVerifiedAt: null,
+        ageVerifiedAt: null,
+        ageVerificationProvider: null,
+        ageVerificationRef: null,
         deletedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(users.id, userId));
+    await tx
+      .update(phoneVerificationChallenges)
+      .set({ phoneE164: ERASED_PHONE, supersededAt: sql`coalesce(${phoneVerificationChallenges.supersededAt}, now())` })
+      .where(eq(phoneVerificationChallenges.userId, userId));
     // Codes were never stored; erase the addresses they were sent to.
     await tx
       .update(emailVerificationChallenges)

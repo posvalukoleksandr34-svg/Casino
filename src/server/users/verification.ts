@@ -65,7 +65,7 @@ export const PENDING_RECLAIM_HOURS = 24;
 // Keys, codes and the signup-flow cookie
 // ---------------------------------------------------------------------------
 
-function derivedKey(label: string): Buffer {
+export function derivedKey(label: string): Buffer {
   const secret = env().IP_HASH_SECRET ?? 'development-ip-hash-secret';
   return createHmac('sha256', secret).update(label).digest();
 }

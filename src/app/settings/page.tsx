@@ -7,6 +7,8 @@ import { requireUser } from '@/server/auth/current';
 import { phoneRegionOptions, residenceCountries } from '@/server/users/countries';
 import { accountDetails } from '@/server/users/onboarding';
 import { emailChangeStatus } from '@/server/users/verification';
+import { phoneVerificationStatus } from '@/server/users/phone-verification';
+import { PhoneVerify } from '@/components/account/phone-verify';
 
 export const metadata = { title: 'Account settings' };
 
@@ -21,7 +23,7 @@ function phoneRegionOf(e164: string | null): string | null {
 
 export default async function SettingsPage() {
   const session = await requireUser('/settings');
-  const [details, pending] = await Promise.all([accountDetails(session.userId), emailChangeStatus(session.userId)]);
+  const [details, pending, phone] = await Promise.all([accountDetails(session.userId), emailChangeStatus(session.userId), phoneVerificationStatus(session.userId)]);
   return (
     <>
       <PageHeader
@@ -47,6 +49,7 @@ export default async function SettingsPage() {
             phoneRegion: phoneRegionOf(details.phoneE164),
           }}
         />
+        <PhoneVerify initial={phone} display={details.phoneDisplay} />
         <PasswordForm />
         <PreferencesForm />
         <DataControls />
