@@ -89,3 +89,31 @@ test.describe('invalid, duplicate and unauthorised requests', () => {
     expect((await page.request.get('/api/wallet')).status()).toBe(401);
   });
 });
+
+test.describe('content security policy', () => {
+  test('pages use a per-request nonce policy without unsafe-inline scripts, and nothing violates it', async ({ page }) => {
+    const violations: string[] = [];
+    page.on('console', (m) => {
+      if (/Content Security Policy|Refused to (execute|load)/i.test(m.text())) violations.push(m.text());
+    });
+    const first = await page.goto('/');
+    const csp = first!.headers()['content-security-policy'] ?? '';
+    const script = csp.split(';').find((d) => d.trim().startsWith('script-src')) ?? '';
+    expect(script).toMatch(/'nonce-[A-Za-z0-9+/=]{16,}'/);
+    expect(script).toContain("'strict-dynamic'");
+    expect(script).not.toContain("'unsafe-inline'");
+    expect(script).not.toContain("'unsafe-eval'");
+    const second = await page.goto('/');
+    expect(second!.headers()['content-security-policy']).not.toBe(csp); // a fresh nonce per request
+    // A full journey through hydrated, interactive pages raises no violation.
+    await registerPlayer(page);
+    await page.goto('/games/dice');
+    const roll = page.waitForResponse((r) => r.url().endsWith('/api/games/dice/rounds'));
+    await page.getByTestId('dice-roll-button').click();
+    expect((await roll).status()).toBe(201);
+    await page.goto('/wallet');
+    expect(violations).toEqual([]);
+    const api = await page.request.get('/api/health');
+    expect(api.headers()['content-security-policy']).toContain("script-src 'self'");
+  });
+});

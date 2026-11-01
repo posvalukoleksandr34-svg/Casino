@@ -143,7 +143,7 @@ describe('API: operations endpoints', () => {
     const ready = await healthRoute();
     expect(ready.status).toBe(200);
     expect((await ready.json()).status).toBe('ok');
-    const metrics = metricsRoute(req('/api/metrics'));
+    const metrics = await metricsRoute(req('/api/metrics'));
     expect(metrics.status).toBe(403);
   });
 });
@@ -170,8 +170,8 @@ describe('API: metrics endpoint policy (optional, fails closed)', () => {
     ['empty (as Docker Compose passes an unset variable)', ''],
     ['whitespace only', '    '],
   ])('token %s: disabled — every request is refused', async (_label, value) => {
-    await withToken(value, () => {
-      for (const p of probes) expect(call(p).status, `authorization=${JSON.stringify(p)}`).toBe(403);
+    await withToken(value, async () => {
+      for (const p of probes) expect((await call(p)).status, `authorization=${JSON.stringify(p)}`).toBe(403);
     });
   });
 
@@ -189,17 +189,21 @@ describe('API: metrics endpoint policy (optional, fails closed)', () => {
         token,
       ];
       for (const p of [...probes, ...malformed]) {
-        expect(call(p).status, `authorization=${JSON.stringify(p)}`).toBe(403);
+        expect((await call(p)).status, `authorization=${JSON.stringify(p)}`).toBe(403);
       }
       // The token is accepted only in the Authorization header: not in the query string or a cookie.
-      expect(metricsRoute(req(`/api/metrics?token=${token}`)).status).toBe(403);
-      expect(metricsRoute(req('/api/metrics', { headers: { cookie: `metrics=${token}`, 'x-metrics-token': token } })).status).toBe(403);
-      const refused = call('Bearer wrong');
+      expect((await metricsRoute(req(`/api/metrics?token=${token}`))).status).toBe(403);
+      expect((await metricsRoute(req('/api/metrics', { headers: { cookie: `metrics=${token}`, 'x-metrics-token': token } }))).status).toBe(403);
+      const refused = await call('Bearer wrong');
       expect(await refused.text()).not.toContain(token);
-      const ok = call(`Bearer ${token}`);
+      const ok = await call(`Bearer ${token}`);
       expect(ok.status).toBe(200);
       expect(ok.headers.get('content-type')).toContain('text/plain');
-      expect(await ok.text()).toContain('process_uptime_seconds');
+      const body = await ok.text();
+      expect(body).toContain('process_uptime_seconds');
+      // Point-in-time gauges for alerting (deploy/monitoring/alerts.yml).
+      expect(body).toMatch(/^casino_database_up 1$/m);
+      expect(body).toMatch(/^casino_open_alerts\{severity="CRITICAL"\} \d+$/m);
     });
   });
 });

@@ -18,3 +18,9 @@ npm-debug.log*
 /reports/tmp/
 # Database dumps (npm run ops:backup) never belong in the repository
 /backups/
+# Operator-provided key material and certificates (never committed)
+/deploy/tls/*
+!/deploy/tls/README
+/deploy/backup/*
+!/deploy/backup/README
+/deploy/acme/

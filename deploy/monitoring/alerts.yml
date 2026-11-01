@@ -1,0 +1,84 @@
+# Prometheus alerting rules for Aurovane (provider-neutral; docs/deployment.md
+# "Monitoring"). Scrape app:3000/api/metrics with the bearer METRICS_TOKEN from
+# inside the private network (the public proxy refuses /api/metrics), and probe
+# https://<domain>/api/health/ready from OUTSIDE with a blackbox/uptime checker.
+# Route these alerts to a person (Alertmanager → e-mail/pager); thresholds are
+# starting points — tune them to your traffic.
+groups:
+  - name: aurovane-availability
+    rules:
+      - alert: AurovaneDown
+        expr: up{job="aurovane"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: "Aurovane app instance not scrapable for 2 minutes" }
+      - alert: AurovaneDatabaseUnreachable
+        expr: casino_database_up == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations: { summary: "The app cannot reach PostgreSQL" }
+      - alert: AurovaneHighServerErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 1) > 0.02
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "More than 2 % of requests fail with 5xx" }
+      - alert: AurovaneSlowRequests
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_ms_bucket[5m]))) > 2500
+        for: 15m
+        labels: { severity: warning }
+        annotations: { summary: "95th percentile request latency above 2.5 s" }
+
+  - name: aurovane-integrity
+    rules:
+      - alert: AurovaneReconciliationMismatch
+        expr: casino_reconciliation_ok == 0
+        for: 0m
+        labels: { severity: critical }
+        annotations: { summary: "Ledger reconciliation reported mismatches — follow the incident runbook (docs/operations.md §8)" }
+      - alert: AurovaneReconciliationStale
+        expr: time() - casino_reconciliation_last_run_timestamp_seconds > 3600
+        for: 10m
+        labels: { severity: warning }
+        annotations: { summary: "No reconciliation run in the last hour" }
+      - alert: AurovaneCriticalAlertOpen
+        expr: casino_open_alerts{severity="CRITICAL"} > 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "An unacknowledged CRITICAL alert is open in /admin/alerts" }
+
+  - name: aurovane-jobs
+    rules:
+      - alert: AurovaneJobFailing
+        expr: increase(casino_job_runs_total{outcome="failed"}[15m]) > 3
+        labels: { severity: warning }
+        annotations: { summary: "Background job {{ $labels.job }} failed repeatedly" }
+      - alert: AurovaneRoundExpiryStalled
+        expr: time() - max(casino_job_last_success_timestamp_seconds{job="expire-rounds"}) > 300
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "Round expiry has not completed for 5 minutes (open rounds are not being settled)" }
+
+  - name: aurovane-mail
+    rules:
+      - alert: AurovaneMailTransportDown
+        expr: casino_mail_transport_up == 0
+        for: 5m
+        labels: { severity: critical }
+        annotations: { summary: "SMTP connection/authentication check failed: registration codes and password resets cannot be sent" }
+      - alert: AurovaneMailFailures
+        expr: increase(casino_mail_failed_total[30m]) > 5
+        labels: { severity: warning }
+        annotations: { summary: "E-mail deliveries are failing (see /admin/health → E-mail delivery)" }
+
+  - name: aurovane-meta
+    rules:
+      - alert: AurovaneMetricsMissing
+        expr: absent(up{job="aurovane"})
+        for: 30m
+        labels: { severity: warning }
+        annotations: { summary: "No Aurovane metrics at all — fix scraping before trusting any other alert" }
+
+# Backups are monitored OUTSIDE Prometheus: point BACKUP_HEARTBEAT_URL /
+# BACKUP_FAILURE_URL (scripts/ops/backup.sh) at a dead-man's-switch monitor
+# (e.g. a self-hosted Healthchecks instance or your uptime provider) that
+# alerts when no successful backup has pinged within 26 hours.

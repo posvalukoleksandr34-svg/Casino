@@ -1,11 +1,15 @@
 /**
  * In-process job scheduler. Each job takes a PostgreSQL advisory lock so that
- * with several app instances only one runs a given job at a time.
+ * with several app instances only one runs a given job at a time. Every tick is
+ * counted (casino_job_runs_total{job,outcome}) and successes set
+ * casino_job_last_success_timestamp_seconds{job}, so monitoring can alert on a
+ * job that fails or stops running (deploy/monitoring/alerts.yml).
  */
 import { getPool } from '../db/client';
 import { env } from '../env';
 import { logger } from '../observability/logger';
 import { captureError } from '../observability/errors';
+import { metrics } from '../observability/metrics';
 import { expireDueRounds } from '../games/round-service';
 import { runReconciliation } from './reconciliation';
 import { cleanupExpired, detectAnomalies } from './anomaly';
@@ -48,8 +52,11 @@ export function startScheduler(): void {
   g.__casinoScheduler = jobs.map((job) => {
     const tick = async () => {
       try {
-        await withAdvisoryLock(job.lockId, job.run);
+        const ran = await withAdvisoryLock(job.lockId, job.run);
+        metrics.inc('casino_job_runs_total', { job: job.name, outcome: ran ? 'ok' : 'skipped_locked' });
+        if (ran) metrics.set('casino_job_last_success_timestamp_seconds', { job: job.name }, Math.floor(Date.now() / 1000));
       } catch (err) {
+        metrics.inc('casino_job_runs_total', { job: job.name, outcome: 'failed' });
         captureError(err, { route: `job:${job.name}` });
       }
     };

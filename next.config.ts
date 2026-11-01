@@ -1,9 +1,10 @@
 import type { NextConfig } from 'next';
 
 /**
- * Security headers applied to every response. The CSP allows only same-origin
- * scripts/styles; Next.js needs 'unsafe-inline' for its inline bootstrap
- * scripts and style attributes unless a nonce-based CSP is configured.
+ * Security headers applied to every response. Pages get a per-request,
+ * nonce-based Content-Security-Policy from src/middleware.ts (no
+ * 'unsafe-inline' scripts); the static policy below covers API responses and
+ * static assets, which execute no inline scripts at all.
  */
 const securityHeaders = [
   { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -15,7 +16,7 @@ const securityHeaders = [
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'" + (process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''),
+      "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data:",
       "font-src 'self' data:",
@@ -47,7 +48,14 @@ const nextConfig: NextConfig = {
     if (process.env.NODE_ENV === 'production' && process.env.APP_URL?.startsWith('https://')) {
       headers.push({ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' });
     }
-    return [{ source: '/:path*', headers }];
+    const nonCsp = headers.filter((h) => h.key !== 'Content-Security-Policy');
+    const csp = headers.find((h) => h.key === 'Content-Security-Policy')!;
+    return [
+      { source: '/:path*', headers: nonCsp },
+      // Pages receive their nonce-based policy from the middleware; everything else gets this one.
+      { source: '/api/:path*', headers: [csp] },
+      { source: '/_next/static/:path*', headers: [csp] },
+    ];
   },
 };
 

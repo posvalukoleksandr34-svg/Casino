@@ -1,0 +1,2 @@
+# Mount your real certificate here as fullchain.pem and privkey.pem (e.g. from certbot).
+# This repository ships none; never commit a private key.

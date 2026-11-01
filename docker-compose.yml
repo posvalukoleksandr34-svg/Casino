@@ -1,8 +1,30 @@
-# Single-host deployment: PostgreSQL + one-shot migrations + app + reverse proxy.
-# Every secret is required — nothing falls back to a default:
+# Single-host deployment: PostgreSQL + one-shot migrations + app + reverse
+# proxy (+ optional scheduled backups). Every secret is required — nothing
+# falls back to a default:
 #   cp .env.example .env   # then fill in the "Docker Compose" section
-#   docker compose up --build
-# See docs/operations.md for TLS, backups and secret rotation.
+#   docker compose up -d --build
+#   docker compose --profile backup up -d backup   # scheduled encrypted backups
+# Production steps, TLS and verification: docs/deployment.md.
+#
+# Hardening: the database is only on an internal network (no published port,
+# no route to the internet); the app and migration containers run as non-root
+# with a read-only root filesystem, no Linux capabilities and
+# no-new-privileges; every service has memory/CPU/PID limits, log rotation and
+# a restart policy.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-locked-down: &locked-down
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+
 services:
   db:
     image: postgres:16-alpine
@@ -16,12 +38,20 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
-    # No published port: only the migrate and app containers can reach it.
+    # No published port and only the internal network: unreachable from outside the host.
+    networks: [backend]
+    shm_size: 256m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d casino"]
       interval: 5s
       timeout: 3s
       retries: 20
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: { memory: 1g, cpus: "1.5", pids: 512 }
+    stop_grace_period: 60s
+    logging: *logging
     restart: unless-stopped
 
   migrate:
@@ -34,14 +64,28 @@ services:
       SEED_ENCRYPTION_KEY: ${SEED_ENCRYPTION_KEY:?set SEED_ENCRYPTION_KEY in .env}
       SEED_ENCRYPTION_KEYS_PREVIOUS: ${SEED_ENCRYPTION_KEYS_PREVIOUS:-}
       IP_HASH_SECRET: ${IP_HASH_SECRET:?set IP_HASH_SECRET in .env}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:?set SUPPORT_EMAIL in .env (the public support and privacy contact)}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
       MAIL_TRANSPORT: ${MAIL_TRANSPORT:-disabled}
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      SMTP_TIMEOUT_SECONDS: ${SMTP_TIMEOUT_SECONDS:-20}
       ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      SPORTS_MODE: ${SPORTS_MODE:-demo}
+      FOOTBALL_DATA_API_KEY: ${FOOTBALL_DATA_API_KEY:-}
+      THE_ODDS_API_KEY: ${THE_ODDS_API_KEY:-}
       TRUST_PROXY_HOPS: "1"
+      HOME: /tmp
+      npm_config_cache: /tmp/.npm
     command: ["npm", "run", "db:migrate"]
+    networks: [backend]
+    <<: *locked-down
+    deploy:
+      resources:
+        limits: { memory: 512m, cpus: "1.0", pids: 256 }
+    logging: *logging
     depends_on:
       db:
         condition: service_healthy
@@ -57,6 +101,18 @@ services:
       BACKGROUND_JOBS: "true"
     expose:
       - "3000"
+    # backend: database; edge: the proxy and outbound SMTP / sports providers.
+    networks: [backend, edge]
+    <<: *locked-down
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /app/.next/cache:size=64m,uid=1000,gid=1000
+    init: true
+    deploy:
+      resources:
+        limits: { memory: 1g, cpus: "2.0", pids: 512 }
+    stop_grace_period: 30s
+    logging: *logging
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -64,17 +120,72 @@ services:
 
   # The only published port. Overwrites X-Forwarded-For so per-IP rate limits
   # cannot be spoofed (the app trusts exactly one hop: TRUST_PROXY_HOPS=1).
-  # This proxy speaks plain HTTP: terminate TLS here (deploy/nginx-tls.conf)
-  # or at a load balancer in front of it.
+  # This proxy speaks plain HTTP: terminate TLS here (deploy/nginx-tls.conf,
+  # with docker-compose.tls.yml) or at a load balancer in front of it.
   proxy:
     image: nginx:1.27-alpine
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
       - "${APP_PORT:-3000}:8080"
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/nginx-health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: { memory: 256m, cpus: "1.0", pids: 256 }
+    logging: *logging
     depends_on:
       - app
     restart: unless-stopped
 
+  # Scheduled, encrypted backups (docs/backup-recovery.md). Opt-in:
+  #   docker compose --profile backup up -d backup
+  # Reads with the migrator role (it can read every table); writes only to the
+  # backups volume; has the PUBLIC key only.
+  backup:
+    profiles: [backup]
+    build:
+      context: .
+      target: backup
+    environment:
+      DATABASE_URL: postgresql://casino_migrator:${DB_MIGRATOR_PASSWORD:?set DB_MIGRATOR_PASSWORD in .env}@db:5432/casino
+      BACKUP_DIR: /var/lib/aurovane/backups
+      BACKUP_STATUS_FILE: /var/lib/aurovane/backups/last-success.json
+      BACKUP_GPG_RECIPIENT: ${BACKUP_GPG_RECIPIENT:?set BACKUP_GPG_RECIPIENT in .env}
+      BACKUP_GPG_PUBLIC_KEY_FILE: /run/backup-key/public.asc
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-35}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_UPLOAD_COMMAND: ${BACKUP_UPLOAD_COMMAND:-}
+      BACKUP_HEARTBEAT_URL: ${BACKUP_HEARTBEAT_URL:-}
+      BACKUP_FAILURE_URL: ${BACKUP_FAILURE_URL:-}
+    volumes:
+      - backups:/var/lib/aurovane/backups
+      - ${BACKUP_GPG_PUBLIC_KEY_PATH:-./deploy/backup/public.asc}:/run/backup-key/public.asc:ro
+    # backend for the database; edge only for the off-site upload and monitoring pings.
+    networks: [backend, edge]
+    <<: *locked-down
+    deploy:
+      resources:
+        limits: { memory: 512m, cpus: "1.0", pids: 128 }
+    logging: *logging
+    # After migrations, so the first run backs up the real schema, not an empty database.
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+networks:
+  backend:
+    internal: true
+  edge: {}
+
 volumes:
   pgdata:
+  backups:

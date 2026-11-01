@@ -14,15 +14,22 @@
 #    after the dump (exactly equal on a quiet source), the same append-only
 #    triggers exist, and `npm run job:reconcile` reports OK on the copy;
 # 5. drop the disposable database (also on failure). KEEP_RESTORE_DB=1 keeps it.
+#
+# RESTORE_FROM=<backup file> restores that file instead of a fresh dump (an
+# encrypted .gpg file is decrypted with BACKUP_GPG_PRIVATE_KEY_FILE or the
+# current GNUPGHOME; its .sha256 is checked first). Without a live source to
+# compare with, step 4 checks triggers and reconciliation and prints the row
+# counts. DATABASE_URL is then optional.
 # Never restores over an existing database. Never prints connection URLs.
 set -euo pipefail
 umask 077
 
-: "${DATABASE_URL:?DATABASE_URL (source database) is required}"
 : "${RESTORE_ADMIN_URL:?RESTORE_ADMIN_URL (a role allowed to CREATE DATABASE) is required}"
-SOURCE_URL="$DATABASE_URL"
+FROM="${RESTORE_FROM:-}"
+if [[ -z "$FROM" ]]; then : "${DATABASE_URL:?DATABASE_URL (source database) is required}"; fi
+SOURCE_URL="${DATABASE_URL:-}"
 source "$(dirname "$0")/pg-tools.sh"
-use_matching_pg_tools "$SOURCE_URL"
+use_matching_pg_tools "${SOURCE_URL:-$RESTORE_ADMIN_URL}"
 DB="casino_restore_check_$(date -u +%Y%m%d%H%M%S)_$RANDOM"
 [[ "$DB" =~ ^casino_restore_check_[0-9]+_[0-9]+$ ]] || { echo "unexpected database name" >&2; exit 1; }
 TARGET_URL="$(node -e 'const u = new URL(process.argv[1]); u.pathname = "/" + process.argv[2]; console.log(u.toString())' "$RESTORE_ADMIN_URL" "$DB")"
@@ -49,11 +56,27 @@ triggers() {
     "SELECT tgrelid::regclass || ':' || tgname FROM pg_trigger WHERE NOT tgisinternal ORDER BY 1"
 }
 
-echo "== 1. dump source"
-before="$(counts "$SOURCE_URL")"
-pg_dump --format=custom --no-owner --no-privileges --file="$DUMP" --dbname="$SOURCE_URL"
-after="$(counts "$SOURCE_URL")"
-echo "dump: $(stat -c %s "$DUMP") bytes, sha256 $(sha256sum "$DUMP" | cut -c1-16)…"
+if [[ -n "$FROM" ]]; then
+  echo "== 1. use backup file $(basename "$FROM")"
+  [[ -f "$FROM" && -f "$FROM.sha256" ]] || { echo "backup file or its .sha256 is missing" >&2; exit 1; }
+  ( cd "$(dirname "$FROM")" && sha256sum --check --quiet "$(basename "$FROM").sha256" )
+  if [[ "$FROM" == *.gpg ]]; then
+    if [[ -n "${BACKUP_GPG_PRIVATE_KEY_FILE:-}" ]]; then
+      export GNUPGHOME="$WORK/gnupg"; mkdir -m 700 "$GNUPGHOME"
+      gpg --batch --quiet --import "$BACKUP_GPG_PRIVATE_KEY_FILE"
+    fi
+    gpg --batch --quiet --output "$DUMP" --decrypt "$FROM"
+  else
+    cp "$FROM" "$DUMP"
+  fi
+  echo "backup: checksum ok, $(stat -c %s "$DUMP") bytes decrypted"
+else
+  echo "== 1. dump source"
+  before="$(counts "$SOURCE_URL")"
+  pg_dump --format=custom --no-owner --no-privileges --file="$DUMP" --dbname="$SOURCE_URL"
+  after="$(counts "$SOURCE_URL")"
+  echo "dump: $(stat -c %s "$DUMP") bytes, sha256 $(sha256sum "$DUMP" | cut -c1-16)…"
+fi
 
 echo "== 2. create disposable database $DB"
 exists="$(psql -X -At -v ON_ERROR_STOP=1 --dbname="$RESTORE_ADMIN_URL" -c "SELECT count(*) FROM pg_database WHERE datname = '$DB'")"
@@ -68,11 +91,20 @@ DATABASE_URL="$TARGET_URL" npx tsx scripts/migrate.ts
 echo "== 4. verify"
 restored="$(counts "$TARGET_URL")"
 fail=0
-for t in $APPEND_ONLY game_rounds sports_tickets; do
-  b="$(grep "^$t=" <<<"$before" | cut -d= -f2)"; a="$(grep "^$t=" <<<"$after" | cut -d= -f2)"; r="$(grep "^$t=" <<<"$restored" | cut -d= -f2)"
-  if (( r < b || r > a )); then echo "MISMATCH $t: restored $r, source $b..$a"; fail=1; else echo "ok $t: $r rows"; fi
-done
-if [[ "$(triggers "$SOURCE_URL")" != "$(triggers "$TARGET_URL")" ]]; then echo "MISMATCH: trigger sets differ"; fail=1; else echo "ok triggers: $(triggers "$TARGET_URL" | wc -l) user triggers identical"; fi
+if [[ -n "$FROM" ]]; then
+  while IFS='=' read -r t r; do echo "restored $t: $r rows"; done <<<"$restored"
+  # Every append-only guard must exist on the restored copy (it ran the current migrations).
+  for g in ledger_entries ledger_transactions audit_logs admin_actions bets payouts; do
+    triggers "$TARGET_URL" | grep -q "^$g:" || { echo "MISMATCH: no trigger on $g"; fail=1; }
+  done
+  echo "ok triggers: $(triggers "$TARGET_URL" | wc -l) user triggers"
+else
+  for t in $APPEND_ONLY game_rounds sports_tickets; do
+    b="$(grep "^$t=" <<<"$before" | cut -d= -f2)"; a="$(grep "^$t=" <<<"$after" | cut -d= -f2)"; r="$(grep "^$t=" <<<"$restored" | cut -d= -f2)"
+    if (( r < b || r > a )); then echo "MISMATCH $t: restored $r, source $b..$a"; fail=1; else echo "ok $t: $r rows"; fi
+  done
+  if [[ "$(triggers "$SOURCE_URL")" != "$(triggers "$TARGET_URL")" ]]; then echo "MISMATCH: trigger sets differ"; fail=1; else echo "ok triggers: $(triggers "$TARGET_URL" | wc -l) user triggers identical"; fi
+fi
 if ! DATABASE_URL="$TARGET_URL" npx tsx scripts/reconcile.ts > "$WORK/reconcile.json"; then
   echo "MISMATCH: reconciliation of the restored copy failed"; cat "$WORK/reconcile.json"; fail=1
 else

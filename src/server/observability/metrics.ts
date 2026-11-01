@@ -23,11 +23,21 @@ function key(name: string, labels: Labels): string {
 class Registry {
   private counters = new Map<string, number>();
   private histograms = new Map<string, Histogram>();
+  private gauges = new Map<string, number>();
   readonly startedAt = Date.now();
 
   inc(name: string, labels: Labels = {}, by = 1): void {
     const k = key(name, labels);
     this.counters.set(k, (this.counters.get(k) ?? 0) + by);
+  }
+
+  /** Sets a gauge (e.g. the Unix time of a job's last success). */
+  set(name: string, labels: Labels, value: number): void {
+    this.gauges.set(key(name, labels), value);
+  }
+
+  gaugeValue(name: string, labels: Labels = {}): number | undefined {
+    return this.gauges.get(key(name, labels));
   }
 
   observe(name: string, labels: Labels, valueMs: number): void {
@@ -63,6 +73,7 @@ class Registry {
     const lines: string[] = [];
     lines.push(`process_uptime_seconds ${((Date.now() - this.startedAt) / 1000).toFixed(0)}`);
     for (const [k, v] of [...this.counters].sort()) lines.push(`${k} ${v}`);
+    for (const [k, v] of [...this.gauges].sort()) lines.push(`${k} ${v}`);
     for (const [k, h] of [...this.histograms].sort()) {
       const brace = k.indexOf('{');
       const name = brace === -1 ? k : k.slice(0, brace);

@@ -210,11 +210,13 @@ export async function verifyMailTransport(): Promise<{ ok: boolean; transport: M
     await mailer.verify();
     status.lastVerify = { at, ok: true };
     metrics.inc('casino_mail_verify_total', { outcome: 'ok' });
+    metrics.set('casino_mail_transport_up', {}, 1);
     return { ok: true, transport: mailer.kind };
   } catch (err) {
     const f = classifyMailError(err);
     status.lastVerify = { at, ok: false, reason: f.reason };
     metrics.inc('casino_mail_verify_total', { outcome: 'failed' });
+    metrics.set('casino_mail_transport_up', {}, 0);
     logger.error('mail transport verification failed', { code: f.code, responseCode: f.responseCode });
     return { ok: false, transport: mailer.kind, reason: f.reason };
   }
@@ -254,6 +256,7 @@ export async function sendNow(message: MailMessage, context: { purpose: string; 
       metrics.inc('casino_mail_sent_total', { purpose: context.purpose, transport: mailer.kind });
       status.lastSuccessAt = new Date().toISOString();
       status.sent += 1;
+      metrics.set('casino_mail_last_success_timestamp_seconds', {}, Math.floor(Date.now() / 1000));
       if (attempts > 1) logger.info('mail delivered after retry', { purpose: context.purpose, userId: context.userId, attempts });
       return { ok: true, attempts };
     } catch (err) {

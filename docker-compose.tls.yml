@@ -1,0 +1,16 @@
+# TLS at this host's nginx (no load balancer in front):
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+# Needs a real certificate for your domain in ./deploy/tls (fullchain.pem,
+# privkey.pem; e.g. from certbot) and APP_URL=https://<your domain>. The
+# repository ships no certificate.
+services:
+  proxy:
+    volumes:
+      - ./deploy/nginx-tls.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/tls:/etc/nginx/tls:ro
+      - ./deploy/acme:/var/www/acme:ro
+    ports: !override
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/nginx-health"]

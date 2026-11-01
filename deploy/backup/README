@@ -1,0 +1,2 @@
+# Put the exported PUBLIC backup key here as public.asc (gpg --armor --export <recipient>).
+# Never put a private key in this directory.
