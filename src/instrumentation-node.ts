@@ -10,6 +10,7 @@
 import { env, metricsToken } from './server/env';
 import { logger } from './server/observability/logger';
 import { startScheduler } from './server/jobs/scheduler';
+import { verifyMailTransport } from './server/mail/mailer';
 
 export function startNodeServer(): void {
   if (process.env.NEXT_PHASE === 'phase-production-build') return;
@@ -22,6 +23,14 @@ export function startNodeServer(): void {
   }
   // Metrics are optional; say which way this instance is configured.
   logger.info(metricsToken() ? 'metrics endpoint enabled (bearer token required)' : 'metrics endpoint disabled (METRICS_TOKEN not set)');
+  // Fail visibly, not silently: check the SMTP connection once at start (does not block start-up).
+  if (env().MAIL_TRANSPORT === 'smtp') {
+    void verifyMailTransport().then((r) =>
+      r.ok ? logger.info('mail transport verified (SMTP connection and authentication OK)') : logger.error('mail transport check failed at start-up', { reason: r.reason }),
+    );
+  } else {
+    logger.warn(env().MAIL_TRANSPORT === 'disabled' ? 'MAIL_TRANSPORT=disabled: registration is closed and password recovery is unavailable' : 'MAIL_TRANSPORT=console: e-mail is printed, not delivered (development only)');
+  }
   if (process.env.BACKGROUND_JOBS === 'false') return;
   startScheduler();
 }

@@ -9,7 +9,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { and, eq, sql } from 'drizzle-orm';
 import { NextRequest } from 'next/server';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POST as registerRoute } from '@/app/api/auth/register/route';
 import { GET as verifyStatusRoute, POST as verifyRoute } from '@/app/api/auth/verify-email/route';
 import { SESSION_COOKIE_DEV, resolveSession } from '@/server/auth/sessions';
@@ -17,7 +17,7 @@ import { getDb } from '@/server/db/client';
 import { auditLogs, bonuses, emailVerificationChallenges, ledgerAccounts, seedPairs, sessions, users } from '@/server/db/schema';
 import { AppError } from '@/server/errors';
 import { getWalletAccount } from '@/server/ledger/accounts';
-import { setMailerForTests, type Mailer } from '@/server/mail/mailer';
+import { setMailerForTests, setRetrySleepForTests, type Mailer } from '@/server/mail/mailer';
 import { createOperatorAccount, deleteAccount, exportUserData, login, register, VerificationRequiredError } from '@/server/users/accounts';
 import { accountDetails, completeOnboarding, normalisePhone, updateAccountDetails } from '@/server/users/onboarding';
 import {
@@ -68,7 +68,10 @@ function isoDaysAgo(years: number, plusDays = 0): string {
   return d.toISOString().slice(0, 10);
 }
 
+beforeEach(() => setRetrySleepForTests(async () => undefined));
+
 afterEach(() => {
+  setRetrySleepForTests(null);
   failNextDeliveries(0);
   vi.restoreAllMocks();
 });
@@ -159,7 +162,7 @@ describe('step 1: registration creates a pending account only', () => {
 
   it('a failed delivery leaves a recoverable pending account and allows an immediate resend', async () => {
     const raw = input();
-    failNextDeliveries(1);
+    failNextDeliveries(3); // every attempt (first try and both retries) fails
     const res = await registerNow(raw);
     expect(res.sent).toBe(false);
     expect(messagesTo(raw.email)).toHaveLength(0);
@@ -536,7 +539,7 @@ describe('privacy: export, deletion, audit records and logs', () => {
     vi.spyOn(process.stdout, 'write').mockImplementation(capture as typeof process.stdout.write);
     vi.spyOn(process.stderr, 'write').mockImplementation(capture as typeof process.stderr.write);
     const raw = input();
-    failNextDeliveries(1); // also exercises the delivery-failure log line
+    failNextDeliveries(3); // an outage that outlasts the retries; also exercises the failure log line
     const res = await registerNow(raw);
     await withMailbox(() => resendSignupCode(res.user.id, meta));
     const c = latestCode(raw.email);

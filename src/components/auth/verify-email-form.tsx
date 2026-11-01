@@ -13,6 +13,7 @@ export interface VerificationView {
   email: string;
   delivery: 'email' | 'console' | 'unavailable';
   sent: boolean | null;
+  rejected?: boolean;
   expiresAt: string | null;
   attemptsLeft: number | null;
   resendAvailableAt: string;
@@ -147,8 +148,10 @@ export function VerifyEmailForm({ initial }: { initial: VerificationView }) {
         <p className="mt-2 text-xs text-ink-400">
           {status.delivery === 'console'
             ? 'Development server: no e-mail is sent; the code is printed in the server console.'
-            : deliveryFailed
-              ? 'The last e-mail could not be sent. Request a new code below.'
+            : status.rejected
+              ? 'The receiving mail server refused this address. Check it for typos and use "Wrong address? Change it" below.'
+              : deliveryFailed
+                ? 'The last e-mail could not be sent. Request a new code below.'
               : 'It can take a minute to arrive. Check your spam or promotions folder too.'}
         </p>
       </div>

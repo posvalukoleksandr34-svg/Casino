@@ -18,6 +18,8 @@ const good: Env = {
   TRUST_PROXY_HOPS: 1,
   DB_POOL_MAX: 10,
   ALLOW_PRIVILEGED_DB_ROLE: false,
+  SUPPORT_EMAIL: 'support@casino.example.org',
+  SMTP_TIMEOUT_SECONDS: 20,
 } as Env;
 const raw = { APP_URL: good.APP_URL };
 
@@ -36,6 +38,13 @@ describe('production configuration fails closed', () => {
     ['plain http on a public host', { APP_URL: 'http://casino.example.org' }, /https/],
     ['default database password', { DATABASE_URL: 'postgresql://casino:casino@db.internal:5432/casino' }, /strong, non-default password/],
     ['short database password', { DATABASE_URL: 'postgresql://app:Sh0rt-pw@db.internal:5432/casino' }, /strong, non-default password/], // secret-scan: fixture (fake)
+    ['no public support contact', { SUPPORT_EMAIL: undefined }, /SUPPORT_EMAIL is required/],
+    ['a support contact that is not an address', { SUPPORT_EMAIL: 'call us' }, /SUPPORT_EMAIL must be/],
+    ['SMTP without a sender', { MAIL_TRANSPORT: 'smtp', SMTP_URL: 'smtps://mail.example.org:465', MAIL_FROM: undefined }, /MAIL_FROM/],
+    ['SMTP with a malformed sender', { MAIL_TRANSPORT: 'smtp', SMTP_URL: 'smtps://mail.example.org:465', MAIL_FROM: 'Aurovane' }, /MAIL_FROM must be an address/],
+    ['SMTP without a URL', { MAIL_TRANSPORT: 'smtp', MAIL_FROM: 'Aurovane <no-reply@example.org>' }, /SMTP_URL/],
+    ['a malformed reply-to', { MAIL_TRANSPORT: 'smtp', SMTP_URL: 'smtps://mail.example.org:465', MAIL_FROM: 'a@example.org', MAIL_REPLY_TO: 'nope' }, /MAIL_REPLY_TO/],
+    ['the development console mailer', { MAIL_TRANSPORT: 'console' }, /development-only/],
   ] as const)('rejects %s', (_name, patch, pattern) => {
     const problems = productionProblems({ ...good, ...patch } as Env, { APP_URL: (patch as { APP_URL?: string }).APP_URL ?? good.APP_URL });
     expect(problems.join('; ')).toMatch(pattern);

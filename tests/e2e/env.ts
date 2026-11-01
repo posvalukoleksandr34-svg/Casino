@@ -26,6 +26,7 @@ export const E2E_ENV = {
   MAIL_TRANSPORT: 'smtp',
   SMTP_URL: `smtp://127.0.0.1:${E2E_SMTP_PORT}`,
   MAIL_FROM: 'Aurovane E2E <no-reply@example.test>',
+  SUPPORT_EMAIL: 'support@example.test',
   LOG_LEVEL: 'warn',
   // Next.js sets X-Forwarded-For from the socket when absent; e2e has no proxy in front.
   TRUST_PROXY_HOPS: '1',

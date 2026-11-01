@@ -99,9 +99,15 @@ export const users = pgTable('users', {
   termsAcceptedAt: ts('terms_accepted_at'),
   privacyVersion: text('privacy_version'),
   privacyAcceptedAt: ts('privacy_accepted_at'),
+  /** Result of a third-party age check (migration 0010); NULL = only the self-declared date of birth. */
+  ageVerifiedAt: ts('age_verified_at'),
+  ageVerificationProvider: text('age_verification_provider'),
+  ageVerificationRef: text('age_verification_ref'),
 });
 
 export type EmailVerificationMethod = 'CODE' | 'OPERATOR' | 'LEGACY_MIGRATION';
+/** FAILED = temporary delivery failure; REJECTED = permanently refused by the receiving side (migration 0010). */
+export type ChallengeDelivery = 'PENDING' | 'SENT' | 'FAILED' | 'REJECTED';
 
 export const emailVerificationChallenges = pgTable('email_verification_challenges', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -113,7 +119,7 @@ export const emailVerificationChallenges = pgTable('email_verification_challenge
   codeMac: text('code_mac').notNull(),
   attempts: integer('attempts').notNull().default(0),
   maxAttempts: integer('max_attempts').notNull().default(5),
-  delivery: text('delivery').$type<'PENDING' | 'SENT' | 'FAILED'>().notNull().default('PENDING'),
+  delivery: text('delivery').$type<ChallengeDelivery>().notNull().default('PENDING'),
   createdAt: ts('created_at').notNull().defaultNow(),
   expiresAt: ts('expires_at').notNull(),
   consumedAt: ts('consumed_at'),
@@ -614,4 +620,47 @@ export const sportsProviderStatus = pgTable('sports_provider_status', {
   lastError: text('last_error'),
   requestsRemaining: integer('requests_remaining'),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export type ApprovalAction = 'ledger.grant' | 'ledger.adjustment' | 'house.fund' | 'security.staff_mfa_disable';
+export type ApprovalStatus = 'PENDING' | 'EXECUTED' | 'REJECTED' | 'CANCELLED' | 'EXPIRED' | 'FAILED';
+
+/** Four-eyes requests for sensitive staff operations (migration 0010). */
+export const adminApprovalRequests = pgTable('admin_approval_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  action: text('action').$type<ApprovalAction>().notNull(),
+  targetType: text('target_type').$type<'user' | 'account' | 'platform'>().notNull(),
+  targetId: text('target_id').notNull(),
+  params: jsonb('params').$type<Record<string, unknown>>().notNull().default({}),
+  reason: text('reason').notNull(),
+  requestedBy: uuid('requested_by')
+    .notNull()
+    .references(() => users.id),
+  requestedRole: text('requested_role').notNull(),
+  requestedAt: ts('requested_at').notNull().defaultNow(),
+  expiresAt: ts('expires_at').notNull(),
+  status: text('status').$type<ApprovalStatus>().notNull().default('PENDING'),
+  decidedBy: uuid('decided_by').references(() => users.id),
+  decidedRole: text('decided_role'),
+  decidedAt: ts('decided_at'),
+  decisionNote: text('decision_note'),
+  result: jsonb('result').$type<Record<string, unknown>>(),
+});
+
+/** SMS verification codes (migration 0010); only an HMAC of each code is stored. */
+export const phoneVerificationChallenges = pgTable('phone_verification_challenges', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  phoneE164: text('phone_e164').notNull(),
+  codeMac: text('code_mac').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(5),
+  provider: text('provider').notNull(),
+  delivery: text('delivery').$type<ChallengeDelivery>().notNull().default('PENDING'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  expiresAt: ts('expires_at').notNull(),
+  consumedAt: ts('consumed_at'),
+  supersededAt: ts('superseded_at'),
 });

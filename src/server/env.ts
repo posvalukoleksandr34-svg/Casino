@@ -21,6 +21,16 @@ const schema = z.object({
   MAIL_TRANSPORT: z.enum(['smtp', 'console', 'disabled']).default('disabled'),
   SMTP_URL: z.string().optional(),
   MAIL_FROM: z.string().optional(),
+  /** Optional Reply-To for transactional mail (e.g. the support mailbox). */
+  MAIL_REPLY_TO: z.string().optional(),
+  /** Per-attempt SMTP socket timeout; connection and greeting use min(10 s, this). */
+  SMTP_TIMEOUT_SECONDS: z.coerce.number().int().min(1).max(120).default(20),
+  /**
+   * Public support and privacy contact shown on the help, terms and privacy
+   * pages and in e-mails. Required in production: players must be able to
+   * reach the operator. Never invented by the application.
+   */
+  SUPPORT_EMAIL: z.string().optional(),
   BACKGROUND_JOBS: boolish.default(true),
   RECONCILE_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
   /**
@@ -80,6 +90,18 @@ const LOOPBACK = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 /** Passwords that must never protect a production database (defaults, examples, published values). */
 const WEAK_DB_PASSWORDS = new Set(['', 'casino', 'postgres', 'password', 'secret', 'changeme', 'change-me', 'admin', 'root']);
 
+/** The address in "Name <a@b.c>" or "a@b.c", if it looks like one. */
+export function mailboxAddress(value: string): string | null {
+  const m = /<([^<>\s]+@[^<>\s]+\.[^<>\s]+)>\s*$/.exec(value) ?? /^\s*([^<>\s]+@[^<>\s]+\.[^<>\s]+)\s*$/.exec(value);
+  return m ? m[1]! : null;
+}
+
+/** The configured public support contact, if any (pages say plainly when none is set). */
+export function supportEmail(): string | null {
+  const v = env().SUPPORT_EMAIL;
+  return v && mailboxAddress(v) ? mailboxAddress(v) : null;
+}
+
 function decodedKeyLength(raw: string): number {
   if (/^[0-9a-fA-F]{64}$/.test(raw)) return 32;
   if (!/^[A-Za-z0-9+/_-]+={0,2}$/.test(raw)) return 0;
@@ -107,7 +129,11 @@ export function productionProblems(e: Env, raw: Record<string, string | undefine
   if (e.MAIL_TRANSPORT === 'smtp') {
     if (!e.SMTP_URL || !/^smtps?:\/\//.test(e.SMTP_URL)) problems.push('MAIL_TRANSPORT=smtp requires SMTP_URL (smtp:// or smtps://)');
     if (!e.MAIL_FROM) problems.push('MAIL_TRANSPORT=smtp requires MAIL_FROM');
+    else if (!mailboxAddress(e.MAIL_FROM)) problems.push('MAIL_FROM must be an address, e.g. "Aurovane <no-reply@your.domain>"');
+    if (e.MAIL_REPLY_TO && !mailboxAddress(e.MAIL_REPLY_TO)) problems.push('MAIL_REPLY_TO, when set, must be an e-mail address');
   }
+  if (!e.SUPPORT_EMAIL) problems.push('SUPPORT_EMAIL is required: the public support and privacy contact shown to players');
+  else if (!mailboxAddress(e.SUPPORT_EMAIL)) problems.push('SUPPORT_EMAIL must be a plain e-mail address');
   if (e.SPORTS_MODE === 'live') {
     if (!e.FOOTBALL_DATA_API_KEY) problems.push('SPORTS_MODE=live requires FOOTBALL_DATA_API_KEY');
     if (!e.THE_ODDS_API_KEY) problems.push('SPORTS_MODE=live requires THE_ODDS_API_KEY');

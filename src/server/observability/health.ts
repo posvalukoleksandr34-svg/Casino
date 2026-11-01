@@ -4,6 +4,7 @@ import { pendingMigrations } from '../db/migrator';
 import { latestReconciliation } from '../jobs/reconciliation';
 import { env } from '../env';
 import { passwordRecoveryMode } from '../users/accounts';
+import { mailStatus } from '../mail/mailer';
 
 export interface HealthCheck {
   name: string;
@@ -82,6 +83,7 @@ export async function operationalHealth() {
     },
     reconciliation: recon,
     passwordRecovery: passwordRecoveryMode(),
+    mail: mailStatus(),
     errors: errors.rows[0] ?? { last_hour: 0, last_day: 0 },
   };
 }

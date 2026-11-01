@@ -35,6 +35,7 @@ import { logger } from '../observability/logger';
 import { metrics } from '../observability/metrics';
 import { consume, type RateLimitRule } from '../http/rate-limit';
 import { getMailer, runInBackground, sendInBackground } from '../mail/mailer';
+import { passwordResetEmail } from '../mail/templates';
 import { listTransactions } from '../wallet/wallet';
 import { MINIMUM_AGE, PRIVACY_VERSION, TERMS_VERSION } from '@/lib/account-policy';
 import {
@@ -366,18 +367,7 @@ async function issueResetLink(email: string, meta: RequestMeta): Promise<void> {
   });
   if (!userId) return;
   const link = `${env().APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
-  sendInBackground(
-    {
-      to: email,
-      subject: 'Reset your Aurovane password',
-      text:
-        `Someone (hopefully you) asked to reset the password for this Aurovane account.\n\n` +
-        `Open this link within 30 minutes to choose a new password. It works once:\n${link}\n\n` +
-        `If you did not ask for this, ignore this e-mail; your password stays the same.\n\n` +
-        `Aurovane uses non-redeemable virtual chips only.`,
-    },
-    { purpose: 'password_reset', userId },
-  );
+  sendInBackground(passwordResetEmail(email, link), { purpose: 'password_reset', userId });
 }
 
 const INVALID_RESET = 'This reset link is invalid or has expired';

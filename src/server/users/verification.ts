@@ -38,13 +38,14 @@ import {
 import { audit } from '../audit/audit';
 import { createSession, revokeAllSessions } from '../auth/sessions';
 import { getDb, pgConstraint, pgErrorCode, withTransaction, type Executor, type Tx } from '../db/client';
-import { emailVerificationChallenges, passwordResetTokens, users } from '../db/schema';
+import { emailVerificationChallenges, passwordResetTokens, users, type ChallengeDelivery } from '../db/schema';
 import { env } from '../env';
 import { AppError, errors } from '../errors';
 import { createSeedPair } from '../fairness/seeds';
 import { consume, type RateLimitRule } from '../http/rate-limit';
 import { createWalletAccount } from '../ledger/accounts';
 import { getMailer, sendInBackground, sendNow } from '../mail/mailer';
+import { emailChangedNotice, verificationCodeEmail } from '../mail/templates';
 import { grantSignupBonus } from '../promotions/bonuses';
 import { ensureLimitsRow } from '../responsible/limits';
 import { verifyPassword } from '../auth/password';
@@ -171,6 +172,10 @@ interface Allowance {
  * once (the player never received it). Counted from the challenge rows, so
  * the limit is exact across instances; call with the account row locked.
  */
+function undelivered(d: ChallengeDelivery): boolean {
+  return d === 'FAILED' || d === 'REJECTED';
+}
+
 async function issueAllowance(tx: Tx, userId: string, now: Date, purpose: Purpose): Promise<Allowance> {
   const recent = await tx
     .select({ createdAt: emailVerificationChallenges.createdAt, delivery: emailVerificationChallenges.delivery, purpose: emailVerificationChallenges.purpose })
@@ -178,11 +183,11 @@ async function issueAllowance(tx: Tx, userId: string, now: Date, purpose: Purpos
     .where(and(eq(emailVerificationChallenges.userId, userId), gt(emailVerificationChallenges.createdAt, new Date(now.getTime() - 3600_000))))
     .orderBy(desc(emailVerificationChallenges.createdAt));
   const latest = recent.find((r) => r.purpose === purpose);
-  if (latest && latest.delivery !== 'FAILED') {
+  if (latest && !undelivered(latest.delivery)) {
     const wait = Math.ceil((latest.createdAt.getTime() + RESEND_COOLDOWN_SECONDS * 1000 - now.getTime()) / 1000);
     if (wait > 0) return { ok: false, retryAfterSeconds: wait };
   }
-  const counted = recent.filter((r) => r.delivery !== 'FAILED');
+  const counted = recent.filter((r) => !undelivered(r.delivery));
   if (counted.length >= CODES_PER_HOUR) {
     const oldest = counted[counted.length - 1]!;
     return { ok: false, retryAfterSeconds: Math.max(1, Math.ceil((oldest.createdAt.getTime() + 3600_000 - now.getTime()) / 1000)) };
@@ -225,30 +230,21 @@ async function createChallenge(tx: Tx, userId: string, purpose: Purpose, email: 
   return { challengeId: id, code, email, purpose, userId, expiresAt };
 }
 
-function message(issued: Issued) {
-  const intro =
-    issued.purpose === 'SIGNUP'
-      ? 'Welcome to Aurovane. Enter this code to confirm your e-mail address and finish creating your account:'
-      : 'Enter this code in your Aurovane account settings to confirm this as your new e-mail address:';
-  return {
-    to: issued.email,
-    subject: issued.purpose === 'SIGNUP' ? `Your Aurovane verification code: ${issued.code}` : `Confirm your new Aurovane e-mail: ${issued.code}`,
-    text:
-      `${intro}\n\n    ${issued.code}\n\n` +
-      `The code expires in ${VERIFICATION_TTL_MINUTES} minutes and works once. Never share it: Aurovane staff will never ask for it.\n\n` +
-      `If you did not ask for this, ignore this e-mail; nothing changes without the code.\n\n` +
-      `Aurovane uses free virtual chips only. Chips have no monetary value and cannot be bought, withdrawn or exchanged.`,
-  };
-}
-
-/** Sends the code (after the issuing transaction committed) and records whether it left. */
+/**
+ * Sends the code (after the issuing transaction committed) and records the
+ * outcome: SENT, FAILED (temporary; a new code may be requested at once) or
+ * REJECTED (the receiving server refused the address permanently).
+ */
 async function deliver(issued: Issued): Promise<boolean> {
-  const ok = await sendNow(message(issued), { purpose: issued.purpose === 'SIGNUP' ? 'email_verification' : 'email_change', userId: issued.userId });
+  const res = await sendNow(verificationCodeEmail(issued.email, issued.code, issued.purpose), {
+    purpose: issued.purpose === 'SIGNUP' ? 'email_verification' : 'email_change',
+    userId: issued.userId,
+  });
   await getDb()
     .update(emailVerificationChallenges)
-    .set({ delivery: ok ? 'SENT' : 'FAILED' })
+    .set({ delivery: res.ok ? 'SENT' : res.failure.kind === 'permanent' && res.failure.responseCode !== undefined ? 'REJECTED' : 'FAILED' })
     .where(eq(emailVerificationChallenges.id, issued.challengeId));
-  return ok;
+  return res.ok;
 }
 
 async function liveChallenge(tx: Tx, userId: string, purpose: Purpose, lock: boolean) {
@@ -364,6 +360,8 @@ export interface SignupStatus {
   delivery: VerificationDelivery;
   /** Whether the latest code left this server (false: sending failed; request a new one). */
   sent: boolean | null;
+  /** The receiving server permanently refused the address: correct it rather than resending. */
+  rejected: boolean;
   expiresAt: string | null;
   attemptsLeft: number | null;
   resendAvailableAt: string;
@@ -391,6 +389,7 @@ export async function signupStatus(userId: string, now = new Date()): Promise<Si
       email: user.email,
       delivery: verificationDelivery(),
       sent: challenge ? (challenge.delivery === 'PENDING' ? null : challenge.delivery === 'SENT') : null,
+      rejected: challenge?.delivery === 'REJECTED',
       expiresAt: challenge?.expiresAt.toISOString() ?? null,
       attemptsLeft: challenge ? Math.max(0, challenge.maxAttempts - challenge.attempts) : null,
       resendAvailableAt: new Date(now.getTime() + allowance.retryAfterSeconds * 1000).toISOString(),
@@ -526,6 +525,7 @@ export async function verifySignupCode(userId: string, code: string, meta: Verif
 export interface EmailChangeStatus {
   email: string;
   sent: boolean | null;
+  rejected: boolean;
   expiresAt: string;
   attemptsLeft: number;
   resendAvailableAt: string;
@@ -539,6 +539,7 @@ export async function emailChangeStatus(userId: string, now = new Date()): Promi
     return {
       email: challenge.email,
       sent: challenge.delivery === 'PENDING' ? null : challenge.delivery === 'SENT',
+      rejected: challenge.delivery === 'REJECTED',
       expiresAt: challenge.expiresAt.toISOString(),
       attemptsLeft: Math.max(0, challenge.maxAttempts - challenge.attempts),
       resendAvailableAt: new Date(now.getTime() + allowance.retryAfterSeconds * 1000).toISOString(),
@@ -617,16 +618,7 @@ export async function confirmEmailChange(userId: string, currentSessionId: strin
   });
   if (outcome.kind === 'code') throw codeError(outcome.check);
   if (outcome.kind === 'taken') throw errors.conflict('Another account now uses this e-mail address. Choose a different one.', { field: 'email' });
-  sendInBackground(
-    {
-      to: outcome.previous,
-      subject: 'Your Aurovane e-mail address was changed',
-      text:
-        `The e-mail address of your Aurovane account was changed to ${maskAddress(outcome.next)}.\n\n` +
-        `Other devices were signed out. If you did not make this change, reset your password and contact support straight away.`,
-    },
-    { purpose: 'email_changed_notice', userId },
-  );
+  sendInBackground(emailChangedNotice(outcome.previous, maskAddress(outcome.next)), { purpose: 'email_changed_notice', userId });
   return { email: outcome.next };
 }
 
