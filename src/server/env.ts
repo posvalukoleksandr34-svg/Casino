@@ -87,7 +87,11 @@ export function env(): Env {
   const parsed = schema.safeParse(process.env);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ');
-    throw new Error(`Invalid server environment: ${issues}`);
+    // The most common first-run mistake: no .env file at all.
+    const hint = parsed.error.issues.some((i) => i.path[0] === 'DATABASE_URL' && process.env.DATABASE_URL === undefined)
+      ? ' — DATABASE_URL is not set. Copy .env.example to .env in the project root (PowerShell: Copy-Item .env.example .env; macOS/Linux: cp .env.example .env), make sure PostgreSQL is running, then run npm run db:migrate. See README → Local development.'
+      : '';
+    throw new Error(`Invalid server environment: ${issues}${hint}`);
   }
   if (parsed.data.NODE_ENV === 'production') {
     const problems = productionProblems(parsed.data, process.env);
