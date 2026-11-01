@@ -14,6 +14,8 @@ import { useToast } from '../ui/toast';
  * stored in the audit trail together with the before/after values. `body`
  * may throw an Error to show a validation message instead of submitting;
  * `confirm` adds a checkbox that must be ticked first (high-impact actions).
+ * Four-eyes operations answer `approvalRequired: true`: the toast says the
+ * request awaits a second staff member instead of claiming it is done.
  * The server validates and authorises everything again.
  */
 export function ReasonedAction({
@@ -66,8 +68,13 @@ export function ReasonedAction({
     setBusy(true);
     setError(null);
     try {
-      const result = await api(path, { method, body: payload, idempotencyKey: idempotent ? key : undefined });
-      toast.push({ tone: 'positive', title: `${title}: done`, body: 'Recorded in the audit log.' });
+      const result = await api<{ approvalRequired?: boolean }>(path, { method, body: payload, idempotencyKey: idempotent ? key : undefined });
+      if (result?.approvalRequired) {
+        // Four-eyes operations: nothing happened yet; a second staff member decides in Approvals.
+        toast.push({ tone: 'info', title: `${title}: approval requested`, body: 'A second authorised staff member must approve it under Admin → Approvals. Recorded in the audit log.' });
+      } else {
+        toast.push({ tone: 'positive', title: `${title}: done`, body: 'Recorded in the audit log.' });
+      }
       setOpen(false);
       setReason('');
       setConfirmed(false);

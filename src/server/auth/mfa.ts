@@ -219,22 +219,28 @@ export async function setStaffMfaRequired(actor: SessionUser, required: boolean,
   if (required && (!(await mfaEnabled(getDb(), actor.userId)) || !actor.mfaVerifiedAt)) {
     throw errors.conflict('Turn on two-factor authentication for your own account (and sign in with it) before requiring it for staff');
   }
-  return withTransaction(async (tx) => {
-    const [before] = await tx.select({ required: platformSettings.staffMfaRequired }).from(platformSettings).where(eq(platformSettings.id, 1)).for('update');
-    await tx.update(platformSettings).set({ staffMfaRequired: required, updatedAt: new Date(), updatedBy: actor.userId }).where(eq(platformSettings.id, 1));
-    await recordAdminAction(tx, {
-      adminId: actor.userId,
-      ipHash: meta.ipHash,
-      requestId: meta.requestId ?? null,
-      action: 'security.staff_mfa_required',
-      targetType: 'platform',
-      targetId: '1',
-      reason,
-      before: { staffMfaRequired: before?.required ?? false },
-      after: { staffMfaRequired: required },
-    });
-    return { staffMfaRequired: required };
+  return withTransaction((tx) => applyStaffMfaPolicy(tx, actor.userId, required, reason, meta));
+}
+
+/**
+ * Writes the policy inside the caller's transaction. Switching it off goes
+ * through a four-eyes approval request at the API (src/server/admin/approvals.ts).
+ */
+export async function applyStaffMfaPolicy(tx: Tx, actorId: string, required: boolean, reason: string, meta: Meta) {
+  const [before] = await tx.select({ required: platformSettings.staffMfaRequired }).from(platformSettings).where(eq(platformSettings.id, 1)).for('update');
+  await tx.update(platformSettings).set({ staffMfaRequired: required, updatedAt: new Date(), updatedBy: actorId }).where(eq(platformSettings.id, 1));
+  await recordAdminAction(tx, {
+    adminId: actorId,
+    ipHash: meta.ipHash,
+    requestId: meta.requestId ?? null,
+    action: 'security.staff_mfa_required',
+    targetType: 'platform',
+    targetId: '1',
+    reason,
+    before: { staffMfaRequired: before?.required ?? false },
+    after: { staffMfaRequired: required },
   });
+  return { staffMfaRequired: required };
 }
 
 /** Staff accounts and whether each has MFA on (for the security page). */

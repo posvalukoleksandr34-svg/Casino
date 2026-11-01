@@ -7,7 +7,7 @@
 import { and, desc, eq, ilike, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { getGameModule } from '@/engine/games/registry';
-import { getDb, withTransaction } from '../db/client';
+import { getDb, withTransaction, type Tx } from '../db/client';
 import {
   alerts,
   auditLogs,
@@ -262,25 +262,28 @@ export async function updatePlatformSettings(ctx: AdminCtx, patch: z.infer<typeo
 export async function fundHouse(ctx: AdminCtx, amount: number, reason: string, idempotencyKey: string): Promise<IdempotentResult<{ balance: number; transactionId: number }>> {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw errors.validation('Amount must be a positive integer (minor units)');
   return withTransaction((tx) =>
-    runIdempotent(tx, ctx.adminId, idempotencyKey, requestFingerprint('admin:house-fund', { amount, reason }), async () => {
-      const [actor] = await tx.select({ role: users.role, status: users.status }).from(users).where(eq(users.id, ctx.adminId));
-      if (!actor || actor.status !== 'ACTIVE' || !hasPermission(actor.role, 'house:fund')) throw errors.forbidden();
-      const ids = await systemAccountIds(tx);
-      const before = await accountBalance(tx, ids.HOUSE_BANKROLL);
-      const posted = await postTransaction(tx, {
-        type: 'HOUSE_FUNDING',
-        idempotencyKey: `house-funding:${ctx.adminId}:${idempotencyKey}`,
-        actorId: ctx.adminId,
-        description: `House reserve funding: ${reason}`,
-        postings: [
-          { accountId: ids.ISSUANCE, amount: -amount },
-          { accountId: ids.HOUSE_BANKROLL, amount },
-        ],
-      });
-      await recordAdminAction(tx, { ...ctx, action: 'house.funded', targetType: 'account', targetId: 'HOUSE_BANKROLL', reason, before: { balance: before }, after: { balance: before + amount, amount, transactionId: posted.id } });
-      return { status: 201, body: { balance: before + amount, transactionId: posted.id } };
-    }),
+    runIdempotent(tx, ctx.adminId, idempotencyKey, requestFingerprint('admin:house-fund', { amount, reason }), () => executeHouseFunding(tx, ctx, amount, reason, idempotencyKey)),
   );
+}
+
+/** The funding itself, inside the caller's transaction (used by approved requests). */
+export async function executeHouseFunding(tx: Tx, ctx: AdminCtx, amount: number, reason: string, idempotencyKey: string) {
+  const [actor] = await tx.select({ role: users.role, status: users.status }).from(users).where(eq(users.id, ctx.adminId));
+  if (!actor || actor.status !== 'ACTIVE' || !hasPermission(actor.role, 'house:fund')) throw errors.forbidden();
+  const ids = await systemAccountIds(tx);
+  const before = await accountBalance(tx, ids.HOUSE_BANKROLL);
+  const posted = await postTransaction(tx, {
+    type: 'HOUSE_FUNDING',
+    idempotencyKey: `house-funding:${ctx.adminId}:${idempotencyKey}`,
+    actorId: ctx.adminId,
+    description: `House reserve funding: ${reason}`,
+    postings: [
+      { accountId: ids.ISSUANCE, amount: -amount },
+      { accountId: ids.HOUSE_BANKROLL, amount },
+    ],
+  });
+  await recordAdminAction(tx, { ...ctx, action: 'house.funded', targetType: 'account', targetId: 'HOUSE_BANKROLL', reason, before: { balance: before }, after: { balance: before + amount, amount, transactionId: posted.id } });
+  return { status: 201, body: { balance: before + amount, transactionId: posted.id } };
 }
 
 // ---------------------------------------------------------------------------

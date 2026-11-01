@@ -3,6 +3,7 @@ import { AdminShell, type NavGroup, type NavItem } from '@/components/admin/admi
 import { hasPermission, ROLE_LABELS, type Permission } from '@/server/auth/rbac';
 import { requirePermission } from '@/server/auth/current';
 import { staffMfaState } from '@/server/auth/mfa';
+import { pendingApprovalCount } from '@/server/admin/approvals';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/server/db/client';
 
@@ -42,6 +43,7 @@ const NAV: { label: string; items: (NavItem & { permission: Permission })[] }[] 
   {
     label: 'Security',
     items: [
+      { href: '/admin/approvals', label: 'Approvals', icon: 'security', permission: 'admin:access' },
       { href: '/admin/audit', label: 'Audit log', icon: 'audit', permission: 'audit:read' },
       { href: '/admin/health', label: 'System health', icon: 'health', permission: 'system:read' },
       { href: '/admin/security', label: 'Staff security', icon: 'security', permission: 'admin:access' },
@@ -56,9 +58,12 @@ const NAV: { label: string; items: (NavItem & { permission: Permission })[] }[] 
  */
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const session = await requirePermission('admin:access', { allowWithoutMfa: true });
+  const pendingApprovals = await pendingApprovalCount(session).catch(() => 0);
   const groups: NavGroup[] = NAV.map((g) => ({
     label: g.label,
-    items: g.items.filter((i) => hasPermission(session.role, i.permission)).map(({ permission: _p, ...i }) => i),
+    items: g.items
+      .filter((i) => hasPermission(session.role, i.permission))
+      .map(({ permission: _p, ...i }) => (i.href === '/admin/approvals' && pendingApprovals > 0 ? { ...i, label: `Approvals (${pendingApprovals})` } : i)),
   })).filter((g) => g.items.length > 0);
   const [alerts, mfa] = await Promise.all([
     hasPermission(session.role, 'system:read')

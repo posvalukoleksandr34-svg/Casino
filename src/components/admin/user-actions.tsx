@@ -97,7 +97,7 @@ export function UserActions({
         <ReasonedAction
           label="Grant test chips"
           title="Grant virtual test chips"
-          description={`Posts a CHIP_GRANT ledger transaction (promotions → this wallet). Chips are virtual and have no monetary value. Up to ${maxGrantChips.toLocaleString('en-US')} chips per grant; the balance cap still applies. The player sees the grant and its reason in their history.`}
+          description={`Posts a CHIP_GRANT ledger transaction (promotions → this wallet). Chips are virtual and have no monetary value. Up to ${maxGrantChips.toLocaleString('en-US')} chips per grant; the balance cap still applies. Grants above 10,000 chips need a second owner's approval (Admin → Approvals) before anything is posted. The player sees the grant and its reason in their history.`}
           path={`/api/admin/users/${userId}/grant`}
           idempotent
           body={(reason) => ({ amount: chipsOrThrow(grant), reason })}
@@ -109,7 +109,7 @@ export function UserActions({
         <ReasonedAction
           label="Balance correction"
           title="Compensating balance correction"
-          description="Posts a new ADJUSTMENT ledger transaction. Existing entries are never edited and a debit can never take the balance below zero. The player sees this correction and its reason in their transaction history."
+          description="Requests a new ADJUSTMENT ledger transaction. Corrections are four-eyes: nothing is posted until a second staff member with correction rights approves it under Admin → Approvals. Existing entries are never edited and a debit can never take the balance below zero. The player sees the correction and its reason in their transaction history."
           path={`/api/admin/users/${userId}/adjust`}
           idempotent
           body={(reason) => {

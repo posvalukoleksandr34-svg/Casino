@@ -85,7 +85,7 @@ export function FundHouse() {
     <ReasonedAction
       label="Fund house reserve"
       title="Fund house reserve (virtual)"
-      description="Issues virtual chips from the ISSUANCE account to the house bankroll. Recorded as a HOUSE_FUNDING ledger transaction."
+      description="Requests issuance of virtual chips from the ISSUANCE account to the house bankroll (a HOUSE_FUNDING ledger transaction). Four-eyes: a second owner must approve it under Admin → Approvals before anything is posted."
       size="md"
       idempotent
       path="/api/admin/house/fund"

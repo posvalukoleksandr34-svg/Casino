@@ -30,3 +30,24 @@ describe('admin access control is declared on every entry point', () => {
     }
   });
 });
+
+describe('four-eyes operations cannot be executed directly over HTTP', () => {
+  it('correction, house-funding and MFA-policy routes create approval requests instead of executing', () => {
+    const adjust = readFileSync('src/app/api/admin/users/[userId]/adjust/route.ts', 'utf8');
+    const fund = readFileSync('src/app/api/admin/house/fund/route.ts', 'utf8');
+    const security = readFileSync('src/app/api/admin/security/route.ts', 'utf8');
+    const grant = readFileSync('src/app/api/admin/users/[userId]/grant/route.ts', 'utf8');
+    expect(adjust).not.toMatch(/adjustBalance|executeAdjustment/);
+    expect(adjust).toContain("action: 'ledger.adjustment'");
+    expect(fund).not.toMatch(/fundHouse|executeHouseFunding/);
+    expect(fund).toContain("action: 'house.fund'");
+    expect(security).toMatch(/setStaffMfaRequired\(ctx\.session, true,/);
+    expect(security).toContain("action: 'security.staff_mfa_disable'");
+    expect(grant).toMatch(/GRANT_APPROVAL_THRESHOLD/);
+    // No other route may call the executors.
+    for (const r of walk('src/app/api', 'route.ts')) {
+      const src = readFileSync(r, 'utf8');
+      expect(src, r).not.toMatch(/\b(adjustBalance|fundHouse|executeAdjustment|executeHouseFunding|executeGrant|applyStaffMfaPolicy)\(/);
+    }
+  });
+});

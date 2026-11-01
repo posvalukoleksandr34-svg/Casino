@@ -26,6 +26,11 @@ import type { AdminCtx } from './admin-service';
 
 /** Largest single grant: 1,000,000 chips (minor units). */
 export const MAX_GRANT = 100_000_000;
+/**
+ * Grants above this (10,000 chips) are not executed directly: they need an
+ * approval request decided by a second owner (src/server/admin/approvals.ts).
+ */
+export const GRANT_APPROVAL_THRESHOLD = 1_000_000;
 /** Largest single correction: 100,000,000 chips (minor units). */
 export const MAX_ADJUSTMENT = 10_000_000_000;
 
@@ -51,45 +56,54 @@ async function requireTarget(tx: Tx, userId: string, opts: { activeOnly: boolean
 export async function grantChips(ctx: AdminCtx, userId: string, amount: number, reason: string, idempotencyKey: string): Promise<IdempotentResult<MoneyOpResult>> {
   if (!Number.isSafeInteger(amount) || amount <= 0) throw errors.validation('Amount must be a positive whole number of minor units');
   if (amount > MAX_GRANT) throw errors.validation(`A single grant is limited to ${(MAX_GRANT / 100).toLocaleString('en-US')} chips`);
+  if (amount > GRANT_APPROVAL_THRESHOLD) {
+    throw new AppError('CONFLICT', 'Grants above the approval threshold need a second owner: submit an approval request instead', { approvalRequired: true, threshold: GRANT_APPROVAL_THRESHOLD });
+  }
   return withTransaction((tx) =>
-    runIdempotent(tx, ctx.adminId, idempotencyKey, requestFingerprint('admin:grant', { userId, amount, reason }), async () => {
-      // Wallet first, as every wager does; the account rows are only read.
-      const wallet = await lockWalletAccount(tx, userId);
-      await requireStaff(tx, ctx.adminId, 'ledger:grant');
-      await requireTarget(tx, userId, { activeOnly: true });
-      const settings = await getPlatformSettings(tx);
-      if (wallet.balance + amount > settings.maxPlayerBalance) {
-        throw errors.validation(`The grant would take the balance above the player balance cap of ${(settings.maxPlayerBalance / 100).toLocaleString('en-US')} chips`, {
-          balance: wallet.balance,
-          cap: settings.maxPlayerBalance,
-        });
-      }
-      const ids = await systemAccountIds(tx);
-      const posted = await postTransaction(tx, {
-        type: 'CHIP_GRANT',
-        idempotencyKey: `chip-grant:${ctx.adminId}:${idempotencyKey}`,
-        userId,
-        actorId: ctx.adminId,
-        description: `Virtual test chips granted: ${reason}`,
-        postings: [
-          { accountId: wallet.id, amount },
-          { accountId: ids.PROMOTIONS, amount: -amount },
-        ],
-        metadata: { reason },
-      });
-      const balance = wallet.balance + amount;
-      await recordAdminAction(tx, {
-        ...ctx,
-        action: 'ledger.grant',
-        targetType: 'user',
-        targetId: userId,
-        reason,
-        before: { balance: wallet.balance },
-        after: { balance, amount, transactionId: posted.id },
-      });
-      return { status: 201, body: { transactionId: posted.id, balance } };
-    }),
+    runIdempotent(tx, ctx.adminId, idempotencyKey, requestFingerprint('admin:grant', { userId, amount, reason }), () => executeGrant(tx, ctx, userId, amount, reason, idempotencyKey)),
   );
+}
+
+/**
+ * The grant itself, inside the caller's transaction (direct grants and
+ * approved requests). `idempotencyKey` makes the ledger posting unique.
+ */
+export async function executeGrant(tx: Tx, ctx: AdminCtx, userId: string, amount: number, reason: string, idempotencyKey: string) {
+  // Wallet first, as every wager does; the account rows are only read.
+  const wallet = await lockWalletAccount(tx, userId);
+  await requireStaff(tx, ctx.adminId, 'ledger:grant');
+  await requireTarget(tx, userId, { activeOnly: true });
+  const settings = await getPlatformSettings(tx);
+  if (wallet.balance + amount > settings.maxPlayerBalance) {
+    throw errors.validation(`The grant would take the balance above the player balance cap of ${(settings.maxPlayerBalance / 100).toLocaleString('en-US')} chips`, {
+      balance: wallet.balance,
+      cap: settings.maxPlayerBalance,
+    });
+  }
+  const ids = await systemAccountIds(tx);
+  const posted = await postTransaction(tx, {
+    type: 'CHIP_GRANT',
+    idempotencyKey: `chip-grant:${ctx.adminId}:${idempotencyKey}`,
+    userId,
+    actorId: ctx.adminId,
+    description: `Virtual test chips granted: ${reason}`,
+    postings: [
+      { accountId: wallet.id, amount },
+      { accountId: ids.PROMOTIONS, amount: -amount },
+    ],
+    metadata: { reason },
+  });
+  const balance = wallet.balance + amount;
+  await recordAdminAction(tx, {
+    ...ctx,
+    action: 'ledger.grant',
+    targetType: 'user',
+    targetId: userId,
+    reason,
+    before: { balance: wallet.balance },
+    after: { balance, amount, transactionId: posted.id },
+  });
+  return { status: 201, body: { transactionId: posted.id, balance } };
 }
 
 /**
@@ -109,42 +123,47 @@ export async function adjustBalance(
   if (!Number.isSafeInteger(amount) || amount === 0) throw errors.validation('Amount must be a non-zero whole number of minor units');
   if (Math.abs(amount) > MAX_ADJUSTMENT) throw errors.validation('Corrections above 100,000,000 chips require a migration-level change');
   return withTransaction((tx) =>
-    runIdempotent(tx, ctx.adminId, idempotencyKey, requestFingerprint('admin:adjust', { userId, amount, reason, reversesTransactionId: reversesTransactionId ?? null }), async () => {
-      const wallet = await lockWalletAccount(tx, userId);
-      await requireStaff(tx, ctx.adminId, 'ledger:adjust');
-      await requireTarget(tx, userId, { activeOnly: false });
-      if (reversesTransactionId !== undefined) {
-        const [orig] = await tx.select({ id: ledgerTransactions.id, userId: ledgerTransactions.userId }).from(ledgerTransactions).where(eq(ledgerTransactions.id, reversesTransactionId));
-        if (!orig || orig.userId !== userId) throw errors.validation('Referenced transaction does not belong to this player');
-      }
-      if (wallet.balance + amount < 0) throw new AppError('INSUFFICIENT_FUNDS', 'The correction would make the balance negative', { balance: wallet.balance });
-      const ids = await systemAccountIds(tx);
-      const posted = await postTransaction(tx, {
-        type: 'ADJUSTMENT',
-        idempotencyKey: `adjustment:${ctx.adminId}:${idempotencyKey}`,
-        userId,
-        actorId: ctx.adminId,
-        reversesId: reversesTransactionId ?? null,
-        description: `Balance correction: ${reason}`,
-        postings: [
-          { accountId: wallet.id, amount },
-          { accountId: ids.ADJUSTMENTS, amount: -amount },
-        ],
-        metadata: { reason },
-      });
-      const balance = wallet.balance + amount;
-      await recordAdminAction(tx, {
-        ...ctx,
-        action: 'ledger.adjustment',
-        targetType: 'user',
-        targetId: userId,
-        reason,
-        before: { balance: wallet.balance },
-        after: { balance, amount, transactionId: posted.id, reverses: reversesTransactionId ?? null },
-      });
-      return { status: 201, body: { transactionId: posted.id, balance } };
-    }),
+    runIdempotent(tx, ctx.adminId, idempotencyKey, requestFingerprint('admin:adjust', { userId, amount, reason, reversesTransactionId: reversesTransactionId ?? null }), () =>
+      executeAdjustment(tx, ctx, userId, amount, reason, idempotencyKey, reversesTransactionId),
+    ),
   );
+}
+
+/** The correction itself, inside the caller's transaction (used by approved requests). */
+export async function executeAdjustment(tx: Tx, ctx: AdminCtx, userId: string, amount: number, reason: string, idempotencyKey: string, reversesTransactionId?: number) {
+  const wallet = await lockWalletAccount(tx, userId);
+  await requireStaff(tx, ctx.adminId, 'ledger:adjust');
+  await requireTarget(tx, userId, { activeOnly: false });
+  if (reversesTransactionId !== undefined) {
+    const [orig] = await tx.select({ id: ledgerTransactions.id, userId: ledgerTransactions.userId }).from(ledgerTransactions).where(eq(ledgerTransactions.id, reversesTransactionId));
+    if (!orig || orig.userId !== userId) throw errors.validation('Referenced transaction does not belong to this player');
+  }
+  if (wallet.balance + amount < 0) throw new AppError('INSUFFICIENT_FUNDS', 'The correction would make the balance negative', { balance: wallet.balance });
+  const ids = await systemAccountIds(tx);
+  const posted = await postTransaction(tx, {
+    type: 'ADJUSTMENT',
+    idempotencyKey: `adjustment:${ctx.adminId}:${idempotencyKey}`,
+    userId,
+    actorId: ctx.adminId,
+    reversesId: reversesTransactionId ?? null,
+    description: `Balance correction: ${reason}`,
+    postings: [
+      { accountId: wallet.id, amount },
+      { accountId: ids.ADJUSTMENTS, amount: -amount },
+    ],
+    metadata: { reason },
+  });
+  const balance = wallet.balance + amount;
+  await recordAdminAction(tx, {
+    ...ctx,
+    action: 'ledger.adjustment',
+    targetType: 'user',
+    targetId: userId,
+    reason,
+    before: { balance: wallet.balance },
+    after: { balance, amount, transactionId: posted.id, reverses: reversesTransactionId ?? null },
+  });
+  return { status: 201, body: { transactionId: posted.id, balance } };
 }
 
 // ---------------------------------------------------------------------------

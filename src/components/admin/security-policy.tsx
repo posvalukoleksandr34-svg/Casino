@@ -10,11 +10,12 @@ export function StaffMfaPolicy({ required, canEnable }: { required: boolean; can
       title={required ? 'Stop requiring MFA for staff' : 'Require MFA for all staff'}
       description={
         required
-          ? 'Staff will be able to use the back office with a password alone.'
+          ? 'Staff will be able to use the back office with a password alone. This weakens security, so it needs a second owner: your request appears under Approvals until another owner approves it.'
           : 'Staff sessions that have not passed two-factor authentication will only be able to open this security page until they set it up or verify. Players are not affected.'
       }
       variant={required ? 'secondary' : 'primary'}
       disabled={!required && !canEnable}
+      idempotent
       path="/api/admin/security"
       body={(reason) => ({ staffMfaRequired: !required, reason })}
     />
