@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { insuranceEdge, label, rankOf, suitOf, type ActionType, type BlackjackConfig, type BlackjackView } from '@/engine/games/blackjack';
+import { useEffect, useRef, useState } from 'react';
+import { insuranceEdge, rankOf, suitOf, type ActionType, type BlackjackConfig, type BlackjackView } from '@/engine/games/blackjack';
 import { basicStrategy } from '@/engine/games/blackjack/strategy';
 import { formatChips } from '@/engine/money';
 import { cn } from '@/lib/cn';
@@ -13,55 +13,33 @@ import { Kbd } from '../ui/misc';
 import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } from './round-panels';
 import { StakeInput, stakeProblem } from './stake-input';
 import { useRound } from './use-round';
+import { PlayingCard } from './playing-card';
 import { useGameAudio, useRoundCues } from './use-game-audio';
 import { blackjackCues } from '@/lib/audio/cues';
 
 const RANK_TEXT = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const SUIT_TEXT = ['♠', '♥', '♦', '♣'];
-const SUIT_NAMES = ['spades', 'hearts', 'diamonds', 'clubs'];
-const RANK_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
 const ACTION_LABEL: Record<Exclude<ActionType, 'insurance'>, string> = { hit: 'Hit', stand: 'Stand', double: 'Double', split: 'Split' };
 const KEYS: Record<string, Exclude<ActionType, 'insurance'>> = { h: 'hit', s: 'stand', d: 'double', p: 'split' };
 
-function PlayingCard({ card, index }: { card: number | null; index: number }) {
-  if (card === null) {
-    return (
-      <div
-        className="h-24 w-16 shrink-0 rounded-lg border border-gold-700/60 bg-[repeating-linear-gradient(45deg,var(--color-ink-750)_0_6px,var(--color-ink-800)_6px_12px)] shadow-md animate-rise sm:h-28 sm:w-20"
-        style={{ animationDelay: `${index * 90}ms` }}
-        role="img"
-        aria-label="Face-down card"
-      />
-    );
-  }
-  const red = suitOf(card) === 1 || suitOf(card) === 2;
-  const rank = RANK_TEXT[rankOf(card)]!;
-  const suit = SUIT_TEXT[suitOf(card)]!;
-  return (
-    <div
-      className={cn('relative h-24 w-16 shrink-0 rounded-lg border border-ink-300 bg-[#f6f3ec] shadow-md animate-rise sm:h-28 sm:w-20', red ? 'text-[#b8322b]' : 'text-[#1b1c20]')}
-      style={{ animationDelay: `${index * 90}ms` }}
-      role="img"
-      aria-label={`${RANK_NAMES[rankOf(card)]} of ${SUIT_NAMES[suitOf(card)]}`}
-      title={label(card)}
-    >
-      <span className="absolute left-1.5 top-1 text-sm font-semibold leading-none sm:text-base">
-        {rank}
-        <br />
-        {suit}
-      </span>
-      <span className="absolute inset-0 grid place-items-center text-3xl sm:text-4xl" aria-hidden="true">
-        {suit}
-      </span>
-    </div>
-  );
-}
-
+/** A row of cards: new cards are dealt in from the shoe; a face-down card that is revealed turns over. */
 function CardRow({ cards }: { cards: (number | null)[] }) {
+  const prev = useRef<(number | null)[]>([]);
+  const before = prev.current;
+  useEffect(() => {
+    prev.current = cards;
+  });
   return (
-    <div className="flex flex-wrap gap-1.5 sm:-space-x-6 sm:gap-0 sm:hover:space-x-1">
+    <div className="flex flex-wrap gap-1.5 sm:-space-x-5 sm:gap-0">
       {cards.map((c, i) => (
-        <PlayingCard key={`${i}-${c ?? 'x'}`} card={c} index={i} />
+        <PlayingCard
+          key={`${i}-${c === null ? 'down' : 'up'}`}
+          rank={c === null ? 0 : rankOf(c)}
+          suit={c === null ? 0 : suitOf(c)}
+          faceDown={c === null}
+          animation={c !== null && before[i] === null ? 'flip' : 'deal'}
+          delay={i >= before.length ? (i - before.length) * 150 : 0}
+          className="transition-transform duration-200 hover:-translate-y-1"
+        />
       ))}
     </div>
   );
@@ -129,10 +107,17 @@ export function BlackjackGame({ config, limits, status }: { config: BlackjackCon
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="overflow-hidden">
-          <CardBody className="min-h-[26rem] space-y-8 bg-[radial-gradient(ellipse_at_50%_0%,rgb(31_92_68/0.35),transparent_70%)] py-8">
+          <CardBody className="blackjack-felt relative min-h-[28rem] space-y-8 py-8 shadow-[inset_0_0_80px_rgba(0,0,0,0.55)]">
+            {/* The shoe, top right (decorative). */}
+            <div className="pointer-events-none absolute right-4 top-3 hidden h-14 w-10 rotate-6 rounded-md border border-[#3a2412] bg-gradient-to-b from-[#5a3418] to-[#2a170b] shadow-[0_10px_20px_-8px_rgba(0,0,0,0.8)] sm:block" aria-hidden="true">
+              <div className="absolute inset-x-1 top-1 h-10 rounded-sm bg-[repeating-linear-gradient(0deg,#f4efe4_0_1px,#d9cfb8_1px_2px)] opacity-90" />
+            </div>
+            <p className="pointer-events-none text-center font-display text-sm font-semibold uppercase tracking-[0.35em] text-gold-300/70" aria-hidden="true">
+              Blackjack pays {config.blackjackPays}
+            </p>
             <section aria-label="Dealer">
-              <div className="mb-3 flex items-baseline justify-between">
-                <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Dealer</h2>
+              <div className="mb-3 flex items-baseline gap-4">
+                <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-300">Dealer</h2>
                 {s && (
                   <span className="num text-sm text-ink-300" data-testid="bj-dealer-total">
                     {s.dealerTotal !== null ? s.dealerTotal : s.dealer[0] != null ? `showing ${RANK_TEXT[rankOf(s.dealer[0])]}` : ''}

@@ -11,6 +11,7 @@ import { LimboGame } from '@/components/games/limbo-game';
 import { PlinkoGame } from '@/components/games/plinko-game';
 import { GameRules } from '@/components/games/game-rules';
 import { SoundControls } from '@/components/games/sound-controls';
+import { COVER_THEME } from '@/components/lobby/game-cover';
 import { Badge } from '@/components/ui/badge';
 import { Callout, Chips, PageHeader } from '@/components/ui/misc';
 import type { DiceConfig } from '@/engine/games/dice';
@@ -71,8 +72,19 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
       notFound();
   }
 
+  const theme = COVER_THEME[game.id];
   return (
     <>
+      {theme && (
+        // The game's own colour world behind the glass panels (decorative).
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 -z-10"
+          style={{
+            backgroundImage: `radial-gradient(900px 520px at 30% 22%, ${theme.glow.replace(/0\.\d+\)$/, '0.16)')}, transparent 65%), radial-gradient(1000px 700px at 85% 0%, ${theme.from}55, transparent 60%), linear-gradient(180deg, ${theme.to}cc, transparent 75%)`,
+          }}
+        />
+      )}
       <PageHeader
         eyebrow={<Link href="/lobby" className="hover:text-gold-300">← Lobby</Link>}
         title={game.name}

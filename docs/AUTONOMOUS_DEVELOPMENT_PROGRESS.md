@@ -72,6 +72,26 @@ Observed weaknesses, ranked:
 - Verified: build; e2e accessibility (axe), mobile, expansion (lobby search and
   favourites) and owner-admin specs, 14 passed.
 
+### 4. Game tables (done)
+
+- **Playing cards.** A shared `PlayingCard` component:
+  - an SVG paper face with top and bottom corner indices, printed pip layouts for
+    2–10 and a framed monogram for court cards;
+  - an original navy-and-gold lattice back;
+  - a deal animation from the shoe, and a flip when the hole card is revealed;
+  - accessible names.
+
+  Used by Blackjack and Hi-Lo.
+- **Blackjack.** A felt table with a printed "Blackjack pays 3:2" arc and a card
+  shoe; cards overlap like a dealt hand.
+- **Mines.** Bevelled glass tiles, faceted emerald gems that flip in on reveal, a
+  glowing red burst on the hit mine, and a deep teal board.
+- **Crash.** A night-sky stage with a starfield and a violet glowing curve.
+- **Every game page.** A backdrop in the game's own colour world (from the lobby
+  cover themes) tints the glass panels.
+- Verified: build; e2e blackjack, expansion (Limbo, Keno, Plinko, Hi-Lo rounds) and
+  resilience specs, 10 passed.
+
 ## Next
 
 - Batch 2: design system — glass surfaces and buttons, a richer background, a glass

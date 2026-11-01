@@ -10,41 +10,14 @@ import { Card, CardBody, CardHeader } from '../ui/card';
 import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } from './round-panels';
 import { StakeInput, stakeProblem } from './stake-input';
 import { useRound } from './use-round';
+import { PlayingCard } from './playing-card';
 import { useGameAudio, useRoundCues } from './use-game-audio';
 import { hiloCues } from '@/lib/audio/cues';
 
-const RANK_TEXT = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-const RANK_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
-const SUIT_TEXT = ['♠', '♥', '♦', '♣'];
-const SUIT_NAMES = ['spades', 'hearts', 'diamonds', 'clubs'];
 
-function Face({ card, size = 'lg', dim }: { card: number; size?: 'lg' | 'sm'; dim?: boolean }) {
-  const r = rankOf(card);
-  const s = suitOf(card);
-  const red = s === 1 || s === 2;
-  return (
-    <div
-      role="img"
-      aria-label={`${RANK_NAMES[r - 1]} of ${SUIT_NAMES[s]}`}
-      className={cn(
-        'relative shrink-0 rounded-lg border border-ink-300 bg-[#f6f3ec] shadow-md animate-rise',
-        size === 'lg' ? 'h-36 w-24 sm:h-44 sm:w-32' : 'h-14 w-10',
-        red ? 'text-[#b8322b]' : 'text-[#1b1c20]',
-        dim && 'opacity-50',
-      )}
-    >
-      <span className={cn('absolute left-1.5 top-1 font-semibold leading-none', size === 'lg' ? 'text-xl' : 'text-[11px]')}>
-        {RANK_TEXT[r - 1]}
-        <br />
-        {SUIT_TEXT[s]}
-      </span>
-      {size === 'lg' && (
-        <span className="absolute inset-0 grid place-items-center text-5xl sm:text-6xl" aria-hidden="true">
-          {SUIT_TEXT[s]}
-        </span>
-      )}
-    </div>
-  );
+/** Hi-Lo uses ranks 1–13 (Ace low); the card component uses 0–12. */
+function Face({ card, size = 'lg', dim, animation = 'flip' }: { card: number; size?: 'lg' | 'sm'; dim?: boolean; animation?: 'deal' | 'flip' | 'none' }) {
+  return <PlayingCard rank={rankOf(card) - 1} suit={suitOf(card)} size={size} dim={dim} animation={animation} />;
 }
 
 export function HiloGame({ config, limits, status }: { config: HiloConfig; limits: { minStake: number; maxStake: number; maxPayoutPerRound: number }; status: string }) {
@@ -88,7 +61,7 @@ export function HiloGame({ config, limits, status }: { config: HiloConfig; limit
               {s ? (
                 <Face key={`${round!.id}-${s.position}`} card={s.currentCard} />
               ) : (
-                <div className="h-36 w-24 rounded-lg border border-gold-700/60 bg-[repeating-linear-gradient(45deg,var(--color-ink-750)_0_6px,var(--color-ink-800)_6px_12px)] sm:h-44 sm:w-32" role="img" aria-label="Face-down card" />
+                <PlayingCard faceDown size="lg" animation="none" />
               )}
             </div>
             {s && !playing && (
@@ -102,7 +75,7 @@ export function HiloGame({ config, limits, status }: { config: HiloConfig; limit
                 <ol className="flex flex-wrap gap-1.5" aria-label="Cards so far">
                   {s!.steps.map((st, i) => (
                     <li key={i} className="flex flex-col items-center gap-0.5">
-                      <Face card={st.card} size="sm" dim={st.via === 'skip'} />
+                      <Face card={st.card} size="sm" dim={st.via === 'skip'} animation="none" />
                       <span className={cn('text-[10px]', st.correct === true ? 'text-positive' : st.correct === false ? 'text-negative' : 'text-ink-400')}>
                         {st.via === 'start' ? 'start' : st.via === 'skip' ? 'skip' : `${st.via === 'higher' ? '↑' : '↓'} ${st.correct ? '✓' : '✗'}`}
                       </span>

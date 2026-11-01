@@ -107,22 +107,27 @@ export function CrashGame({ config, limits, status }: { config: CrashConfig; lim
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card className="overflow-hidden">
-          <div className="relative">
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Multiplier curve">
+          <div className="relative bg-[radial-gradient(ellipse_70%_60%_at_80%_10%,rgb(170_110_255/0.22),transparent_70%),linear-gradient(180deg,#140a2a,#07040f)]">
+            {/* A faint, fixed starfield (decorative). */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 opacity-60 [background-image:radial-gradient(1px_1px_at_12%_20%,#fff,transparent),radial-gradient(1px_1px_at_32%_68%,#e9dcff,transparent),radial-gradient(1.5px_1.5px_at_58%_14%,#fff,transparent),radial-gradient(1px_1px_at_74%_44%,#d9c9ff,transparent),radial-gradient(1px_1px_at_88%_78%,#fff,transparent),radial-gradient(1px_1px_at_44%_88%,#e9dcff,transparent),radial-gradient(1.2px_1.2px_at_22%_46%,#fff,transparent)]"
+            />
+            <svg viewBox={`0 0 ${W} ${H}`} className="relative w-full" role="img" aria-label="Multiplier curve">
               <defs>
                 <linearGradient id="crash-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0" stopColor="#c7a35b" stopOpacity="0.25" />
-                  <stop offset="1" stopColor="#c7a35b" stopOpacity="0" />
+                  <stop offset="0" stopColor="#b98cff" stopOpacity="0.35" />
+                  <stop offset="1" stopColor="#b98cff" stopOpacity="0" />
                 </linearGradient>
               </defs>
               {[0.25, 0.5, 0.75].map((f) => (
-                <line key={f} x1="40" x2={W - 20} y1={30 + (H - 60) * f} y2={30 + (H - 60) * f} stroke="#282a31" strokeWidth="1" />
+                <line key={f} x1="40" x2={W - 20} y1={30 + (H - 60) * f} y2={30 + (H - 60) * f} stroke="#ffffff" strokeOpacity="0.06" strokeWidth="1" />
               ))}
-              <line x1="40" x2={W - 20} y1={H - 30} y2={H - 30} stroke="#353841" strokeWidth="1" />
+              <line x1="40" x2={W - 20} y1={H - 30} y2={H - 30} stroke="#ffffff" strokeOpacity="0.14" strokeWidth="1" />
               {curveTo > 0 && (
                 <>
                   <path d={`${curvePath(rate, curveTo, spanMs, maxMult)}L${(40 + ((W - 60) * curveTo) / spanMs).toFixed(1)},${H - 30}L40,${H - 30}Z`} fill="url(#crash-fill)" />
-                  <path d={curvePath(rate, curveTo, spanMs, maxMult)} fill="none" stroke={s?.status === 'busted' ? '#e06a62' : '#d9bb76'} strokeWidth="3" strokeLinecap="round" />
+                  <path d={curvePath(rate, curveTo, spanMs, maxMult)} fill="none" stroke={s?.status === 'busted' ? '#ff6b5e' : '#d6b8ff'} strokeWidth="3.5" strokeLinecap="round" style={{ filter: 'drop-shadow(0 0 6px rgb(185 140 255 / 0.7))' }} />
                 </>
               )}
               {cashX !== null && cashY !== null && <circle cx={cashX} cy={cashY} r="6" fill="#63b98f" stroke="#141519" strokeWidth="2" />}

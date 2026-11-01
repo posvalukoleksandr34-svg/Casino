@@ -63,6 +63,8 @@
   --animate-shimmer: shimmer 2.4s linear infinite;
   --animate-chip-drop: chip-drop 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-chip-lift: chip-lift 260ms ease-in both;
+  --animate-card-deal: card-deal 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-card-flip: card-flip 380ms cubic-bezier(0.3, 0.7, 0.3, 1) both;
 }
 
 @keyframes fade-in {
@@ -81,6 +83,16 @@
 @keyframes chip-lift {
   from { transform: none; opacity: 1; }
   to { transform: translateY(-16px) scale(1.15); opacity: 0; }
+}
+/* A card slides in from the shoe (top right), or turns over in place. */
+@keyframes card-deal {
+  from { transform: translate(160px, -110px) rotate(16deg) scale(0.92); opacity: 0; }
+  60% { opacity: 1; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes card-flip {
+  from { transform: rotateY(90deg); }
+  to { transform: rotateY(0deg); }
 }
 @keyframes shimmer {
   from { background-position: -200% 0; }
@@ -215,4 +227,13 @@
     radial-gradient(ellipse at 50% 30%, rgb(255 220 160 / 0.08), transparent 65%),
     repeating-linear-gradient(45deg, rgb(255 255 255 / 0.018) 0 2px, transparent 2px 4px),
     repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.05) 0 2px, transparent 2px 4px);
+}
+
+/* Blackjack table felt: emerald baize with a soft spotlight and a printed arc. */
+.blackjack-felt {
+  background-color: #0e3a28;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgb(255 230 170 / 0.10), transparent 70%),
+    radial-gradient(ellipse 120% 90% at 50% 120%, rgb(0 0 0 / 0.45), transparent 60%),
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.016) 0 2px, transparent 2px 4px);
 }

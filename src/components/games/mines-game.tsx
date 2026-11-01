@@ -17,21 +17,26 @@ const PRESETS = [1, 3, 5, 10, 24];
 
 function Gem() {
   return (
-    <svg viewBox="0 0 32 32" className="size-7" aria-hidden="true">
-      <path d="M9 6h14l5 7-12 14L4 13z" fill="#d9bb76" />
-      <path d="M4 13h24M9 6l3 7 4 14 4-14 3-7M12 13l4-7 4 7" fill="none" stroke="#7b622f" strokeWidth="1.2" strokeLinejoin="round" />
+    <svg viewBox="0 0 32 32" className="size-8 drop-shadow-[0_0_8px_rgb(94_230_200/0.6)] sm:size-9" aria-hidden="true">
+      <path d="M9 6h14l5 7-12 14L4 13z" fill="#38d6b0" />
+      <path d="M9 6h14l5 7H4z" fill="#8ff5dc" />
+      <path d="M4 13h24L16 27z" fill="#1fa587" />
+      <path d="M12 13l4-7 4 7-4 14z" fill="#5ee6c8" opacity="0.85" />
+      <path d="M4 13h24M9 6l3 7 4 14 4-14 3-7M12 13l4-7 4 7" fill="none" stroke="#e6fff8" strokeOpacity="0.55" strokeWidth="0.7" strokeLinejoin="round" />
+      <path d="M10.5 8.5l3 0" stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" opacity="0.9" />
     </svg>
   );
 }
 
 function Mine({ hit }: { hit?: boolean }) {
+  const c = hit ? '#ff6b5e' : '#9aa0ab';
   return (
-    <svg viewBox="0 0 32 32" className="size-7" aria-hidden="true">
-      <circle cx="16" cy="17" r="8" fill={hit ? '#e06a62' : '#a0a4ae'} />
+    <svg viewBox="0 0 32 32" className={cn('size-8 sm:size-9', hit && 'drop-shadow-[0_0_10px_rgb(255_107_94/0.8)]')} aria-hidden="true">
       {[0, 45, 90, 135, 180, 225, 270, 315].map((a) => (
-        <line key={a} x1="16" y1="17" x2={16 + 12 * Math.cos((a * Math.PI) / 180)} y2={17 + 12 * Math.sin((a * Math.PI) / 180)} stroke={hit ? '#e06a62' : '#a0a4ae'} strokeWidth="2" strokeLinecap="round" />
+        <line key={a} x1="16" y1="17" x2={16 + 12 * Math.cos((a * Math.PI) / 180)} y2={17 + 12 * Math.sin((a * Math.PI) / 180)} stroke={c} strokeWidth="2.2" strokeLinecap="round" />
       ))}
-      <circle cx="13" cy="14" r="2" fill="#f8f6f1" opacity="0.7" />
+      <circle cx="16" cy="17" r="8.5" fill={hit ? '#c9372c' : '#4b4f5a'} stroke={c} strokeWidth="1.2" />
+      <circle cx="13" cy="14" r="2.4" fill="#ffffff" opacity="0.65" />
     </svg>
   );
 }
@@ -73,7 +78,7 @@ export function MinesGame({ config, limits, status }: { config: MinesConfig; lim
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
-          <CardBody className="flex flex-col items-center gap-6 py-8">
+          <CardBody className="flex flex-col items-center gap-6 bg-[radial-gradient(ellipse_80%_70%_at_50%_30%,rgb(20_90_84/0.35),transparent_75%),linear-gradient(180deg,rgb(4_30_30/0.6),rgb(3_14_15/0.7))] py-8">
             <div className="flex w-full max-w-md items-center justify-between text-sm">
               <span className="text-ink-400">{s ? `${s.mineCount} mine${s.mineCount === 1 ? '' : 's'} · ${picks} safe pick${picks === 1 ? '' : 's'}` : 'Choose your mines and start'}</span>
               <span className="num text-lg font-semibold text-gold-300" data-testid="mines-multiplier">
@@ -95,11 +100,11 @@ export function MinesGame({ config, limits, status }: { config: MinesConfig; lim
                     onClick={() => reveal(tile)}
                     aria-label={`Tile ${tile + 1}${revealed ? ', safe' : isMine ? ', mine' : ''}`}
                     className={cn(
-                      'grid aspect-square place-items-center rounded-xl border transition-all duration-200',
-                      revealed && 'border-gold-600 bg-gold-800/30',
-                      !revealed && isMine && (hit ? 'border-negative bg-negative/20' : 'border-ink-600 bg-ink-850 opacity-80'),
-                      !revealed && !isMine && 'border-ink-600 bg-gradient-to-b from-ink-750 to-ink-850',
-                      playing && !revealed && 'hover:-translate-y-0.5 hover:border-gold-600 hover:shadow-[var(--shadow-gold)]',
+                      'grid aspect-square place-items-center rounded-2xl border transition-[transform,border-color,box-shadow,background-color] duration-200',
+                      revealed && 'animate-card-flip border-[#5ee6c8]/60 bg-[radial-gradient(circle_at_50%_35%,rgb(94_230_200/0.32),rgb(8_48_44/0.75)_70%)] shadow-[inset_0_1px_0_rgb(255_255_255/0.15),0_0_18px_-4px_rgb(94_230_200/0.45)]',
+                      !revealed && isMine && (hit ? 'animate-card-flip border-[#ff6b5e]/80 bg-[radial-gradient(circle,rgb(255_107_94/0.4),rgb(60_10_10/0.8)_70%)] shadow-[0_0_24px_-2px_rgb(255_107_94/0.6)]' : 'border-white/10 bg-black/30 opacity-75'),
+                      !revealed && !isMine && 'border-white/10 bg-gradient-to-b from-white/[0.10] to-white/[0.02] shadow-[inset_0_1px_0_rgb(255_255_255/0.14),inset_0_-3px_0_rgb(0_0_0/0.35),0_8px_16px_-10px_rgb(0_0_0/0.9)] backdrop-blur-sm',
+                      playing && !revealed && 'hover:-translate-y-0.5 hover:border-[#5ee6c8]/60 hover:shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_0_20px_-6px_rgb(94_230_200/0.6)] active:translate-y-0',
                     )}
                   >
                     {revealed ? <Gem /> : isMine ? <Mine hit={hit} /> : null}
