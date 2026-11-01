@@ -3,6 +3,7 @@ import { registerPlayer, toMinor } from './helpers';
 
 test.describe('core player journey', () => {
   test('register → dice → roulette → balances, transactions and history agree', async ({ page }) => {
+    test.setTimeout(120_000);
     await registerPlayer(page);
 
     // Dice: one roll at 49.50% for 10 chips.
@@ -22,8 +23,8 @@ test.describe('core player journey', () => {
     await page.locator('[data-position="red"]').click();
     await page.locator('[data-position="straight:17"]').click();
     await expect(page.getByTestId('roulette-total')).toHaveText('10.00 chips');
-    const rouletteResponse = page.waitForResponse((r) => r.url().endsWith('/api/games/roulette/rounds') && r.request().method() === 'POST');
-    await page.getByTestId('roulette-spin').click();
+    // The table is automatic: the bets go in when the betting window closes.
+    const rouletteResponse = page.waitForResponse((r) => r.url().endsWith('/api/games/roulette/rounds') && r.request().method() === 'POST', { timeout: 30_000 });
     const roulette = await (await rouletteResponse).json();
     const n = roulette.round.state.result as number;
     const red = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);

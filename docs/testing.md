@@ -145,6 +145,35 @@ Hardening without a prior failure:
 * The backup and restore scripts are tested by the restore drill.
 * New `casino_rate_limited_total` and `casino_login_failures_total` metrics.
 
+## Results of the automatic roulette update (2026-11-01, this repository's environment)
+
+The roulette table now runs an automatic 15-second betting cycle (state machine in
+`roulette-cycle.ts`). Positions highlight the numbers they cover, using the engine's
+`betWins`. Roulette has countdown and "no more bets" sounds, and effects and ambience
+have separate volumes ([casino-experience.md](casino-experience.md)). No server, engine,
+ledger or schema change.
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` | pass / 0 problems |
+| `npm run test:unit` | **326 passed** (35 files; new `roulette-cycle.test.ts`, extended wheel, audio and board tests) |
+| `npm run test:integration` | **286 passed** (30 files) |
+| `npm run test:stats` | **24 passed** (5 files) |
+| `npm run build` / `npm run check:bundle` | pass / 158 files, no server secrets |
+| `npm run test:e2e` | **44 passed** (chromium desktop + Pixel 7 mobile, 7.1 min; the roulette tests run the real 15-second windows) |
+| `npm run check:docs` | 119 links OK |
+| `npm run audio:generate -- --check` | 43 files match their recipes |
+
+**Found and fixed during this work (all in the new tests, none in the application):**
+* The first e2e version clicked the board several assertions after the result
+  appeared, by which time the 5-second result phase was over and the next window had
+  correctly accepted the chip. The lock check now runs first.
+* Playwright's `click()` waits for an `aria-disabled` element to become enabled, so
+  the "locked board" click only ran once betting reopened. It now uses
+  `force: true`.
+* One speed-easing unit test simulated too short a time for its tolerance. It now
+  simulates longer, with the same tolerance.
+
 ## Results of the casino experience update (2026-11-01, this repository's environment)
 
 Sound for every game, the idle roulette wheel, chip stacks, the bet toolbar, automatic

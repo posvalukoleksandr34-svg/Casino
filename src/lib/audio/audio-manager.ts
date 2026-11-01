@@ -24,11 +24,14 @@ export interface AudioSettings {
   ambience: boolean;
   /** Master volume, 0–1. */
   volume: number;
+  /** Level of game effects relative to the master volume, 0–1. */
+  effectsVolume: number;
+  /** Level of ambience loops relative to the master volume, 0–1. */
+  ambienceVolume: number;
 }
 
-export const DEFAULT_AUDIO_SETTINGS: AudioSettings = Object.freeze({ enabled: true, effects: true, ambience: true, volume: 0.6 });
+export const DEFAULT_AUDIO_SETTINGS: AudioSettings = Object.freeze({ enabled: true, effects: true, ambience: true, volume: 0.6, effectsVolume: 1, ambienceVolume: 0.7 });
 export const AUDIO_SETTINGS_KEY = 'aurovane:audio:v1';
-const AMBIENCE_LEVEL = 0.7;
 
 // ── The small part of Web Audio the manager uses (so tests can supply fakes).
 export interface ParamLike {
@@ -98,7 +101,10 @@ export function sanitizeSettings(raw: unknown): AudioSettings {
     if (typeof r.enabled === 'boolean') s.enabled = r.enabled;
     if (typeof r.effects === 'boolean') s.effects = r.effects;
     if (typeof r.ambience === 'boolean') s.ambience = r.ambience;
-    if (typeof r.volume === 'number' && Number.isFinite(r.volume)) s.volume = Math.min(1, Math.max(0, r.volume));
+    for (const k of ['volume', 'effectsVolume', 'ambienceVolume'] as const) {
+      const v = r[k];
+      if (typeof v === 'number' && Number.isFinite(v)) s[k] = Math.min(1, Math.max(0, v));
+    }
   }
   return s;
 }
@@ -255,7 +261,7 @@ export class AudioManager {
     try {
       const spec = cueSpec(profile, cue);
       if (!spec || spec.kind !== 'effect') return false;
-      if (!this.unlocked || !this.ctx || !this.settings.enabled || !this.settings.effects || this.settings.volume <= 0) return false;
+      if (!this.unlocked || !this.ctx || !this.settings.enabled || !this.settings.effects || this.settings.volume <= 0 || this.settings.effectsVolume <= 0) return false;
       const k = key(profile, cue);
       const now = this.deps.now();
       const last = this.lastStart.get(k);
@@ -345,8 +351,8 @@ export class AudioManager {
   private applyLevels(): void {
     const s = this.settings;
     if (this.master) this.master.gain.value = s.enabled ? s.volume : 0;
-    if (this.effectsBus) this.effectsBus.gain.value = s.effects ? 1 : 0;
-    if (this.ambienceBus) this.ambienceBus.gain.value = s.ambience ? AMBIENCE_LEVEL : 0;
+    if (this.effectsBus) this.effectsBus.gain.value = s.effects ? s.effectsVolume : 0;
+    if (this.ambienceBus) this.ambienceBus.gain.value = s.ambience ? s.ambienceVolume : 0;
   }
 
   private asset(file: string): Asset {
@@ -461,7 +467,7 @@ export class AudioManager {
     const audible = this.unlocked && this.settings.enabled && this.settings.volume > 0;
     for (const l of this.loops.values()) {
       const spec = cueSpec(l.profile, l.cue);
-      const allowed = audible && spec !== null && (spec.bus === 'ambience' ? this.settings.ambience : this.settings.effects);
+      const allowed = audible && spec !== null && (spec.bus === 'ambience' ? this.settings.ambience && this.settings.ambienceVolume > 0 : this.settings.effects && this.settings.effectsVolume > 0);
       if (!allowed) {
         if (l.voice) this.stopVoice(l.voice);
         l.voice = null;

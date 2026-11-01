@@ -2,18 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { WHEEL_ORDER } from '@/engine/games/roulette/rules';
 import {
   angleForPocket,
+  approachSpeed,
   BALL_POCKET_R,
   easeOutCubic,
   IDLE_DEG_PER_SEC,
-  IDLE_RAMP_MS,
-  idleSpeed,
   mod,
   pocketAtAngle,
   pocketIndexUnderBall,
   SECTOR,
+  spinEase,
   spinFrame,
+  spinStartSlope,
   spinTarget,
+  SPIN_MS,
   SPIN_TURNS,
+  WINDUP_DEG_PER_SEC,
 } from '@/components/games/wheel-motion';
 
 describe('wheel geometry', () => {
@@ -43,10 +46,10 @@ describe('a spin lands on the server result', () => {
   });
 
   it('ends with the wheel at the target and the ball in the winning pocket under the pointer', () => {
-    for (const n of [0, 17, 32, 26]) {
+    for (const [n, m0] of [[0, 0], [17, 0.3], [32, 1], [26, 3]] as const) {
       const from = 123.4;
       const to = spinTarget(from, n);
-      const end = spinFrame(1, from, to);
+      const end = spinFrame(1, from, to, m0);
       expect(end.wheel).toBeCloseTo(to, 9);
       expect(mod(end.ball, 360)).toBeCloseTo(0, 9);
       expect(end.ballRadius).toBe(BALL_POCKET_R);
@@ -69,12 +72,39 @@ describe('a spin lands on the server result', () => {
   });
 });
 
-describe('idle motion', () => {
-  it('eases in from rest to its constant decorative speed', () => {
-    expect(idleSpeed(0)).toBe(0);
-    expect(idleSpeed(IDLE_RAMP_MS / 2)).toBeGreaterThan(0);
-    expect(idleSpeed(IDLE_RAMP_MS / 2)).toBeLessThan(IDLE_DEG_PER_SEC);
-    expect(idleSpeed(IDLE_RAMP_MS)).toBe(IDLE_DEG_PER_SEC);
-    expect(idleSpeed(1e9)).toBe(IDLE_DEG_PER_SEC);
+describe('idle, wind-up and the hand-over into a spin', () => {
+  it('speed changes ease towards their target without overshoot', () => {
+    let v = 0;
+    // 600 frames of 16 ms ≈ 9.6 s, i.e. 16 time constants.
+    for (let i = 0; i < 600; i++) {
+      const next = approachSpeed(v, IDLE_DEG_PER_SEC, 16);
+      expect(next).toBeGreaterThanOrEqual(v);
+      expect(next).toBeLessThanOrEqual(IDLE_DEG_PER_SEC);
+      v = next;
+    }
+    expect(v).toBeCloseTo(IDLE_DEG_PER_SEC, 2);
+    expect(approachSpeed(WINDUP_DEG_PER_SEC, IDLE_DEG_PER_SEC, 1e6)).toBeCloseTo(IDLE_DEG_PER_SEC, 9);
+  });
+
+  it('a spin starts at the current wheel speed (no jump) and is monotonic for every start speed', () => {
+    const from = 10;
+    const to = spinTarget(from, 7);
+    for (const speed of [0, IDLE_DEG_PER_SEC, WINDUP_DEG_PER_SEC, 5000]) {
+      const m0 = spinStartSlope(speed, from, to);
+      expect(m0).toBeGreaterThanOrEqual(0);
+      expect(m0).toBeLessThanOrEqual(3);
+      // Initial angular speed of the spin (°/s) equals the wind-up speed (unless capped).
+      const dp = 1e-6;
+      const initial = ((spinFrame(dp, from, to, m0).wheel - from) / (dp * SPIN_MS)) * 1000;
+      if (speed <= 3 * ((to - from) / SPIN_MS) * 1000) expect(initial).toBeCloseTo(speed, 0);
+      let prev = -Infinity;
+      for (let p = 0; p <= 1.0001; p += 0.005) {
+        const e = spinEase(p, m0);
+        expect(e).toBeGreaterThanOrEqual(prev - 1e-12);
+        prev = e;
+      }
+      expect(spinEase(1, m0)).toBeCloseTo(1, 12);
+      expect(spinEase(0, m0)).toBe(0);
+    }
   });
 });

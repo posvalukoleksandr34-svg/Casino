@@ -14,12 +14,14 @@ import { WHEEL_ORDER } from '@/engine/games/roulette/rules';
 export const SECTOR = 360 / WHEEL_ORDER.length;
 /** Idle rotation speed, degrees per second. */
 export const IDLE_DEG_PER_SEC = 9;
-/** Time for idle motion to ease back in after a reveal, ms. */
-export const IDLE_RAMP_MS = 1600;
+/** Speed the wheel winds up to once betting closes and a spin is coming. */
+export const WINDUP_DEG_PER_SEC = 140;
+/** Time constant for speed changes outside a spin, ms. */
+export const SPEED_TAU_MS = 600;
 /** Length of a real spin, ms. */
 export const SPIN_MS = 4200;
 /** How long the landed result is held before idle resumes, ms. */
-export const REVEAL_HOLD_MS = 2600;
+export const REVEAL_HOLD_MS = 3500;
 /** Whole wheel turns added to a spin, and ball laps in the other direction. */
 export const SPIN_TURNS = 5;
 export const BALL_LAPS = 7;
@@ -47,6 +49,28 @@ export function spinTarget(current: number, result: number, turns = SPIN_TURNS):
 
 /** Decelerating ease (cubic): fast push, slow settle. */
 export const easeOutCubic = (p: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), 3);
+
+/**
+ * Spin progress 0→1 as a cubic Hermite curve that starts with normalised
+ * slope `m0` (the wheel's current speed, so idle or wind-up motion flows
+ * into the spin without a jump) and ends at rest. Monotonic for 0 ≤ m0 ≤ 3.
+ */
+export function spinEase(p: number, m0: number): number {
+  const t = Math.min(1, Math.max(0, p));
+  const m = Math.min(3, Math.max(0, m0));
+  return m * (t * t * t - 2 * t * t + t) + (3 * t * t - 2 * t * t * t);
+}
+
+/** The normalised start slope for a spin from `from` to `to` begun at `speed` °/s. */
+export function spinStartSlope(speed: number, from: number, to: number): number {
+  const distance = to - from;
+  return distance > 0 ? Math.min(3, Math.max(0, (speed * SPIN_MS) / 1000 / distance)) : 0;
+}
+
+/** Eases a speed towards a target over `dt` ms (exponential approach). */
+export function approachSpeed(current: number, target: number, dt: number, tau = SPEED_TAU_MS): number {
+  return target + (current - target) * Math.exp(-Math.max(0, dt) / tau);
+}
 /** The ball slows a little faster than the wheel, then rides with it. */
 export const easeBall = (p: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, p)), 2.4);
 
@@ -62,9 +86,9 @@ export interface SpinFrame {
 export const BALL_TRACK_R = 94;
 export const BALL_POCKET_R = 66;
 
-/** The wheel and ball at progress p (0–1) of a spin from `from` to `to`. */
-export function spinFrame(p: number, from: number, to: number): SpinFrame {
-  const wheel = from + (to - from) * easeOutCubic(p);
+/** The wheel and ball at progress p (0–1) of a spin from `from` to `to`, starting with slope m0. */
+export function spinFrame(p: number, from: number, to: number, m0 = 0): SpinFrame {
+  const wheel = from + (to - from) * spinEase(p, m0);
   // The ball circles anticlockwise and finishes at the pointer (screen angle 0).
   const ball = -BALL_LAPS * 360 * (1 - easeBall(p));
   // It rides the outer track, then drops into the pockets during the last third.
@@ -76,10 +100,4 @@ export function spinFrame(p: number, from: number, to: number): SpinFrame {
 /** Index of the pocket the ball is over, relative to the wheel. */
 export function pocketIndexUnderBall(wheel: number, ball: number): number {
   return mod(Math.round(mod(ball - wheel, 360) / SECTOR), WHEEL_ORDER.length);
-}
-
-/** Idle speed (deg/s) `sinceResume` ms after idle restarted: an ease-in ramp. */
-export function idleSpeed(sinceResume: number): number {
-  const k = Math.min(1, Math.max(0, sinceResume / IDLE_RAMP_MS));
-  return IDLE_DEG_PER_SEC * k * k * (3 - 2 * k);
 }

@@ -57,16 +57,29 @@ const MAX_VISIBLE = 6;
  * newest on top, each in its denomination's colour. The top chip shows the
  * position's total. Decorative; the position button carries the label.
  */
-export function ChipStack({ chips, total, className }: { chips: readonly number[]; total: number; className?: string }) {
+export function ChipStack({ chips, total, className, animate = true }: { chips: readonly number[]; total: number; className?: string; animate?: boolean }) {
   const shown = chips.slice(-MAX_VISIBLE);
+  const first = chips.length - shown.length;
   const lift = 2.5;
   return (
     <span className={cn('pointer-events-none absolute z-10 block size-[28px]', className)} style={{ marginTop: ((shown.length - 1) * lift) / 2 }} aria-hidden="true" data-chip-stack={chips.join(',')}>
       {shown.map((v, i) => (
-        <span key={i} className="absolute inset-0 rounded-full shadow-[0_1.5px_0_rgb(0_0_0/0.6)]" style={{ transform: `translateY(${-(i * lift)}px)` }}>
-          <ChipFace value={v} className="size-full" label={i === shown.length - 1} text={compactChips(total)} />
+        // Keyed by the chip's place in the whole stack: only a newly placed chip mounts (and drops in).
+        <span key={first + i} className="absolute inset-0" style={{ transform: `translateY(${-(i * lift)}px)` }}>
+          <span className={cn('block size-full rounded-full shadow-[0_1.5px_0_rgb(0_0_0/0.6)]', animate && 'animate-chip-drop')}>
+            <ChipFace value={v} className="size-full" label={i === shown.length - 1} text={compactChips(total)} />
+          </span>
         </span>
       ))}
+    </span>
+  );
+}
+
+/** A chip leaving a position (removed, undone, cleared or swept after a spin). */
+export function ChipGhost({ value, className }: { value: number; className?: string }) {
+  return (
+    <span className={cn('pointer-events-none absolute z-10 block size-[28px] animate-chip-lift', className)} aria-hidden="true">
+      <ChipFace value={value} className="size-full" label={false} />
     </span>
   );
 }

@@ -86,7 +86,7 @@ describe('sound profiles', () => {
   it('give every game its own profile with the required cues', () => {
     expect(GAME_SOUND_IDS.sort()).toEqual(['blackjack', 'crash', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette']);
     const required: Record<string, string[]> = {
-      roulette: ['chip-place', 'chip-remove', 'wheel-spin', 'ball-roll', 'pocket-tick', 'win', 'lose'],
+      roulette: ['chip-place', 'chip-remove', 'wheel-spin', 'ball-roll', 'pocket-tick', 'win', 'lose', 'countdown', 'no-more-bets'],
       dice: ['roll', 'land', 'result'],
       mines: ['select', 'safe', 'explosion', 'cashout'],
       crash: ['launch', 'rise', 'cashout', 'crash'],
@@ -152,10 +152,10 @@ describe('audio manager', () => {
     first.m.setSettings({ enabled: false, volume: 0.25 });
     expect(first.m.play('keno', 'hit')).toBe(false);
     const saved = first.store.get(AUDIO_SETTINGS_KEY)!;
-    expect(JSON.parse(saved)).toEqual({ enabled: false, effects: true, ambience: true, volume: 0.25 });
+    expect(JSON.parse(saved)).toEqual({ ...DEFAULT_AUDIO_SETTINGS, enabled: false, volume: 0.25 });
 
     const second = setup({ stored: saved });
-    expect(second.m.getSettings()).toEqual({ enabled: false, effects: true, ambience: true, volume: 0.25 });
+    expect(second.m.getSettings()).toEqual({ ...DEFAULT_AUDIO_SETTINGS, enabled: false, volume: 0.25 });
     second.m.use('keno');
     second.m.unlock();
     second.m.setSettings({ enabled: true });
@@ -165,9 +165,28 @@ describe('audio manager', () => {
     expect(second.ctx.gains[0]!.gain.value).toBe(0.25);
   });
 
+  it('has separate effect and ambience levels that persist and drive their own buses', async () => {
+    const first = setup();
+    first.m.use('crash');
+    first.m.unlock();
+    await flush();
+    first.m.setSettings({ effectsVolume: 0.4, ambienceVolume: 0.2 });
+    // gains[0] master, [1] effects bus, [2] ambience bus
+    expect(first.ctx.gains[1]!.gain.value).toBe(0.4);
+    expect(first.ctx.gains[2]!.gain.value).toBe(0.2);
+    const again = setup({ stored: first.store.get(AUDIO_SETTINGS_KEY)! });
+    expect(again.m.getSettings()).toMatchObject({ effectsVolume: 0.4, ambienceVolume: 0.2 });
+    first.m.setSettings({ effectsVolume: 0 });
+    expect(first.m.play('crash', 'launch')).toBe(false);
+    first.m.startLoop('crash', 'rise');
+    expect(first.ctx.playing()).toHaveLength(1);
+    first.m.setSettings({ ambienceVolume: 0 });
+    expect(first.ctx.playing()).toHaveLength(0);
+  });
+
   it('ignores corrupt or out-of-range stored settings', () => {
     expect(setup({ stored: '{not json' }).m.getSettings()).toEqual(DEFAULT_AUDIO_SETTINGS);
-    expect(sanitizeSettings({ enabled: 'yes', volume: 7, ambience: false })).toEqual({ ...DEFAULT_AUDIO_SETTINGS, volume: 1, ambience: false });
+    expect(sanitizeSettings({ enabled: 'yes', volume: 7, ambience: false, effectsVolume: -2 })).toEqual({ ...DEFAULT_AUDIO_SETTINGS, volume: 1, ambience: false, effectsVolume: 0 });
     expect(sanitizeSettings({ volume: Number.NaN }).volume).toBe(DEFAULT_AUDIO_SETTINGS.volume);
   });
 

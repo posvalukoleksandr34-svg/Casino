@@ -28,11 +28,14 @@ ledger, and every game publishes its rules, payouts and house edge.
   [docs/onboarding.md](docs/onboarding.md).
 * **Lobby**: search, categories, favourites, recently played, "new" badges and a details
   view for each game; every card opens a playable game.
-* **Table feel**: an original sound profile for every game (no autoplay; mute, volume,
-  effects and ambience saved per browser); a roulette wheel that idles decoratively and
-  spins to the server's result; coloured chip stacks with Undo, Clear, Rebet, 2× and a
-  touch-friendly remove tool; bets cleared after each settled spin; the player's own last
-  20 results and a history drawer — [docs/casino-experience.md](docs/casino-experience.md).
+* **Table feel**: an original sound profile for every game (no autoplay; mute, master,
+  effects and ambience levels saved per browser); an **automatic roulette table** (a 15-second
+  betting countdown, the player's own bets sent once when it closes, no bets → no round, a
+  wheel that idles, winds up and spins to the server's result); numbers covered by a bet
+  highlighted on hover, focus or tap (from the engine's `betWins`); coloured chip stacks with
+  Undo, Clear, Rebet, 2× and a touch-friendly remove tool; bets cleared after each settled
+  spin; the player's own last 20 results and a history drawer —
+  [docs/casino-experience.md](docs/casino-experience.md).
 * **Profile**: preset avatars, display name, balance, rounds, wins/losses/pushes, staked,
   returned and net per game (turnover is never shown as profit), recent activity,
   favourites, cosmetic achievements (awarded only by the server, never for losses or

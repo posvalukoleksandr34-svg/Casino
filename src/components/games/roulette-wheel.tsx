@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { pocketColor, WHEEL_ORDER } from '@/engine/games/roulette/rules';
 import {
   angleForPocket,
+  approachSpeed,
   BALL_POCKET_R,
-  idleSpeed,
-  IDLE_RAMP_MS,
+  IDLE_DEG_PER_SEC,
   mod,
   pocketAtAngle,
   pocketIndexUnderBall,
@@ -14,7 +14,9 @@ import {
   SECTOR,
   SPIN_MS,
   spinFrame,
+  spinStartSlope,
   spinTarget,
+  WINDUP_DEG_PER_SEC,
 } from './wheel-motion';
 
 const FILL = { red: '#b8322c', black: '#17181c', green: '#1f7a4d' } as const;
@@ -40,7 +42,10 @@ interface Motion {
   to: number;
   spinStart: number;
   landedAt: number;
-  resumeAt: number;
+  /** Current speed outside a spin, °/s. */
+  speed: number;
+  /** Start slope of the current spin (carries the wind-up speed into it). */
+  slope: number;
   last: number;
   /** Wheel index of the pocket holding the ball, or null (no ball shown). */
   ballIndex: number | null;
@@ -50,8 +55,10 @@ interface Motion {
 
 /**
  * The roulette wheel. It turns slowly on its own while players bet (purely
- * decorative: no request, no chips, no result), spins to the authoritative
- * result when it is given one, holds the result, then eases back to idle.
+ * decorative: no request, no chips, no result), winds up when betting has
+ * closed on a wager, spins to the authoritative result when it is given one
+ * (carrying its current speed into the spin), holds the result, then eases
+ * back to idle.
  *
  * Frames are drawn by mutating SVG attributes from requestAnimationFrame, so
  * React does not re-render per frame. With reduced motion there is no idle
@@ -59,6 +66,7 @@ interface Motion {
  */
 export function RouletteWheel({
   spin,
+  windup = false,
   reduced,
   onSettled,
   onSpinStart,
@@ -66,6 +74,8 @@ export function RouletteWheel({
   onTick,
 }: {
   spin: WheelSpin | null;
+  /** Betting has closed on a wager: speed up while the server answers. Decorative only. */
+  windup?: boolean;
   reduced: boolean;
   onSettled: (id: string) => void;
   onSpinStart?: () => void;
@@ -80,11 +90,13 @@ export function RouletteWheel({
   const raf = useRef<number | null>(null);
   const handled = useRef<string | null>(null);
   const spinId = useRef<string | null>(null);
-  const motion = useRef<Motion>({ mode: 'idle', rotation: 0, from: 0, to: 0, spinStart: 0, landedAt: 0, resumeAt: -IDLE_RAMP_MS, last: 0, ballIndex: null, tickIndex: -1, dropped: false });
+  const motion = useRef<Motion>({ mode: 'idle', rotation: 0, from: 0, to: 0, spinStart: 0, landedAt: 0, speed: IDLE_DEG_PER_SEC, slope: 0, last: 0, ballIndex: null, tickIndex: -1, dropped: false });
   const callbacks = useRef({ onSettled, onSpinStart, onBallDrop, onTick });
   callbacks.current = { onSettled, onSpinStart, onBallDrop, onTick };
   const reducedRef = useRef(reduced);
   reducedRef.current = reduced;
+  const windupRef = useRef(windup);
+  windupRef.current = windup;
 
   /** Writes the current motion state to the SVG. */
   const draw = (ballAngle?: number, ballRadius?: number) => {
@@ -115,6 +127,7 @@ export function RouletteWheel({
     m.rotation = m.to;
     m.mode = 'landed';
     m.landedAt = now;
+    m.speed = 0;
     const id = spinId.current;
     // Read back from the geometry: the pocket physically under the pointer.
     const result = id !== null ? pocketAtAngle(m.to) : null;
@@ -131,13 +144,14 @@ export function RouletteWheel({
     const dt = Math.min(100, Math.max(0, now - (m.last || now)));
     m.last = now;
     if (m.mode === 'idle') {
-      m.rotation += (idleSpeed(now - m.resumeAt) * dt) / 1000;
+      m.speed = approachSpeed(m.speed, windupRef.current ? WINDUP_DEG_PER_SEC : IDLE_DEG_PER_SEC, dt, windupRef.current ? 900 : 1200);
+      m.rotation += (m.speed * dt) / 1000;
       draw();
     } else if (m.mode === 'spinning') {
       const p = (now - m.spinStart) / SPIN_MS;
       if (p >= 1) land(now);
       else {
-        const f = spinFrame(p, m.from, m.to);
+        const f = spinFrame(p, m.from, m.to, m.slope);
         m.rotation = f.wheel;
         draw(f.ball, f.ballRadius);
         if (!m.dropped && f.ballRadius < 90) {
@@ -154,7 +168,7 @@ export function RouletteWheel({
       }
     } else if (now - m.landedAt >= REVEAL_HOLD_MS) {
       m.mode = 'idle';
-      m.resumeAt = now;
+      m.speed = 0;
       setPhase('idle');
     }
     raf.current = requestAnimationFrame(loop);
@@ -201,6 +215,7 @@ export function RouletteWheel({
     m.mode = 'spinning';
     m.from = m.rotation;
     m.to = spinTarget(m.rotation, spin.result);
+    m.slope = spinStartSlope(m.speed, m.from, m.to);
     m.spinStart = now;
     m.ballIndex = null;
     m.tickIndex = -1;

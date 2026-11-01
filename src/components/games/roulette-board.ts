@@ -7,7 +7,7 @@
  * `amount` per position is the sum of that position's chips. The server
  * validates and settles exactly as before.
  */
-import { positionKey, type RouletteBet } from '@/engine/games/roulette';
+import { betWins, POCKETS, positionKey, type RouletteBet } from '@/engine/games/roulette';
 import { MINOR_PER_CHIP } from '@/engine/money';
 
 /** Denominations in minor units, with their physical chip colours. */
@@ -122,4 +122,39 @@ export function boardFromBets(bets: readonly RouletteBet[]): Board {
 export const UNDO_LIMIT = 100;
 export function pushUndo(stack: readonly Board[], board: Board): Board[] {
   return [...stack.slice(-(UNDO_LIMIT - 1)), board];
+}
+
+// ── Coverage (for the table's hover/focus/tap preview) ──────────────────────
+
+const coverCache = new Map<string, readonly number[]>();
+
+/**
+ * The pockets a bet covers, taken from the engine's own `betWins` (the rule
+ * that settles real rounds), so the preview can never disagree with payouts.
+ */
+export function coveredNumbers(bet: RouletteBet): readonly number[] {
+  const key = positionKey(bet);
+  let numbers = coverCache.get(key);
+  if (!numbers) {
+    numbers = Object.freeze(Array.from({ length: POCKETS }, (_, n) => n).filter((n) => betWins(bet, n)));
+    coverCache.set(key, numbers);
+  }
+  return numbers;
+}
+
+/** For each pocket 0–36, how many of the board's positions cover it. */
+export function coverageCounts(board: Board): number[] {
+  const counts = new Array<number>(POCKETS).fill(0);
+  for (const p of board.values()) for (const n of coveredNumbers(p.template)) counts[n]! += 1;
+  return counts;
+}
+
+/** Top chips that left the table between two boards (for the lift-off animation). */
+export function removedTops(prev: Board, next: Board): { key: string; value: number }[] {
+  const out: { key: string; value: number }[] = [];
+  for (const [key, p] of prev) {
+    const left = next.get(key)?.chips.length ?? 0;
+    if (left < p.chips.length) out.push({ key, value: p.chips[p.chips.length - 1]! });
+  }
+  return out;
 }

@@ -27,6 +27,16 @@
       "seconds": 0.03,
       "sha256": "dec208d96af2956a774d12d33782c6cca0033edfed835a1cb0583aedcdaea343"
     },
+    "roulette/countdown.wav": {
+      "bytes": 7100,
+      "seconds": 0.16,
+      "sha256": "b08ab64390edbd6bd2a420dc7e6baf04788f44ea5f6e71676f22b2cb04c4b47b"
+    },
+    "roulette/no-more-bets.wav": {
+      "bytes": 35324,
+      "seconds": 0.8,
+      "sha256": "f99c7d781a1da0d2747d38422db000e89c0650c3ec56fc0e6a9ec8f962df68e0"
+    },
     "roulette/win.wav": {
       "bytes": 48554,
       "seconds": 1.1,

@@ -37,6 +37,8 @@ export const SOUND_PROFILES = {
     'wheel-spin': fx('roulette/wheel-spin.wav', 0.7, 500, 1),
     'ball-roll': effectLoop('roulette/ball-roll.wav', 0.45),
     'pocket-tick': fx('roulette/pocket-tick.wav', 0.5, 35, 3),
+    countdown: fx('roulette/countdown.wav', 0.45, 700, 1),
+    'no-more-bets': fx('roulette/no-more-bets.wav', 0.55, 2000, 1),
     win: fx('roulette/win.wav', 0.75, 800, 1),
     lose: fx('roulette/lose.wav', 0.55, 800, 1),
   },

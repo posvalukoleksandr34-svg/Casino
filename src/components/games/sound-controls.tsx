@@ -114,7 +114,7 @@ export function SoundControls() {
             <div>
               <div className="mb-1.5 flex items-center justify-between">
                 <label htmlFor={volumeId} className="font-medium text-ink-100">
-                  Volume
+                  Master volume
                 </label>
                 <span className="num text-xs text-ink-400">{Math.round(settings.volume * 100)}%</span>
               </div>
@@ -135,30 +135,64 @@ export function SoundControls() {
                 data-testid="sound-volume"
               />
             </div>
-            <label className="flex items-center justify-between gap-3">
-              <span>
-                <span className="block font-medium text-ink-100">Game effects</span>
-                <span className="block text-xs text-ink-400">Chips, cards, results</span>
-              </span>
-              <input type="checkbox" checked={settings.effects} onChange={(e) => update({ effects: e.target.checked })} className="size-4 accent-[var(--color-gold-500)]" data-testid="sound-effects" />
-            </label>
-            <label className="flex items-center justify-between gap-3">
-              <span>
-                <span className="block font-medium text-ink-100">Ambience</span>
-                <span className="block text-xs text-ink-400">Background loops while a round runs</span>
-              </span>
-              <input
-                type="checkbox"
-                checked={settings.ambience}
-                onChange={(e) => update({ ambience: e.target.checked })}
-                className="size-4 accent-[var(--color-gold-500)]"
-                data-testid="sound-ambience"
-              />
-            </label>
+            <ChannelControl
+              label="Game effects"
+              detail="Chips, cards, wheel, results"
+              on={settings.effects}
+              level={settings.effectsVolume}
+              onToggle={(v) => update({ effects: v })}
+              onLevel={(v) => update({ effectsVolume: v, effects: true })}
+              testId="sound-effects"
+            />
+            <ChannelControl
+              label="Ambience"
+              detail="Background loops while a round runs"
+              on={settings.ambience}
+              level={settings.ambienceVolume}
+              onToggle={(v) => update({ ambience: v })}
+              onLevel={(v) => update({ ambienceVolume: v, ambience: true })}
+              testId="sound-ambience"
+            />
             <p className="text-xs text-ink-400">Saved in this browser. Sound starts only after you interact with the page.</p>
           </div>,
           document.body,
         )}
+    </div>
+  );
+}
+
+/** One sound channel: an on/off switch and its own level. */
+function ChannelControl({ label, detail, on, level, onToggle, onLevel, testId }: { label: string; detail: string; on: boolean; level: number; onToggle: (on: boolean) => void; onLevel: (level: number) => void; testId: string }) {
+  const id = useId();
+  return (
+    <div className="space-y-1.5 border-t border-ink-700 pt-3">
+      <label className="flex items-center justify-between gap-3">
+        <span>
+          <span className="block font-medium text-ink-100">{label}</span>
+          <span className="block text-xs text-ink-400">{detail}</span>
+        </span>
+        <input type="checkbox" checked={on} onChange={(e) => onToggle(e.target.checked)} className="size-4 accent-[var(--color-gold-500)]" data-testid={testId} />
+      </label>
+      <div className="flex items-center gap-2">
+        <label htmlFor={id} className="sr-only">
+          {label} volume
+        </label>
+        <input
+          id={id}
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={Math.round(level * 100)}
+          disabled={!on}
+          onChange={(e) => onLevel(Number(e.target.value) / 100)}
+          className="w-full accent-[var(--color-gold-500)] disabled:opacity-50"
+          data-testid={`${testId}-volume`}
+        />
+        <span className="num w-9 text-right text-xs text-ink-400" aria-hidden="true">
+          {Math.round(level * 100)}%
+        </span>
+      </div>
     </div>
   );
 }
