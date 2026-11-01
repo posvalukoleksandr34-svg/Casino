@@ -103,7 +103,7 @@ describe('connection checks', () => {
     expect(refused.ok).toBe(false);
     expect(refused.reason).toMatch(/could not be reached/);
     await withServer({ rejectAuth: true }, async (_smtp, port) => {
-      process.env.SMTP_URL = `smtp://user:wrong-password@127.0.0.1:${port}`;
+      process.env.SMTP_URL = `smtp://user:wrong-password@127.0.0.1:${port}`; // secret-scan: fixture (fake credential against a local fake server)
       resetEnvCache();
       setMailerForTests(null);
       const auth = await verifyMailTransport();
