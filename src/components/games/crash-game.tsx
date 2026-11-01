@@ -11,6 +11,8 @@ import { Toggle } from '../ui/form';
 import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } from './round-panels';
 import { StakeInput, stakeProblem } from './stake-input';
 import { useRound } from './use-round';
+import { useGameAudio, useRoundCues } from './use-game-audio';
+import { crashCues } from '@/lib/audio/cues';
 
 const W = 640;
 const H = 300;
@@ -37,6 +39,8 @@ export function CrashGame({ config, limits, status }: { config: CrashConfig; lim
   const [autoText, setAutoText] = useState('2.00');
   const [elapsed, setElapsed] = useState(0);
   const raf = useRef<number | null>(null);
+  const audio = useGameAudio('crash');
+  const armCues = useRoundCues(round, crashCues, audio.play);
 
   useEffect(() => {
     if (user) void loadActive();
@@ -65,6 +69,17 @@ export function CrashGame({ config, limits, status }: { config: CrashConfig; lim
     const id = setInterval(() => void reload(round.id), 300);
     return () => clearInterval(id);
   }, [flying, round, reload]);
+
+  // Tension ambience while the rocket climbs; it speeds up with the multiplier.
+  useEffect(() => {
+    if (!flying) return;
+    audio.startLoop('rise', { rate: 0.85 });
+    return () => audio.stopLoop('rise');
+  }, [flying, audio]);
+  const liveRate = flying && s ? Math.min(2, 0.85 + s.growthPerMs * elapsed * 0.35) : null;
+  useEffect(() => {
+    if (liveRate !== null) audio.setLoopRate('rise', Math.round(liveRate * 20) / 20);
+  }, [liveRate, audio]);
 
   const autoE2 = autoOn ? Math.round(Number(autoText) * 100) : undefined;
   const autoValid = autoE2 === undefined || (Number.isFinite(autoE2) && autoE2 >= 101 && autoE2 <= config.maxMultiplierE2);
@@ -183,7 +198,7 @@ export function CrashGame({ config, limits, status }: { config: CrashConfig; lim
                   block
                   loading={busy}
                   disabled={Boolean(problem)}
-                  onClick={() => start(autoE2 ? { amount: stake, autoCashoutE2: autoE2 } : { amount: stake }, `${formatChips(stake)} chips${autoE2 ? `, auto ${(autoE2 / 100).toFixed(2)}×` : ''}`)}
+                  onClick={() => (armCues(), start(autoE2 ? { amount: stake, autoCashoutE2: autoE2 } : { amount: stake }, `${formatChips(stake)} chips${autoE2 ? `, auto ${(autoE2 / 100).toFixed(2)}×` : ''}`))}
                   data-testid="crash-start"
                 >
                   {problem ?? 'Start round'}

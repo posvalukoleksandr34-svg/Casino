@@ -13,6 +13,8 @@ import { Kbd } from '../ui/misc';
 import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } from './round-panels';
 import { StakeInput, stakeProblem } from './stake-input';
 import { useRound } from './use-round';
+import { useGameAudio, useRoundCues } from './use-game-audio';
+import { blackjackCues } from '@/lib/audio/cues';
 
 const RANK_TEXT = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const SUIT_TEXT = ['♠', '♥', '♦', '♣'];
@@ -74,6 +76,8 @@ const OUTCOME_TEXT = { blackjack: 'Blackjack', win: 'Win', push: 'Push', lose: '
 export function BlackjackGame({ config, limits, status }: { config: BlackjackConfig; limits: { minStake: number; maxStake: number; maxPayoutPerRound: number }; status: string }) {
   const { user, balance } = useSession();
   const { round, setRound, busy, error, start, act, pending, retryPending, discardPending, loadActive } = useRound<BlackjackView>('blackjack');
+  const audio = useGameAudio('blackjack');
+  const armCues = useRoundCues(round, blackjackCues, audio.play);
   const [stake, setStake] = useState(1000);
   const [hint, setHint] = useState(false);
 
@@ -248,7 +252,7 @@ export function BlackjackGame({ config, limits, status }: { config: BlackjackCon
             ) : (
               <>
                 <StakeInput value={stake} onChange={setStake} min={limits.minStake} max={limits.maxStake} balance={balance} disabled={busy} />
-                <Button variant="primary" size="lg" block loading={busy} disabled={Boolean(startProblem)} onClick={() => start({ amount: stake }, `deal ${formatChips(stake)} chips`)} data-testid="bj-deal">
+                <Button variant="primary" size="lg" block loading={busy} disabled={Boolean(startProblem)} onClick={() => (armCues(), start({ amount: stake }, `deal ${formatChips(stake)} chips`))} data-testid="bj-deal">
                   {startProblem ?? 'Deal'}
                 </Button>
                 {round && round.status !== 'OPEN' && round.payout !== null && <ResultLine stake={round.stake} payout={round.payout} />}

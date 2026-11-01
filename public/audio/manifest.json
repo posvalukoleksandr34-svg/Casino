@@ -1,0 +1,211 @@
+{
+  "sampleRate": 22050,
+  "format": "WAV PCM 16-bit mono",
+  "files": {
+    "roulette/chip-place.wav": {
+      "bytes": 4014,
+      "seconds": 0.09,
+      "sha256": "751b08b8d8e2a6509b2fb888b9c4d09ad73b0bd9aa2b8887d414f1c79d9da1b0"
+    },
+    "roulette/chip-remove.wav": {
+      "bytes": 4454,
+      "seconds": 0.1,
+      "sha256": "a38c16d4fd5bae584870db2a17543bfe82933a9a1462a9cbcde2e0cd314ce270"
+    },
+    "roulette/wheel-spin.wav": {
+      "bytes": 61784,
+      "seconds": 1.4,
+      "sha256": "e3f1bbf14df1a299ba811d288448eeca75462942e3560a3f5ce3b0169bfbbfda"
+    },
+    "roulette/ball-roll.wav": {
+      "bytes": 88244,
+      "seconds": 2,
+      "sha256": "256961d529ce0e418e29774e12e800844522a5847979600c4746c7cb50dbcfb0"
+    },
+    "roulette/pocket-tick.wav": {
+      "bytes": 1368,
+      "seconds": 0.03,
+      "sha256": "dec208d96af2956a774d12d33782c6cca0033edfed835a1cb0583aedcdaea343"
+    },
+    "roulette/win.wav": {
+      "bytes": 48554,
+      "seconds": 1.1,
+      "sha256": "e12d8f5aa2925305a0e19474c414340fbcc7408adce5118a476563177e2a27f1"
+    },
+    "roulette/lose.wav": {
+      "bytes": 30914,
+      "seconds": 0.7,
+      "sha256": "50a05040aa581e92b2dcab822e868831c3cad8973d8ee06725ddb36d965f0654"
+    },
+    "dice/roll.wav": {
+      "bytes": 24300,
+      "seconds": 0.55,
+      "sha256": "0c8ca11539bd1353520410f889af968c3adab7796f56e185bb7eddd984594ee7"
+    },
+    "dice/land.wav": {
+      "bytes": 13274,
+      "seconds": 0.3,
+      "sha256": "cb191f3bbfa762901b962d0aa9bd3227dcb4dae3bef5eab5f81dd5dcf2ffddf9"
+    },
+    "dice/result.wav": {
+      "bytes": 19890,
+      "seconds": 0.45,
+      "sha256": "ed61e762de15085eb4c3c551a030584d442f05f100b3d8817c131b00f14c3daf"
+    },
+    "dice/win.wav": {
+      "bytes": 30914,
+      "seconds": 0.7,
+      "sha256": "bf8028faae37f561bdae0dfd0e1823ccd0616787daf7cedbf7be04e2c39b02c8"
+    },
+    "mines/select.wav": {
+      "bytes": 3132,
+      "seconds": 0.07,
+      "sha256": "81685b619ff07a1cb37ee0ea4f3cf8e66b1b7d67db497288e4d9b79309bfeac1"
+    },
+    "mines/safe.wav": {
+      "bytes": 22094,
+      "seconds": 0.5,
+      "sha256": "601bc76220ab2bc47ef44b8984624285ba7d7a33a1be8eb3f8fd96422de0a043"
+    },
+    "mines/explosion.wav": {
+      "bytes": 52964,
+      "seconds": 1.2,
+      "sha256": "89752a78ac17214221374db1cbd203700aacdd7c84914a9787ed2a5264159a00"
+    },
+    "mines/cashout.wav": {
+      "bytes": 39734,
+      "seconds": 0.9,
+      "sha256": "055a8a06c51e9073a5418f0f116ee4c933a947e7abe141a1035524b27ca54ac7"
+    },
+    "crash/launch.wav": {
+      "bytes": 44144,
+      "seconds": 1,
+      "sha256": "ad61d4746b01728c6fd35f63204a5a60ab4b2042b59b850f38b6bcfd913b18f3"
+    },
+    "crash/rise.wav": {
+      "bytes": 132344,
+      "seconds": 3,
+      "sha256": "c0f68c361859e59977296bf89dacd414640cb2faa73a5cb6510fd1279d8b01e8"
+    },
+    "crash/cashout.wav": {
+      "bytes": 44144,
+      "seconds": 1,
+      "sha256": "55852eb6bb2240086535abe34ec341b3575bef094027645000316382698b5073"
+    },
+    "crash/crash.wav": {
+      "bytes": 48554,
+      "seconds": 1.1,
+      "sha256": "52b35579a95701f95a736cc0837ce0a23ce5f76c2a84fe012ca8dee515018cd6"
+    },
+    "blackjack/shuffle.wav": {
+      "bytes": 44144,
+      "seconds": 1,
+      "sha256": "0617ba6658e6280ec8a194733520a19ebfa2f79e748f2fac0ddf267913e9ff90"
+    },
+    "blackjack/deal.wav": {
+      "bytes": 6218,
+      "seconds": 0.14,
+      "sha256": "82570ee1ce98e82c323b8e0f170b9f5e14e3452d88f3f17d9c10d13309619d2d"
+    },
+    "blackjack/flip.wav": {
+      "bytes": 5336,
+      "seconds": 0.12,
+      "sha256": "f65335594a414a3a752ef82956a1bed07653bc66f281d2477fb0e79c2e5d2f13"
+    },
+    "blackjack/chip.wav": {
+      "bytes": 4454,
+      "seconds": 0.1,
+      "sha256": "f5102119eb8fca030929f700795dd7f39e2499f31ef515a365fab128895f777f"
+    },
+    "blackjack/win.wav": {
+      "bytes": 44144,
+      "seconds": 1,
+      "sha256": "65924b7d6f9fb22c80b2eaa8878e84b44dc8b81a3d19ae7eeb7b7a4ff09a9073"
+    },
+    "blackjack/lose.wav": {
+      "bytes": 30914,
+      "seconds": 0.7,
+      "sha256": "a23b9f87a6825cf3301148759454f11e778355911716b864ce8dce4e2d45ccc0"
+    },
+    "limbo/launch.wav": {
+      "bytes": 19890,
+      "seconds": 0.45,
+      "sha256": "5718b2a86aa4bfa8ad77d64587e00503ce0e59bcee054ab789184a2095a9c7b7"
+    },
+    "limbo/rise.wav": {
+      "bytes": 39734,
+      "seconds": 0.9,
+      "sha256": "a58c2a88ff1a615a906be53c541a0e205c33dade0e14582ef6cd3c746c4b6263"
+    },
+    "limbo/result.wav": {
+      "bytes": 17684,
+      "seconds": 0.4,
+      "sha256": "0a588714938c7c146530b47d4ad9574e08af5cfa7f638f7fb134257d88ac1d66"
+    },
+    "limbo/win.wav": {
+      "bytes": 35324,
+      "seconds": 0.8,
+      "sha256": "32997f6face4f5dbe6d19195cd24ec0c8a9929d35d031c20104a2010411a09c2"
+    },
+    "keno/draw.wav": {
+      "bytes": 4454,
+      "seconds": 0.1,
+      "sha256": "4c91d1309c697b45e802605aebfc88d4ef830546820aa8b77257df01f1d6492a"
+    },
+    "keno/land.wav": {
+      "bytes": 5336,
+      "seconds": 0.12,
+      "sha256": "ec4e0cf1d00d900a7c3cc3b0bd2e694f5a77c3f864a18e3749e9fc0d75a45a68"
+    },
+    "keno/hit.wav": {
+      "bytes": 14156,
+      "seconds": 0.32,
+      "sha256": "08abab0320f1821a66f108e201029bf13283cf724465a84aa00f301b79ab7bce"
+    },
+    "keno/miss.wav": {
+      "bytes": 3572,
+      "seconds": 0.08,
+      "sha256": "399e340f3872ee735b2c1863ffc574c344098023063edcd3312197ca0ba8a68c"
+    },
+    "plinko/drop.wav": {
+      "bytes": 11070,
+      "seconds": 0.25,
+      "sha256": "6d366b22819dbbf8e57286c04a198ac6172272a31271b34f57f88981e74d76f4"
+    },
+    "plinko/peg.wav": {
+      "bytes": 4014,
+      "seconds": 0.09,
+      "sha256": "e6cbba7bf792d411cde8ef8f3e5ed878c3c48c29b80700ee6e828ec20c90472a"
+    },
+    "plinko/slot.wav": {
+      "bytes": 11070,
+      "seconds": 0.25,
+      "sha256": "44752bf8f1f554af2d3dff1e8f9081cf86705e9afba6e4c358671812c815241a"
+    },
+    "plinko/win.wav": {
+      "bytes": 39734,
+      "seconds": 0.9,
+      "sha256": "7db26939182a6c4d207799564f5777b3bd07f545b36456050056c186852a7f36"
+    },
+    "hilo/reveal.wav": {
+      "bytes": 6660,
+      "seconds": 0.15,
+      "sha256": "5764a77e089844cd5d180a26629f3fc63bc36f70e4da6993776e3e5935a828b2"
+    },
+    "hilo/correct.wav": {
+      "bytes": 22094,
+      "seconds": 0.5,
+      "sha256": "2e1499a5cf989ff53cc1b649e00383a43d6c0fd1384af4213199764f3a0c055e"
+    },
+    "hilo/incorrect.wav": {
+      "bytes": 19890,
+      "seconds": 0.45,
+      "sha256": "0b758ee6d82e5a32daaf842a2f6e6509d7142c8aaad8af71ec9e4fcb6b8fe78e"
+    },
+    "hilo/cashout.wav": {
+      "bytes": 39734,
+      "seconds": 0.9,
+      "sha256": "b6f8e842b825f670a0ffd24da24574f8e410191ad0c7872e53c649ba3e3af772"
+    }
+  }
+}

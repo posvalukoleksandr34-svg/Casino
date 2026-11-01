@@ -10,6 +10,8 @@ import { Card, CardBody, CardHeader } from '../ui/card';
 import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } from './round-panels';
 import { StakeInput, stakeProblem } from './stake-input';
 import { useRound } from './use-round';
+import { useGameAudio, useRoundCues } from './use-game-audio';
+import { minesCues } from '@/lib/audio/cues';
 
 const PRESETS = [1, 3, 5, 10, 24];
 
@@ -39,6 +41,8 @@ export function MinesGame({ config, limits, status }: { config: MinesConfig; lim
   const { round, setRound, busy, error, start, act, pending, retryPending, discardPending, loadActive } = useRound<MinesView>('mines');
   const [stake, setStake] = useState(1000);
   const [mineCount, setMineCount] = useState(3);
+  const audio = useGameAudio('mines');
+  const armCues = useRoundCues(round, minesCues, audio.play);
 
   useEffect(() => {
     if (user) void loadActive();
@@ -61,6 +65,7 @@ export function MinesGame({ config, limits, status }: { config: MinesConfig; lim
 
   const reveal = (tile: number) => {
     if (!playing || busy || s!.revealed.includes(tile)) return;
+    audio.play('select');
     void act(round!.id, { type: 'reveal', tile }, `reveal tile ${tile + 1}`);
   };
 
@@ -172,7 +177,7 @@ export function MinesGame({ config, limits, status }: { config: MinesConfig; lim
                     <span className="num text-ink-200">{(multiplierE4(config, mineCount, 25 - mineCount) / 10_000).toLocaleString(undefined, { maximumFractionDigits: 2 })}×</span>
                   </div>
                 </div>
-                <Button variant="primary" size="lg" block loading={busy} disabled={Boolean(startProblem)} onClick={() => start({ amount: stake, mines: mineCount }, `${formatChips(stake)} chips, ${mineCount} mines`)} data-testid="mines-start">
+                <Button variant="primary" size="lg" block loading={busy} disabled={Boolean(startProblem)} onClick={() => (armCues(), audio.play('select'), start({ amount: stake, mines: mineCount }, `${formatChips(stake)} chips, ${mineCount} mines`))} data-testid="mines-start">
                   {startProblem ?? 'Start round'}
                 </Button>
                 {round && round.status !== 'OPEN' && round.payout !== null && <ResultLine stake={round.stake} payout={round.payout} />}

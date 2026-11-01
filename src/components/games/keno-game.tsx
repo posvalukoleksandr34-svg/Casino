@@ -11,6 +11,7 @@ import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } 
 import { StakeInput, stakeProblem } from './stake-input';
 import { useReducedMotion } from './use-reduced-motion';
 import { useRound } from './use-round';
+import { useGameAudio } from './use-game-audio';
 
 /** Unbiased browser-side shortcut for choosing numbers; it has no influence on the draw. */
 function randomPicks(count: number): number[] {
@@ -33,6 +34,7 @@ export function KenoGame({ config, limits, status }: { config: KenoConfig; limit
   const { user, balance } = useSession();
   const reduced = useReducedMotion();
   const { round, busy, error, start, pending, retryPending, discardPending, commitBalance } = useRound<KenoState>('keno', { deferBalance: true });
+  const audio = useGameAudio('keno');
   const [stake, setStake] = useState(1_000);
   const [picks, setPicks] = useState<number[]>([]);
   const [revealed, setRevealed] = useState(true);
@@ -51,17 +53,30 @@ export function KenoGame({ config, limits, status }: { config: KenoConfig; limit
   // The draw is already settled when it arrives; a short fade-in presents it, nothing more.
   useEffect(() => {
     if (!round) return;
+    const hits = round.state.hits.length;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const announce = () => {
+      audio.play('land');
+      if (hits === 0) audio.play('miss');
+      // One rising ping per hit, spaced so each is heard.
+      for (let i = 0; i < Math.min(hits, 10); i++) timers.push(setTimeout(() => audio.play('hit', { rate: 1 + i * 0.06 }), 60 + i * 90));
+    };
     if (reduced) {
       setRevealed(true);
       commitBalance();
-      return;
+      announce();
+      return () => timers.forEach(clearTimeout);
     }
     setRevealed(false);
-    const t = setTimeout(() => {
-      setRevealed(true);
-      commitBalance();
-    }, 450);
-    return () => clearTimeout(t);
+    audio.play('draw');
+    timers.push(
+      setTimeout(() => {
+        setRevealed(true);
+        commitBalance();
+        announce();
+      }, 450),
+    );
+    return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [round?.id]);
 

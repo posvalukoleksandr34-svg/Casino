@@ -10,6 +10,8 @@ import { Card, CardBody, CardHeader } from '../ui/card';
 import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } from './round-panels';
 import { StakeInput, stakeProblem } from './stake-input';
 import { useRound } from './use-round';
+import { useGameAudio, useRoundCues } from './use-game-audio';
+import { hiloCues } from '@/lib/audio/cues';
 
 const RANK_TEXT = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const RANK_NAMES = ['Ace', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Jack', 'Queen', 'King'];
@@ -48,6 +50,8 @@ function Face({ card, size = 'lg', dim }: { card: number; size?: 'lg' | 'sm'; di
 export function HiloGame({ config, limits, status }: { config: HiloConfig; limits: { minStake: number; maxStake: number; maxPayoutPerRound: number }; status: string }) {
   const { user, balance } = useSession();
   const { round, setRound, busy, error, start, act, pending, retryPending, discardPending, loadActive } = useRound<HiloView>('hilo');
+  const audio = useGameAudio('hilo');
+  const armCues = useRoundCues(round, hiloCues, audio.play);
   const [stake, setStake] = useState(1_000);
 
   useEffect(() => {
@@ -161,7 +165,7 @@ export function HiloGame({ config, limits, status }: { config: HiloConfig; limit
                     <span className="num text-ink-200">{config.maxSkips}</span>
                   </div>
                 </div>
-                <Button variant="primary" size="lg" block loading={busy} disabled={Boolean(startProblem)} onClick={() => start({ amount: stake }, `${formatChips(stake)} chips, hi-lo`)} data-testid="hilo-start">
+                <Button variant="primary" size="lg" block loading={busy} disabled={Boolean(startProblem)} onClick={() => (armCues(), start({ amount: stake }, `${formatChips(stake)} chips, hi-lo`))} data-testid="hilo-start">
                   {startProblem ?? 'Start round'}
                 </Button>
                 {round && round.status !== 'OPEN' && round.payout !== null && <ResultLine stake={round.stake} payout={round.payout} />}

@@ -11,6 +11,7 @@ import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } 
 import { StakeInput, stakeProblem } from './stake-input';
 import { useReducedMotion } from './use-reduced-motion';
 import { useRound } from './use-round';
+import { useGameAudio } from './use-game-audio';
 
 interface Props {
   config: DiceConfig;
@@ -29,6 +30,7 @@ export function DiceGame({ config, limits, status }: Props) {
   const { user, balance } = useSession();
   const reduced = useReducedMotion();
   const { round, busy, error, start, pending, retryPending, discardPending, commitBalance } = useRound<DiceState>('dice', { deferBalance: true });
+  const audio = useGameAudio('dice');
   const [stake, setStake] = useState(100 * 10);
   const [direction, setDirection] = useState<'under' | 'over'>('under');
   const [target, setTarget] = useState(4950);
@@ -62,13 +64,19 @@ export function DiceGame({ config, limits, status }: Props) {
     if (!round) return;
     const final = round.state.roll;
     if (animRef.current) cancelAnimationFrame(animRef.current);
+    const land = () => {
+      audio.play('land');
+      audio.play(round.state.won ? 'win' : 'result');
+    };
     if (reduced) {
       setDisplay(final);
       setRevealed(true);
       commitBalance();
+      land();
       return;
     }
     setRevealed(false);
+    audio.play('roll');
     const from = display ?? 5000;
     const t0 = performance.now();
     const dur = 650;
@@ -80,6 +88,7 @@ export function DiceGame({ config, limits, status }: Props) {
       else {
         setRevealed(true);
         commitBalance();
+        land();
       }
     };
     animRef.current = requestAnimationFrame(step);

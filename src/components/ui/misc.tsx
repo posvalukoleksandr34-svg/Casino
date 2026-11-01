@@ -73,7 +73,7 @@ export function Callout({ tone = 'neutral', title, children, className, role }: 
 
 export function PageHeader({ eyebrow, title, subtitle, actions }: { eyebrow?: ReactNode; title: ReactNode; subtitle?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="mb-8 flex flex-wrap items-end justify-between gap-4 animate-rise">
+    <header className="relative z-20 mb-8 flex flex-wrap items-end justify-between gap-4 animate-rise">
       <div className="min-w-0">
         {eyebrow && <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-gold-500">{eyebrow}</div>}
         <h1 className="font-display text-4xl font-semibold leading-tight text-ink-100 sm:text-5xl">{title}</h1>

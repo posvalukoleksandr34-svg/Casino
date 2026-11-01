@@ -10,6 +10,7 @@ import { KenoGame } from '@/components/games/keno-game';
 import { LimboGame } from '@/components/games/limbo-game';
 import { PlinkoGame } from '@/components/games/plinko-game';
 import { GameRules } from '@/components/games/game-rules';
+import { SoundControls } from '@/components/games/sound-controls';
 import { Badge } from '@/components/ui/badge';
 import { Callout, Chips, PageHeader } from '@/components/ui/misc';
 import type { DiceConfig } from '@/engine/games/dice';
@@ -83,6 +84,7 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
             <Badge>
               Limits <Chips amount={game.limits.minStake} suffix={false} />–<Chips amount={game.limits.maxStake} suffix={false} />
             </Badge>
+            <SoundControls />
           </div>
         }
       />

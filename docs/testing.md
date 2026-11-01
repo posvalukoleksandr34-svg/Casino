@@ -35,7 +35,12 @@ what the tests exercise.
   vectors, reporting periods, prediction windows), `account-policy` (Unicode names, strict
   calendar dates, 18+ by calendar date incl. 29 February, code pasting, shared password
   policy; static guards: no page reads the raw session, the onboarding allow-list of API
-  routes is exactly the expected one).
+  routes is exactly the expected one), `roulette-board` (chip stacks, payload = sum of
+  chips against the server schema, Rebet rebuilt from server bets, history filtering and
+  statistics), `wheel-motion` (every pocket lands exactly from any start angle),
+  `audio-manager` (no context before interaction, persistence, cooldowns and voice limits,
+  loops stop on unmount, missing files harmless), `audio-cues`, `audio-assets` (every cue
+  has a WAV identical to its synthesis recipe).
 * **Integration** (`tests/integration`): `ledger-invariants`, `rounds`, `interactive`,
   `blackjack`, `expiry`, `reconciliation-faults`, `schema-and-reconciliation`,
   `privileges`, `auth`, `password-recovery`, `responsible`, `responsible-hardening`,
@@ -85,7 +90,11 @@ what the tests exercise.
   address correction; server-side under-age refusal). The e2e server sends real SMTP to
   a loopback sink started by `global-setup.ts` (messages saved as JSON for the specs);
   `registerPlayer` takes every e2e player through the full journey, and
-  `resilience-access` now exercises a real password reset through it.
+  `resilience-access` now exercises a real password reset through it. `casino-experience`
+  (idle wheel sends nothing; one wager per spin; the wheel lands on the server's number;
+  bets cleared only after landing; Rebet, Undo, Clear, 2×, remove tool; history strip
+  equals the API; a failed spin keeps the bets and settles once on retry; reduced motion;
+  no `AudioContext` before interaction; blocked sound files; sound settings persist).
 
 ## Regression tests for defects fixed in the production-readiness pass
 
@@ -135,6 +144,34 @@ Hardening without a prior failure:
   their provenance.
 * The backup and restore scripts are tested by the restore drill.
 * New `casino_rate_limited_total` and `casino_login_failures_total` metrics.
+
+## Results of the casino experience update (2026-11-01, this repository's environment)
+
+Sound for every game, the idle roulette wheel, chip stacks, the bet toolbar, automatic
+clearing and the results history ([casino-experience.md](casino-experience.md)). No
+server, engine, ledger or schema change.
+
+| Command | Result |
+|---|---|
+| `npm run typecheck` / `npm run lint` | pass / 0 problems |
+| `npm run test:unit` | **312 passed** (34 files; 35 new tests in 5 new files) |
+| `npm run test:integration` | **286 passed** (30 files) |
+| `npm run test:stats` | **24 passed** (5 files) |
+| `npm run build` / `npm run check:bundle` | pass / 158 files, no server secrets |
+| `npm run test:e2e` | **40 passed** (chromium desktop + Pixel 7 mobile, 4.4 min; 5 new in `casino-experience.spec.ts`; the accessibility and mobile specs include the new roulette page) |
+| `npm run check:docs` / `check:secrets` / `check:workflows` / `npm audit` | 118 links OK / no findings / 2 workflows OK / 0 vulnerabilities |
+| `npm run audio:generate -- --check` | 41 files match their recipes |
+
+**Found and fixed during this work:**
+* The sound-settings panel and the header tooltips were drawn under the page content:
+  the page header's entrance animation makes it its own stacking context. Found by the
+  new e2e test (the click was intercepted). The panel is now portalled, and the header
+  sits above the content.
+* The contrast policy test flagged the disabled icon-button text (`ink-500`); it now
+  uses `ink-400`.
+
+**Not verified here:** how the sounds are perceived on real speakers and phones. The
+files were checked numerically (peaks, levels, loop seams), not by ear.
 
 ## Results of the public-launch pass (2026-11-01, this repository's environment)
 

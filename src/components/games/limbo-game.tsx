@@ -11,6 +11,7 @@ import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } 
 import { StakeInput, stakeProblem } from './stake-input';
 import { useReducedMotion } from './use-reduced-motion';
 import { useRound } from './use-round';
+import { useGameAudio } from './use-game-audio';
 
 const PRESETS = [150, 200, 500, 1_000, 10_000];
 
@@ -18,6 +19,7 @@ export function LimboGame({ config, limits, status }: { config: LimboConfig; lim
   const { user, balance } = useSession();
   const reduced = useReducedMotion();
   const { round, busy, error, start, pending, retryPending, discardPending, commitBalance } = useRound<LimboState>('limbo', { deferBalance: true });
+  const audio = useGameAudio('limbo');
   const [stake, setStake] = useState(1_000);
   const [text, setText] = useState('2.00');
   const [display, setDisplay] = useState<number | null>(null);
@@ -43,13 +45,17 @@ export function LimboGame({ config, limits, status }: { config: LimboConfig; lim
     if (!round) return;
     const final = round.state.resultE2;
     if (anim.current) cancelAnimationFrame(anim.current);
+    const settle = () => audio.play(round.state.won ? 'win' : 'result');
     if (reduced) {
       setDisplay(final);
       setRevealed(true);
       commitBalance();
+      settle();
       return;
     }
     setRevealed(false);
+    audio.play('launch');
+    audio.play('rise');
     const t0 = performance.now();
     const dur = 600;
     const step = (now: number) => {
@@ -61,6 +67,7 @@ export function LimboGame({ config, limits, status }: { config: LimboConfig; lim
         setDisplay(final);
         setRevealed(true);
         commitBalance();
+        settle();
       }
     };
     anim.current = requestAnimationFrame(step);

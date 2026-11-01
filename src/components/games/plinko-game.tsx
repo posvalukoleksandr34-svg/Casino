@@ -11,6 +11,7 @@ import { FairnessStrip, PendingRecovery, RecentRounds, ResultLine, RoundError } 
 import { StakeInput, stakeProblem } from './stake-input';
 import { useReducedMotion } from './use-reduced-motion';
 import { useRound } from './use-round';
+import { useGameAudio } from './use-game-audio';
 
 const S = 10; // horizontal peg spacing (SVG units)
 const H = 9; // vertical row spacing
@@ -37,6 +38,7 @@ export function PlinkoGame({ config, limits, status }: { config: PlinkoConfig; l
   const { user, balance } = useSession();
   const reduced = useReducedMotion();
   const { round, busy, error, start, pending, retryPending, discardPending, commitBalance } = useRound<PlinkoState>('plinko', { deferBalance: true });
+  const audio = useGameAudio('plinko');
   const [stake, setStake] = useState(1_000);
   const [rows, setRows] = useState<PlinkoRows>(12);
   const [risk, setRisk] = useState<PlinkoRisk>('medium');
@@ -62,22 +64,35 @@ export function PlinkoGame({ config, limits, status }: { config: PlinkoConfig; l
     if (!round) return;
     if (anim.current) cancelAnimationFrame(anim.current);
     const R = round.state.rows;
+    const landed = () => {
+      audio.play('slot');
+      if ((round.payout ?? 0) > round.stake) audio.play('win');
+    };
     if (reduced) {
       setT(R);
       setRevealed(true);
       commitBalance();
+      landed();
       return;
     }
     setRevealed(false);
+    audio.play('drop');
     const perRow = R <= 8 ? 120 : R <= 12 ? 95 : 75;
     const t0 = performance.now();
+    let row = 0;
     const step = (now: number) => {
       const v = Math.min(R, (now - t0) / perRow);
       setT(v);
+      // A peg tick each time the ball reaches the next row (pitch varies a little).
+      if (Math.floor(v) > row && v < R) {
+        row = Math.floor(v);
+        audio.play('peg', { rate: 0.9 + ((round.state.path[row - 1] ?? 0) ? 0.08 : 0) + (row % 4) * 0.03 });
+      }
       if (v < R) anim.current = requestAnimationFrame(step);
       else {
         setRevealed(true);
         commitBalance();
+        landed();
       }
     };
     anim.current = requestAnimationFrame(step);
