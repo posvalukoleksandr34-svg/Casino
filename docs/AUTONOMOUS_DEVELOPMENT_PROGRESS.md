@@ -319,6 +319,7 @@ copied; every symbol is drawn here as inline SVG.
     registry consistency), statistical, integration and e2e. Lobby count 14.
   - Results: unit 354, integration 306, statistical 44, all passed. Typecheck, lint,
     docs, secrets, workflows, audio, build and `check:bundle` passed.
+  - Full Playwright e2e: 47 passed (9.5 min), none failed.
 
 ## Full verification (after batch 7)
 
