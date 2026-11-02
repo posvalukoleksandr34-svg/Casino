@@ -51,7 +51,7 @@ test.describe('registration, e-mail verification and onboarding', () => {
     const after = 1_000_000 - dice.round.stake + dice.round.payout;
     await expect(page.getByTestId('header-balance')).toHaveText(chips(after));
     await page.goto('/wallet/transactions');
-    await expect(page.getByTestId('transactions-table')).toContainText('Bonus');
+    await expect(page.getByTestId('transactions-table')).toContainText('Free credits');
     await page.goto('/history');
     await expect(page.getByTestId('history-table').locator('tbody tr')).toHaveCount(1);
 

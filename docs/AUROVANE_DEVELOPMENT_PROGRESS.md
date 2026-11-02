@@ -228,7 +228,9 @@ live feed, admin promotions); `docs/testing.md`; README.
 - Typecheck, lint, docs/secrets/workflows checks, audio check (52 files), build and
   `check:bundle` (176 files) passed.
 - Unit tests: 357 passed. Integration tests: 328 passed. Statistical tests: 44 passed.
-- Full e2e: recorded below.
+- **First full e2e run: 50 passed, 1 failed.** The failure was
+  `registration.spec` asserting the old transaction label "Bonus" (now "Free credits");
+  the product was correct. After the fix, the registration spec passed (5/5).
 
 ## Not built in this pass (recommendations)
 
