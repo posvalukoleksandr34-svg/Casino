@@ -11,21 +11,23 @@ import { useSession } from './session-provider';
 import { Avatar } from '../account/avatar';
 
 const NAV = [
-  { href: '/lobby', label: 'Lobby' },
+  { href: '/lobby', label: 'Casino' },
   { href: '/sports', label: 'Sports' },
-  { href: '/rules', label: 'Rules & odds' },
+  { href: '/promotions', label: 'Promotions' },
   { href: '/fairness', label: 'Fairness' },
   { href: '/responsible-play', label: 'Responsible play' },
 ];
 
 const ACCOUNT_LINKS = [
   { href: '/profile', label: 'Profile' },
-  { href: '/wallet', label: 'Wallet' },
+  { href: '/wallet', label: 'Cashier' },
+  { href: '/promotions', label: 'Bonuses' },
   { href: '/wallet/transactions', label: 'Transactions' },
   { href: '/history', label: 'Game history' },
   { href: '/sports/tickets', label: 'My predictions' },
   { href: '/stats', label: 'Statistics' },
   { href: '/settings', label: 'Settings' },
+  { href: '/rules', label: 'Rules & odds' },
 ];
 
 export function SiteHeader() {

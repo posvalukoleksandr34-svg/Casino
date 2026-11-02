@@ -39,7 +39,7 @@ test.describe('core player journey', () => {
     // Transaction history shows the bonus and both wagers.
     await page.goto('/wallet/transactions');
     const table = page.getByTestId('transactions-table');
-    await expect(table).toContainText('Bonus');
+    await expect(table).toContainText('Free credits');
     await expect(table.getByRole('cell', { name: 'Wager', exact: true })).toHaveCount(2);
     const firstRowBalance = await table.locator('tbody tr').first().locator('td').nth(4).innerText();
     expect(toMinor(firstRowBalance)).toBe(afterRoulette);
@@ -57,7 +57,7 @@ test.describe('core player journey', () => {
     await registerPlayer(page);
     for (const [path, heading] of [
       ['/stats', 'Your results'],
-      ['/wallet', 'Your chips'],
+      ['/wallet', 'Cashier'],
       ['/settings', 'Account settings'],
       ['/responsible-play', 'Stay in control'],
       ['/fairness', 'Provably fair'],

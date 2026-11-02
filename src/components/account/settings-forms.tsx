@@ -77,6 +77,13 @@ export function PreferencesForm() {
       <CardBody className="space-y-5">
         <Toggle label="Reduce motion" description="Skip wheel spins and number animations; results appear immediately." checked={Boolean(prefs.reducedMotion)} onChange={(v) => update('reducedMotion', v)} disabled={busy} />
         <Toggle label="Hide balance in the header" description="Useful when sharing your screen." checked={Boolean(prefs.hideBalance)} onChange={(v) => update('hideBalance', v)} disabled={busy} />
+        <Toggle
+          label="Show my name on leaderboards and the live feed"
+          description="Off by default. When off, your wins appear as “A player”."
+          checked={Boolean(prefs.publicName)}
+          onChange={(v) => update('publicName', v)}
+          disabled={busy}
+        />
       </CardBody>
     </Card>
   );

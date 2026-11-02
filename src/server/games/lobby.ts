@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { getGameModule } from '@/engine/games/registry';
 import { isGameId } from '@/engine/games/types';
 import { getDb } from '../db/client';
@@ -57,4 +57,16 @@ export async function listGames(opts: { includeDisabled?: boolean } = {}): Promi
 
 export async function getGameSummary(id: string): Promise<GameSummary | undefined> {
   return (await listGames({ includeDisabled: true })).find((g) => g.id === id);
+}
+
+/**
+ * Most-played games by settled rounds in the last `days` days (an aggregate
+ * count only: no player data). Games with no rounds keep catalogue order.
+ */
+export async function popularGameIds(days = 7, limit = 6): Promise<string[]> {
+  const res = await getDb().execute<{ game_id: string; n: string }>(sql`
+    SELECT game_id, count(*)::text AS n FROM game_rounds
+    WHERE started_at > now() - make_interval(days => ${days})
+    GROUP BY game_id ORDER BY count(*) DESC, game_id LIMIT ${limit}`);
+  return res.rows.map((r) => r.game_id);
 }

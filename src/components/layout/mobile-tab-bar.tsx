@@ -6,9 +6,9 @@ import { cn } from '@/lib/cn';
 import { useSession } from './session-provider';
 
 const TABS = [
-  { href: '/lobby', label: 'Lobby', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' },
+  { href: '/lobby', label: 'Casino', icon: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z' },
   { href: '/sports', label: 'Sports', icon: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM12 7l3.5 2.5-1.3 4h-4.4l-1.3-4z' },
-  { href: '/history', label: 'History', icon: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7.5V12l3 2' },
+  { href: '/promotions', label: 'Bonuses', icon: 'M4 11h16v9H4zM3 7h18v4H3zM12 7v13M12 7c-1.5-3-5-3-5-1s3 1 5 1zm0 0c1.5-3 5-3 5-1s-3 1-5 1z' },
   { href: '/wallet', label: 'Wallet', icon: 'M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3M3 7.5V17a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-3M3 7.5h16a1 1 0 0 1 1 1V11M20 11h-4a2 2 0 0 0 0 4h4z' },
   { href: '/profile', label: 'Profile', icon: 'M12 12a4 4 0 1 0 0-8a4 4 0 0 0 0 8zM4.5 20a7.5 7.5 0 0 1 15 0' },
 ];

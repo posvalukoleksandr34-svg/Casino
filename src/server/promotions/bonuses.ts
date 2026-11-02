@@ -21,7 +21,7 @@ async function grant(tx: Tx, userId: string, type: 'SIGNUP' | 'DAILY', claimKey:
     type: 'BONUS_GRANTED',
     idempotencyKey: `bonus:${claimKey}`,
     userId,
-    description: type === 'SIGNUP' ? 'Welcome chips' : 'Daily chips',
+    description: type === 'SIGNUP' ? 'Starting credits' : 'Free daily top-up',
     postings: [
       { accountId: ids.PROMOTIONS, amount: -amount },
       { accountId: walletId, amount },

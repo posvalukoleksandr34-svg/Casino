@@ -14,8 +14,8 @@ system, game stages and slots. Each batch is committed with its test results.
 
 Already in place and kept:
 - **Money:**
-  - one wallet per player on a double-entry ledger, with strict reconciliation (32
-    checks);
+  - one wallet per player on a double-entry ledger, with strict reconciliation (22
+    checks before this pass; 24 with the two added in P1);
   - idempotent rounds, server-authoritative games, a stake reserved before the outcome,
     settlement exactly once, and exactly-once refunds on void;
   - responsible-play limits enforced on the server.
@@ -92,8 +92,54 @@ Missing, and addressed in this pass:
   - injected ledger faults caught by both new checks.
 - **Results:** integration 316 passed (33 files); unit 354 passed; lint clean.
 
+### P2. Cashier, promotions, navigation, casino home page, live feed (done)
+
+- **Cashier (`/wallet`).** Sections:
+  - **Overview:** available credits, credits in play (open rounds and predictions),
+    locked bonus, and lifetime totals (received, wagered, won, refunded), all from the
+    ledger via `walletSummary`.
+  - **Free top-up:** a three-step flow, choose → review → receipt, for the existing
+    daily free allocation. The review says "Free — nothing to pay" and "Payment details:
+    none needed". The flow has no input fields.
+  - **Bonus:** the active bonus with a progress bar, or the welcome offer.
+  - **Transactions.**
+  - **Account activity.**
+- **Promotions (`/promotions`).**
+  - Signed in: the active bonus with progress and Forfeit, welcome offers with their
+    eligibility, promo-code entry, and a history of claims and simple grants.
+  - Signed out: the welcome offer with a call to register.
+- **Navigation.**
+  - Header: Casino, Sports, Promotions, Fairness, Responsible play.
+  - Account menu: Profile, Cashier, Bonuses, Transactions, Game history, My predictions,
+    Statistics, Settings, Rules & odds.
+  - Phone tab bar: Casino, Sports, Bonuses, Wallet, Profile.
+- **Home page (`/`).**
+  - A hero for guests (join, welcome offer) and for players (welcome back, balance).
+  - Search into the lobby, category chips, and three promotional banners.
+  - Rows: continue playing, popular this week (aggregate round counts only), and new
+    games.
+  - The live feed, the live roulette table, and trust and responsible-play cards.
+- **Live feed.** `GET /api/live` is server-sent events (`?once=1` returns JSON). It
+  carries players online (distinct users with a session active in the last 5 minutes),
+  notable wins of at least 5× in the last 24 hours, and the latest table spin.
+  - One snapshot is shared and cached for 4 seconds; at most 500 streams per process; 60
+    connections per minute per address.
+  - Names appear only with the new opt-in preference "Show my name on leaderboards and
+    the live feed" (off by default), otherwise "A player". No round ids or balances.
+- **Labels.** The signup grant is now "Starting credits" and the daily one "Free daily
+  top-up"; the transaction type is shown as "Free credits". Activity labels are shared,
+  with the new bonus events.
+- **Tests.**
+  - New `tests/e2e/platform.spec.ts`, 3 tests:
+    - claim → play → wagering progress and locked credits in the cashier; repeat claim
+      refused;
+    - free top-up: refused above the threshold; three steps; no input fields; receipt;
+      history;
+    - live stream and JSON shape.
+  - `player-journey` updated for the new labels.
+  - Results: 5 passed (platform and player-journey). Lint clean.
+
 ## Next
 
-- P2: cashier page, promotions page, navigation, casino home page.
 - P3: levels, leaderboards, live feed, admin campaign management.
 - P4: security review of the new endpoints, end-to-end journeys, full verification.

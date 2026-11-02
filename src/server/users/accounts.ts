@@ -418,6 +418,8 @@ export const preferencesSchema = z
   .object({
     reducedMotion: z.boolean().optional(),
     hideBalance: z.boolean().optional(),
+    /** Show my display name on leaderboards and in the live wins feed (off by default). */
+    publicName: z.boolean().optional(),
   })
   .strict();
 
