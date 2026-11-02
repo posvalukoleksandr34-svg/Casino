@@ -55,7 +55,7 @@ ENV NODE_ENV=production \
 # Application files belong to root and are read-only for the runtime user; the
 # Compose service additionally mounts the root filesystem read-only.
 COPY --from=build /app/.next/standalone ./
-RUN mkdir -p /app/.next/cache && chown node:node /app/.next/cache
+RUN mkdir -p /app/.next/cache /var/lib/aurovane/uploads && chown node:node /app/.next/cache /var/lib/aurovane/uploads && chmod 700 /var/lib/aurovane/uploads
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

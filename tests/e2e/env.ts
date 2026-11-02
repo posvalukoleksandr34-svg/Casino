@@ -30,6 +30,10 @@ export const E2E_ENV = {
   LOG_LEVEL: 'warn',
   // Next.js sets X-Forwarded-For from the socket when absent; e2e has no proxy in front.
   TRUST_PROXY_HOPS: '1',
+  // The cashier runs against the sandbox provider (simulated; no real money).
+  PAYMENTS_MODE: 'sandbox',
+  PAYMENTS_SANDBOX_SECRET: 'e2e-only-sandbox-webhook-secret-not-for-production',
+  UPLOAD_DIR: path.join(os.tmpdir(), `aurovane-e2e-uploads-${E2E_PORT}`),
 };
 export const ADMIN = { email: 'e2e-admin@example.com', password: 'e2e admin passphrase' };
 export const OWNER = { email: 'e2e-owner@example.com', password: 'e2e owner passphrase' };

@@ -71,6 +71,10 @@ test.describe('casino platform journeys', () => {
     const before = (await (await page.request.get('/api/wallet')).json()).balance as number;
     test.skip(before >= 500_000, 'thirty 20% shots kept the balance above the threshold (vanishingly unlikely); nothing to top up');
 
+    // The amount is the server's: 1,000 credits, plus the VIP top-up perk if this wagering reached a tier.
+    const offer = (await (await page.request.get('/api/wallet')).json()).dailyBonus as { amount: number; baseAmount: number; vipBonusPct: number };
+    expect(offer.baseAmount).toBe(100_000);
+    expect(offer.amount).toBe(offer.baseAmount + Math.floor((offer.baseAmount * offer.vipBonusPct) / 100));
     await page.reload();
     await page.getByTestId('top-up-package').click();
     await expect(page.getByText('Free — nothing to pay')).toBeVisible();
@@ -78,8 +82,8 @@ test.describe('casino platform journeys', () => {
     // No financial fields exist anywhere in the flow.
     await expect(page.getByTestId('top-up').locator('input')).toHaveCount(0);
     await page.getByTestId('top-up-confirm').click();
-    await expect(page.getByTestId('top-up-receipt')).toContainText('1,000.00 free credits added');
-    await expect(page.getByTestId('header-balance')).toHaveText(chips(before + 100_000));
+    await expect(page.getByTestId('top-up-receipt')).toContainText(`${chips(offer.amount)} free credits added`);
+    await expect(page.getByTestId('header-balance')).toHaveText(chips(before + offer.amount));
     await page.goto('/wallet/transactions');
     await expect(page.getByText('Free daily top-up').first()).toBeVisible();
   });

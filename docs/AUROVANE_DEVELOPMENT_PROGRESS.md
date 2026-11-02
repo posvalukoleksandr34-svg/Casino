@@ -242,3 +242,56 @@ live feed, admin promotions); `docs/testing.md`; README.
 - **Session history list.** Sessions are listed under Settings, and sign-ins appear in
   account activity. No separate page was added.
 - **Phone testing.** Rendering performance on real phones has not been measured.
+
+---
+
+# Full platform pass — sandbox cashier, verification, support, VIP (2026-11-02)
+
+This pass followed the "complete online casino platform" brief. It **changes one boundary
+of the previous pass**: the cashier now has deposits and withdrawals, but only against a
+**sandbox simulator**. There is still no live payment provider, `PAYMENTS_MODE` is
+`disabled` by default in production, the currency is virtual `CHIP` by default, and no
+real money is charged or paid anywhere. What an operator must supply before real money is
+listed in [docs/payments.md](payments.md).
+
+## What existed before
+
+The previous pass's platform (one-wallet ledger with 24 reconciliation checks, bonus
+engine, cashier with a free top-up, promotions, levels, leaderboards, live feed, admin
+with four-eyes approvals) and 14 games, unchanged.
+
+## Batches
+
+| Batch | Commit | What |
+|---|---|---|
+| S1 | `e9226f2` | Migration 0013, payments core: sandbox provider, signed webhooks (HMAC, 5-minute window, event-id de-duplication under an advisory lock), deposits credited only by verified settlement, withdrawals held at once with review and two-approver thresholds, deposit bonuses with max bet and game contributions, Finance and Compliance roles, three reconciliation checks, cashier jobs. |
+| S2 | `b3ffa4e` | Cashier UI (deposit and withdrawal flows, simulated checkout with no payment fields, status, histories), player deposit limits, Admin → Payments (queue, payouts, deposits, provider event log, rules, methods), honest copy in terms and footer. |
+| S3 | `dc2e8b5` | Migration 0014: identity verification with private uploads (content-checked, never public) and a separate reviewer, risk flags that route withdrawals to review, support tickets with attachments and internal notes, notification centre and e-mail preferences, VIP tiers with perks enforced in code. |
+| S4 | this commit | Deployment (uploads volume, payment env), e2e cashier journeys, a modal bug fix found by them, docs. |
+
+## Bug found by the journeys
+
+Dialogs opened from inside a card were clipped to the card on large screens: the card's
+`backdrop-filter` makes it the containing block of `position: fixed` children, so later
+page content covered the dialog's buttons. The modal now renders through a portal to
+`<body>`. This affected every reasoned admin action placed inside a card.
+
+## Tests (actual results of the final run)
+
+| Suite | Result |
+|---|---|
+| Typecheck, lint | clean |
+| Unit | 360 / 360 |
+| Integration | 356 / 356 (28 new: 19 payments, 9 verification/support/notifications/VIP) |
+| Statistical | 44 / 44 |
+| Build | passes |
+| End-to-end | see the final report (3 new cashier journeys) |
+
+## Not built (honest status)
+
+- Live payments, refunds, chargebacks, crypto: not built and must not be added without a
+  licence and a provider contract.
+- Automated KYC, sanctions/PEP screening, AML monitoring: not built (manual review only).
+- Cashback and free-spin bonuses, tournaments, a content editor (`content:manage` is
+  reserved): not built.
+- Virus scanning of uploads; shared storage for several app instances: not built.

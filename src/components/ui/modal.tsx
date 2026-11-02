@@ -1,12 +1,17 @@
 'use client';
 
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/cn';
 
 /**
  * Accessible modal dialog: labelled, Escape closes, focus moves into the
  * dialog on open and returns to the previously focused element on close,
  * Tab is kept inside the dialog.
+ *
+ * Rendered into <body> through a portal: a card's backdrop-filter makes it the
+ * containing block of fixed-position descendants, so a dialog left inside a
+ * card would be clipped to it and covered by later page content.
  */
 export function Modal({
   open,
@@ -62,8 +67,8 @@ export function Modal({
     };
   }, [open, onClose, dismissible]);
 
-  if (!open) return null;
-  return (
+  if (!open || typeof document === 'undefined') return null;
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm animate-fade-in" onClick={dismissible ? onClose : undefined} aria-hidden="true" />
       <div
@@ -89,6 +94,7 @@ export function Modal({
         <div className="max-h-[70vh] overflow-y-auto px-5 py-4 text-sm text-ink-200">{children}</div>
         {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-ink-700 px-5 py-3.5">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

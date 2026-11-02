@@ -35,27 +35,36 @@ record and is rate-limited per staff member.
 
 ## Roles and permissions
 
-| Permission | Owner | Admin | Moderator (`SUPPORT`) | Risk manager | Auditor | Player |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|
-| `admin:access`, `users:read`, `rounds:read`, `ledger:read`, `analytics:read`, `system:read` | ✓ | ✓ | ✓ | ✓ | ✓ | |
-| `users:pii` (see e-mail addresses) | ✓ | ✓ | ✓ | | | |
-| `users:suspend` (suspend, reinstate, sign out everywhere) | ✓ | ✓ | ✓ | | | |
-| `roles:manage` (roles below admin) | ✓ | ✓ | | | | |
-| `roles:manage_admins` (grant/remove admin and owner) | ✓ | | | | | |
-| `rounds:void`, `games:manage`, `sports:manage`, `risk:manage`, `system:operate` | ✓ | ✓ | | ✓ | | |
-| `audit:read` | ✓ | ✓ | | | ✓ | |
-| `ledger:adjust` (compensating corrections) | ✓ | ✓ | | | | |
-| `ledger:grant` (virtual test chips) | ✓ | | | | | |
-| `house:fund` | ✓ | | | | | |
-| `security:manage` (staff MFA policy) | ✓ | | | | | |
+| Permission | Owner | Admin | Support agent (`SUPPORT`) | Game & risk manager | Finance manager | Compliance manager | Auditor | Player |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
+| `admin:access`, `users:read`, `rounds:read`, `ledger:read`, `analytics:read`, `system:read` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | |
+| `users:pii` (see e-mail addresses) | ✓ | ✓ | ✓ | | | ✓ | | |
+| `users:suspend` (suspend, reinstate, sign out everywhere) | ✓ | ✓ | ✓ | | | ✓ | | |
+| `roles:manage` (roles below admin) | ✓ | ✓ | | | | | | |
+| `roles:manage_admins` (grant/remove admin and owner) | ✓ | | | | | | | |
+| `rounds:void`, `games:manage`, `sports:manage`, `risk:manage`, `system:operate` | ✓ | ✓ | | ✓ | | | | |
+| `audit:read` | ✓ | ✓ | | | | ✓ | ✓ | |
+| `ledger:adjust` (compensating corrections) | ✓ | ✓ | | | | | | |
+| `ledger:grant` (virtual test chips) | ✓ | | | | | | | |
+| `house:fund` | ✓ | | | | | | | |
+| `security:manage` (staff MFA policy) | ✓ | | | | | | | |
+| `promotions:manage` (bonus campaigns, VIP tiers) | ✓ | ✓ | | | | | | |
+| `payments:read` (deposits, withdrawals, provider events) | ✓ | ✓ | | | ✓ | ✓ | ✓ | |
+| `payments:review` (decide withdrawals, close deposits under review) | ✓ | ✓ | | | ✓ | | | |
+| `payments:configure` (cashier rules, payment methods) | ✓ | ✓ | | | | | | |
+| `kyc:review` (identity decisions, risk flags) | ✓ | ✓ | | | | ✓ | | |
+| `support:manage` (support tickets) | ✓ | ✓ | ✓ | | | | | |
+| `content:manage` (reserved; no content editor yet) | ✓ | ✓ | | | | | | |
 
-The role model maps the usual owner / admin / moderator / user split onto the existing
-roles: `OWNER`, `ADMIN`, `SUPPORT` (shown as *Moderator*), `PLAYER`, plus the specialist
-`RISK_MANAGER` and `AUDITOR` roles. Source: `src/server/auth/rbac.ts`
+The role model maps owner / admin / specialist / player onto: `OWNER`, `ADMIN`, `SUPPORT`
+(shown as *Support agent*), `RISK_MANAGER` (shown as *Game & risk manager*),
+`FINANCE_MANAGER`, `COMPLIANCE_MANAGER`, `AUDITOR` and `PLAYER`. Finance, compliance and
+support decisions are separated: nobody can decide their own withdrawal, verification or
+ticket, and large withdrawals need two different approvers ([payments](payments.md)). Source: `src/server/auth/rbac.ts`
 (`tests/unit/owner-admin.test.ts`).
 
 **Who may act on whom** (`canManageUser`, `assignableRoles`): staff act only on accounts of
-a lower rank (player < moderator / risk manager / auditor < admin < owner); owners may act on
+a lower rank (player < specialist staff (support, game & risk, finance, compliance, auditor) < admin < owner); owners may act on
 other owners. Only owners grant or remove the admin and owner roles. Nobody changes their
 own role or status. A role change signs the account out so new permissions apply at the
 next sign-in. The actor's role is re-read under a row lock, not taken from the session.

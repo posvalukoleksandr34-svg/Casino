@@ -7,12 +7,15 @@ simulator** (pre-match 1X2, demo fixtures by default). Outcomes are decided on t
 from provably fair seeds, every chip movement is recorded in an append-only double-entry
 ledger, and every game publishes its rules, payouts and house edge.
 
-> **Virtual currency only.** Chips have no monetary value. They cannot be bought, sold,
-> transferred, withdrawn or exchanged for anything. There are no deposits, payments,
-> crypto, prizes or cash-outs, and this repository contains no code for any of them.
-> Players must confirm they are 18+. Nothing here is a licensed gambling product, and the
-> repository makes no claim of legal compliance in any jurisdiction
-> ([compliance checklist](docs/compliance-checklist.md)).
+> **Virtual currency only.** Chips have no monetary value. They cannot be bought with real
+> money, sold, transferred or exchanged for anything. The cashier's deposits and
+> withdrawals run **only against a sandbox simulator** — a simulated provider with signed
+> webhooks, where nothing is charged or paid. There is **no live payment provider** in this
+> repository, payments are **disabled by default in production** (`PAYMENTS_MODE`), and
+> there are no crypto payments, prizes or cash-outs. Players must confirm they are 18+.
+> Nothing here is a licensed gambling product, and the repository makes no claim of legal
+> compliance in any jurisdiction ([compliance checklist](docs/compliance-checklist.md);
+> what an operator must supply before real money: [docs/payments.md](docs/payments.md)).
 
 ## What is in the box
 
@@ -35,6 +38,18 @@ ledger, and every game publishes its rules, payouts and house edge.
   welcome offers and promo codes with wagering progress on the same ledger, an admin
   campaign manager, cosmetic levels, an opt-in leaderboard and a live feed —
   [docs/promotions.md](docs/promotions.md).
+* **Cashier (sandbox payments)**: deposits through a simulated provider checkout, credited
+  only by a verified, de-duplicated, signed settlement webhook; withdrawals held at once,
+  with every condition shown up front (identity check, closed loop, limits, fees), finance
+  review above a threshold and two different approvers for large amounts, and a full
+  return when rejected, cancelled or failed; deposit bonuses (first/second/third/reload)
+  with max-bet and per-game wagering contributions; player deposit limits; three extra
+  reconciliation checks — [docs/payments.md](docs/payments.md).
+* **Verification, support, notifications, VIP**: identity documents in private storage
+  (content-checked, never public) reviewed by a different compliance officer, risk flags
+  that route withdrawals to review; support tickets with attachments and internal notes;
+  a notification centre with e-mail preferences; VIP tiers whose only perks are enforced in
+  code (larger daily top-up, priority support).
 * **Table feel**: an original sound profile for every game (no autoplay; mute, master,
   effects and ambience levels saved per browser); an **automatic roulette table** on a shared
   server schedule (a 15-second betting countdown; the wheel spins after every window: to the

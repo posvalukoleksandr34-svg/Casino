@@ -126,3 +126,30 @@ release:
 | Single-instance in-process scheduler | P2 | Advisory locks make it safe with several instances; a separate worker is optional |
 | Phone and age verification need external providers | P1/P2 | Phone numbers stay unverified; age is self-declared |
 | Dependencies | — | `npm audit`: 0 vulnerabilities on 2026-11-01. Dependabot is configured |
+
+## Addendum — cashier, verification and support (2026-11-02)
+
+New attack surface reviewed for the sandbox cashier, identity verification and support
+pass ([payments.md](payments.md)), with the test that covers each control:
+
+| Surface | Control | Test |
+|---|---|---|
+| Wallet credit from a browser "success" | Only a verified settlement webhook credits; the return page only reads the status | `payments.test.ts` (deposit credited only after settlement), e2e `cashier.spec.ts` A |
+| Forged / tampered / replayed webhooks | HMAC over the raw body (constant-time), ±5-minute timestamp, event-id de-duplication under an advisory lock and a unique index; rejected deliveries logged and inert | `payments.test.ts` (forged, tampered, stale, replay, concurrent duplicates) |
+| Client-chosen money fields | Strict schemas refuse `credited`, `fee`, `status`; the server computes fees, bonuses and limits | `payments.test.ts` (API strict bodies) |
+| Over-withdrawal by racing requests | Wallet row lock; amount held at request time | `payments.test.ts` (concurrent requests) |
+| Insider abuse | Nobody decides their own withdrawal, verification, ticket or flag; two different approvers above the threshold (application check and DB constraints); staff cannot credit a deposit by hand; every decision audited | `payments.test.ts`, `kyc-support-vip.test.ts` |
+| Silent ledger manipulation | Three new reconciliation checks; fault injection proves detection | `payments.test.ts` (tamper test) |
+| Malicious uploads | Content sniffing (JPEG/PNG/PDF only), active-content PDFs refused, 5 MB cap, safe names, random keys outside `public/`, mode 600, attachment download with `nosniff` and a sandbox CSP | `kyc-support-vip.test.ts` |
+| Document / attachment IDOR | Owner or permissioned staff only; 404 otherwise; internal-note attachments hidden from players | `kyc-support-vip.test.ts` |
+| CSRF on multipart uploads | Same-origin check (Origin / Sec-Fetch-Site) on every state change; the webhook alone is exempt and signature-authenticated | `payments.test.ts`, `platform-security.test.ts` |
+| Sensitive data in e-mail | Notifications never carry passwords or support message content | `kyc-support-vip.test.ts` |
+
+Defect found and fixed: dialogs opened inside cards were clipped by the card's
+`backdrop-filter` containing block (covered buttons on large screens); the modal now
+renders through a portal.
+
+Residual risks: no virus scanning of uploads; local-disk upload storage (single instance);
+no automated KYC/AML; the sandbox webhook secret must be strong and private in any
+deployment where `PAYMENTS_MODE=sandbox`. None of this is a live-payments review: a live
+provider integration needs its own penetration test.

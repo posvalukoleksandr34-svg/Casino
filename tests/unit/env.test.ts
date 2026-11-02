@@ -88,3 +88,42 @@ describe('METRICS_TOKEN policy: optional, fails closed', () => {
   });
 });
 
+
+describe('payments configuration', () => {
+  it('sandbox payments in production need a webhook secret; disabled needs nothing', () => {
+    expect(productionProblems({ ...good, PAYMENTS_MODE: 'sandbox' } as Env, raw).join(' ')).toContain('PAYMENTS_SANDBOX_SECRET');
+    expect(productionProblems({ ...good, PAYMENTS_MODE: 'sandbox', PAYMENTS_SANDBOX_SECRET: 's'.repeat(40) } as Env, raw)).toEqual([]);
+    expect(productionProblems({ ...good, PAYMENTS_MODE: 'disabled' } as Env, raw)).toEqual([]);
+  });
+
+  it('payments default to disabled in production and there is no live mode', async () => {
+    const { paymentsMode } = await import('@/server/payments/config');
+    const { resetEnvCache } = await import('@/server/env');
+    const saved = { ...process.env };
+    try {
+      // A clean, complete production environment (nothing inherited from the outer shell).
+      for (const k of Object.keys(process.env)) if (k !== 'PATH') delete process.env[k];
+      Object.assign(process.env, {
+        NODE_ENV: 'production',
+        DATABASE_URL: good.DATABASE_URL,
+        APP_URL: good.APP_URL,
+        SEED_ENCRYPTION_KEY: good.SEED_ENCRYPTION_KEY,
+        IP_HASH_SECRET: good.IP_HASH_SECRET,
+        SUPPORT_EMAIL: good.SUPPORT_EMAIL,
+        SCRYPT_LOG_N: '17',
+        MAIL_TRANSPORT: 'disabled',
+        TRUST_PROXY_HOPS: '1',
+        PAYMENTS_MODE: '',
+      });
+      resetEnvCache();
+      expect(paymentsMode()).toBe('disabled');
+      process.env.PAYMENTS_MODE = 'live';
+      resetEnvCache();
+      expect(() => paymentsMode()).toThrow();
+    } finally {
+      for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+      Object.assign(process.env, saved);
+      resetEnvCache();
+    }
+  });
+});

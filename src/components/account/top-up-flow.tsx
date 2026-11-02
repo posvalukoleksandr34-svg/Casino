@@ -21,7 +21,9 @@ export function TopUpFlow({
   nextAvailableAt,
   maxBalance,
   blockedReason,
+  vipBonusPct = 0,
 }: {
+  vipBonusPct?: number;
   amount: number;
   claimedToday: boolean;
   nextAvailableAt: string;
@@ -104,6 +106,7 @@ export function TopUpFlow({
               <span className="block text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-300">Daily free credits</span>
               <span className="num mt-1 block text-3xl font-semibold text-ink-100">{formatChips(amount)}</span>
               <span className="mt-1 block text-xs text-ink-400">Once per day, while your balance is below {formatChips(maxBalance)}.</span>
+              {vipBonusPct > 0 && <span className="mt-1 block text-xs text-gold-300">Includes your VIP perk: +{vipBonusPct}%.</span>}
             </span>
             <span className="rounded-full border border-positive/40 bg-positive/10 px-3 py-1 text-xs font-semibold text-positive">Free</span>
           </button>

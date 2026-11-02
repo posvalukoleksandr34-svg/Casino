@@ -74,6 +74,12 @@ services:
       ALLOW_INSECURE_HTTP: ${ALLOW_INSECURE_HTTP:-false}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SPORTS_MODE: ${SPORTS_MODE:-demo}
+      # Payments: there is no live provider. "disabled" (default) or "sandbox" (simulated
+      # provider, no real money; needs PAYMENTS_SANDBOX_SECRET). See docs/payments.md.
+      PAYMENTS_MODE: ${PAYMENTS_MODE:-disabled}
+      PAYMENTS_SANDBOX_SECRET: ${PAYMENTS_SANDBOX_SECRET:-}
+      PLATFORM_CURRENCY: ${PLATFORM_CURRENCY:-CHIP}
+      UPLOAD_DIR: /var/lib/aurovane/uploads
       FOOTBALL_DATA_API_KEY: ${FOOTBALL_DATA_API_KEY:-}
       THE_ODDS_API_KEY: ${THE_ODDS_API_KEY:-}
       TRUST_PROXY_HOPS: "1"
@@ -107,6 +113,10 @@ services:
     tmpfs:
       - /tmp:size=64m,mode=1777
       - /app/.next/cache:size=64m,uid=1000,gid=1000
+    # Private uploads (identity documents, support attachments): the only writable
+    # persistent path of the app. Back it up with the database (docs/payments.md).
+    volumes:
+      - uploads:/var/lib/aurovane/uploads
     init: true
     deploy:
       resources:
@@ -189,3 +199,4 @@ networks:
 volumes:
   pgdata:
   backups:
+  uploads:

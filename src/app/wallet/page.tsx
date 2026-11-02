@@ -163,7 +163,7 @@ export default async function CashierPage() {
           <Card className="h-full">
             <CardHeader title={<span id="top-up-h">Free top-up</span>} subtitle="Free virtual credits. No payment, no card, nothing to enter." />
             <CardBody>
-              <TopUpFlow amount={topUp.amount} claimedToday={topUp.claimedToday} nextAvailableAt={topUp.nextAvailableAt} maxBalance={topUp.maxBalance} blockedReason={topUp.blockedReason} />
+              <TopUpFlow amount={topUp.amount} vipBonusPct={topUp.vipBonusPct} claimedToday={topUp.claimedToday} nextAvailableAt={topUp.nextAvailableAt} maxBalance={topUp.maxBalance} blockedReason={topUp.blockedReason} />
             </CardBody>
           </Card>
         </section>
