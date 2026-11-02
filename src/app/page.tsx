@@ -88,9 +88,15 @@ export default async function HomePage() {
           </div>
           {/* Cover collage, positioned in percentages of its own column so it never reaches the text. */}
           <div className="relative hidden h-72 lg:block" aria-hidden="true">
-            <GameCover id="lantern-hollow" className="absolute left-[4%] top-[8%] aspect-[4/3] w-[48%] -rotate-6 rounded-2xl shadow-2xl ring-1 ring-white/15" />
-            <GameCover id="roulette" className="absolute right-0 top-0 aspect-[4/3] w-[52%] rotate-3 rounded-2xl shadow-2xl ring-1 ring-white/15" />
-            <GameCover id="blackjack" className="absolute bottom-0 left-[26%] aspect-[4/3] w-[42%] rotate-[-2deg] rounded-2xl shadow-2xl ring-1 ring-white/15" />
+            <div className="absolute left-[4%] top-[8%] w-[48%] -rotate-6">
+              <GameCover id="lantern-hollow" className="aspect-[4/3] w-full rounded-2xl shadow-2xl ring-1 ring-white/15" />
+            </div>
+            <div className="absolute right-0 top-0 w-[52%] rotate-3">
+              <GameCover id="roulette" className="aspect-[4/3] w-full rounded-2xl shadow-2xl ring-1 ring-white/15" />
+            </div>
+            <div className="absolute bottom-0 left-[26%] w-[42%] rotate-[-2deg]">
+              <GameCover id="blackjack" className="aspect-[4/3] w-full rounded-2xl shadow-2xl ring-1 ring-white/15" />
+            </div>
           </div>
         </div>
       </section>

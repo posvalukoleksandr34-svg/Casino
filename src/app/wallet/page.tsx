@@ -66,14 +66,14 @@ export default async function CashierPage() {
                 <dd className="num mt-0.5 font-semibold text-ink-100" data-testid="cashier-reserved">
                   <Chips amount={summary.reserved} suffix={false} />
                 </dd>
-                <dd className="text-[11px] text-ink-500">stakes in open rounds and predictions</dd>
+                <dd className="text-[11px] text-ink-400">stakes in open rounds and predictions</dd>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
                 <dt className="text-xs text-ink-400">Locked bonus</dt>
                 <dd className="num mt-0.5 font-semibold text-ink-100" data-testid="cashier-locked">
                   <Chips amount={summary.lockedBonus} suffix={false} />
                 </dd>
-                <dd className="text-[11px] text-ink-500">released when its wagering is met</dd>
+                <dd className="text-[11px] text-ink-400">released when its wagering is met</dd>
               </div>
             </dl>
           </div>
@@ -91,7 +91,7 @@ export default async function CashierPage() {
                 <div key={k} className="flex items-baseline justify-between gap-3 border-b border-white/[0.06] pb-2 last:border-0">
                   <dt>
                     <span className="text-ink-200">{k}</span>
-                    <span className="block text-[11px] text-ink-500">{hint}</span>
+                    <span className="block text-[11px] text-ink-400">{hint}</span>
                   </dt>
                   <dd className="num font-semibold text-ink-100">
                     <Chips amount={v} suffix={false} />

@@ -426,6 +426,8 @@ describe('server-side gates while onboarding is pending', () => {
     'roulette/table',
     'roulette/table/spins/[slot]',
     'roulette/table/days/[day]',
+    // The public live feed (aggregates and opted-in names only; read-only).
+    'live',
   ]);
 
   it('every other API route answers 403 ONBOARDING_REQUIRED', async () => {

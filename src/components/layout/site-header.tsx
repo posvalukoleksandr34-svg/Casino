@@ -10,11 +10,13 @@ import { Wordmark } from './logo';
 import { useSession } from './session-provider';
 import { Avatar } from '../account/avatar';
 
+/** `wide`: shown in the header from xl only (narrower screens reach them through the menus). */
 const NAV = [
   { href: '/lobby', label: 'Casino' },
   { href: '/sports', label: 'Sports' },
   { href: '/promotions', label: 'Promotions' },
-  { href: '/fairness', label: 'Fairness' },
+  { href: '/leaderboard', label: 'Leaderboard', wide: true },
+  { href: '/fairness', label: 'Fairness', wide: true },
   { href: '/responsible-play', label: 'Responsible play' },
 ];
 
@@ -27,6 +29,7 @@ const ACCOUNT_LINKS = [
   { href: '/sports/tickets', label: 'My predictions' },
   { href: '/stats', label: 'Statistics' },
   { href: '/settings', label: 'Settings' },
+  { href: '/leaderboard', label: 'Leaderboard' },
   { href: '/rules', label: 'Rules & odds' },
 ];
 
@@ -100,7 +103,8 @@ export function SiteHeader() {
               href={n.href}
               aria-current={active(n.href) ? 'page' : undefined}
               className={cn(
-                'rounded-xl px-3.5 py-1.5 text-sm transition-[background-color,color,box-shadow] duration-150',
+                'whitespace-nowrap rounded-xl px-3.5 py-1.5 text-sm transition-[background-color,color,box-shadow] duration-150',
+                'wide' in n && n.wide && 'hidden xl:block',
                 active(n.href) ? 'bg-white/[0.08] text-gold-200 shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_0_0_1px_rgb(199_163_91/0.25)]' : 'text-ink-300 hover:bg-white/[0.05] hover:text-ink-100',
               )}
             >

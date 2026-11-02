@@ -139,7 +139,52 @@ Missing, and addressed in this pass:
   - `player-journey` updated for the new labels.
   - Results: 5 passed (platform and player-journey). Lint clean.
 
+### P3. Admin campaigns, levels, leaderboard (done)
+
+- **Admin promotions (`/admin/promotions`).**
+  - New permission `promotions:manage` for admins and owners; other staff can view the
+    page.
+  - Campaign list with claims, active claims, credits granted and released; the claims
+    of each campaign (player, amount, wagering, status); a create form; pause, resume
+    and end now.
+  - Every change is an audited admin action with a reason.
+  - A campaign's money terms (match %, fixed amount, cap, wagering multiple, expiry)
+    are locked once anyone has claimed it. Claims fix their own terms anyway.
+  - APIs: `GET/POST /api/admin/promotions`, `GET/PATCH /api/admin/promotions/:id`.
+- **Levels (cosmetic, `src/server/users/levels.ts`).**
+  - Experience: 2 XP per settled round, at most 30 rounds per UTC day (at most 60 XP a
+    day); 40 XP per different game tried; 150 XP per achievement.
+  - Level L+1 needs 50·L·(L+1) XP. Tiers: Bronze, Silver, Gold, Platinum, Diamond.
+  - Derived from existing records: nothing new is stored. Levels unlock nothing.
+  - Shown on the profile.
+- **Leaderboard (`/leaderboard`).**
+  - Two boards: best multiplier this week, and highest level.
+  - Only opted-in players are named. The viewer sees their own standing privately.
+  - No prizes, and no board for "most wagered" or "most played".
+- **Navigation.** Leaderboard and Fairness appear in the header from 1280px and in the
+  account menu and footer below that; header links never wrap. The footer gains
+  Promotions and Leaderboard.
+- **Fix.** The home-page cover collage was stacking because the cover's
+  `position: relative` overrode `absolute`; each cover now sits in its own positioned
+  wrapper.
+- **Tests.**
+  - Unit `levels` (thresholds, the daily cap, the permission matrix).
+  - Integration `community-admin-promotions`, 5 tests:
+    - the XP daily cap;
+    - leaderboard privacy: hidden players are never shown to others and see only
+      themselves;
+    - the live feed: only opted-in names, no ids;
+    - admin create (audited), claims list, terms locked after a claim, pause blocks
+      claims;
+    - invalid campaigns refused.
+  - e2e `platform`: an owner creates a promo code in the back office, a player redeems
+    it, and the leaderboard renders.
+  - The accessibility (axe) and mobile sweeps now cover `/`, `/promotions` and
+    `/leaderboard`.
+  - The onboarding-gate test lists `/api/live` as an intended public route.
+  - Results: unit 357 passed; integration 321 passed; e2e accessibility, mobile,
+    platform, owner-admin and expansion 19 passed.
+
 ## Next
 
-- P3: levels, leaderboards, live feed, admin campaign management.
 - P4: security review of the new endpoints, end-to-end journeys, full verification.

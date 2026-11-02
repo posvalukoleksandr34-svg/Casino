@@ -36,7 +36,7 @@ test('interactive elements have accessible names and form controls have labels',
     expect(await unnamed(page), path).toEqual([]);
   }
   await registerPlayer(page);
-  for (const path of ['/lobby', '/games/dice', '/games/roulette', '/games/mines', '/games/crash', '/games/blackjack', '/games/limbo', '/games/keno', '/games/plinko', '/games/hilo', '/wallet', '/responsible-play', '/settings', '/fairness', '/profile', '/stats', '/sports', '/sports/tickets']) {
+  for (const path of ['/lobby', '/games/dice', '/games/roulette', '/games/mines', '/games/crash', '/games/blackjack', '/games/limbo', '/games/keno', '/games/plinko', '/games/hilo', '/wallet', '/responsible-play', '/settings', '/fairness', '/profile', '/stats', '/sports', '/sports/tickets', '/promotions', '/leaderboard', '/']) {
     await page.goto(path);
     expect(await unnamed(page), path).toEqual([]);
   }

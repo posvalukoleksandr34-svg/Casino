@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { registerPlayer } from './helpers';
+import { login, registerPlayer } from './helpers';
+import { OWNER } from './env';
 
 const chips = (minor: number) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2 }).format(minor / 100);
 
@@ -101,5 +102,40 @@ test.describe('casino platform journeys', () => {
         }),
     );
     expect(JSON.parse(event)).toHaveProperty('online');
+  });
+
+  test('owner creates a promo code in the back office; a player redeems it; the leaderboard renders', async ({ browser }) => {
+    test.setTimeout(120_000);
+    const code = `E2E${Date.now().toString(36).toUpperCase()}`.slice(0, 20);
+    const owner = await (await browser.newContext()).newPage();
+    await login(owner, OWNER.email, OWNER.password);
+    await owner.goto('/admin/promotions');
+    await expect(owner.getByRole('heading', { level: 1, name: 'Promotions' })).toBeVisible();
+    const form = owner.getByTestId('create-campaign');
+    await form.getByLabel('Slug').fill(code.toLowerCase());
+    await form.getByLabel('Code').fill(code);
+    await form.getByLabel('Name').fill('E2E promo');
+    await form.getByLabel('Description').fill('Created by the end-to-end test');
+    await form.getByLabel('Fixed amount (credits)').fill('500');
+    await form.getByLabel('Maximum bonus (credits)').fill('500');
+    await form.getByLabel('Wagering multiple').fill('0');
+    await form.getByLabel(/Reason/).fill('E2E promo code check');
+    const created = owner.waitForResponse((r) => r.url().endsWith('/api/admin/promotions') && r.request().method() === 'POST');
+    await form.getByRole('button', { name: 'Create campaign' }).click();
+    expect((await created).status()).toBe(200);
+    await expect(owner.getByText(code).first()).toBeVisible();
+
+    const player = await (await browser.newContext()).newPage();
+    await registerPlayer(player);
+    await player.goto('/promotions');
+    await player.getByRole('textbox', { name: 'Promo code' }).fill(code.toLowerCase());
+    await player.getByTestId('redeem-code').click();
+    // No wagering: released at once into the one wallet.
+    await expect(player.getByTestId('header-balance')).toHaveText('10,500.00');
+    await expect(player.getByTestId('bonus-history')).toContainText('E2E promo');
+
+    await player.goto('/leaderboard');
+    await expect(player.getByTestId('board-multipliers')).toBeVisible();
+    await expect(player.getByTestId('board-levels')).toBeVisible();
   });
 });

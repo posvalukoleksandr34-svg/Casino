@@ -19,6 +19,7 @@ import { userActivity } from '@/server/users/accounts';
 import { ACTIVITY_LABELS } from '@/components/account/labels';
 import { accountDetails } from '@/server/users/onboarding';
 import { playerStats } from '@/server/users/stats';
+import { playerLevel } from '@/server/users/levels';
 
 export const metadata = { title: 'Profile' };
 
@@ -26,7 +27,7 @@ export const metadata = { title: 'Profile' };
 export default async function ProfilePage() {
   const session = await requireUser('/profile');
   const db = getDb();
-  const [[user], wallet, stats, activity, achievements, favorites, rounds, details] = await Promise.all([
+  const [[user], wallet, stats, activity, achievements, favorites, rounds, details, level] = await Promise.all([
     db
       .select({ createdAt: users.createdAt, lastLoginAt: users.lastLoginAt, displayName: users.displayName, avatar: users.avatar })
       .from(users)
@@ -38,6 +39,7 @@ export default async function ProfilePage() {
     listFavorites(session.userId),
     listRounds({ userId: session.userId, limit: 8 }),
     accountDetails(session.userId),
+    playerLevel(db, session.userId),
   ]);
   const fullName = [details.firstName, details.lastName].filter(Boolean).join(' ');
   const detailsComplete = Boolean(details.firstName && details.lastName && details.dateOfBirth && details.countryCode && details.phoneE164);
@@ -73,6 +75,29 @@ export default async function ProfilePage() {
         <Stat label="Rounds completed" value={t.rounds.toLocaleString()} sub={`${t.wins} won · ${t.losses} lost · ${t.draws} even`} />
         <Stat label="Net result" value={<Chips amount={t.net} sign colored />} sub="Returned minus staked" />
       </div>
+
+      <section className="surface mt-6 flex flex-wrap items-center gap-5 p-5" aria-label="Level" data-testid="player-level">
+        <div className="grid size-16 shrink-0 place-items-center rounded-2xl border border-gold-400/50 bg-[radial-gradient(circle_at_35%_30%,rgb(255_243_196/0.25),rgb(199_163_91/0.08))] font-display text-3xl font-semibold text-gold-200">
+          {level.level}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-lg font-semibold text-ink-100">Level {level.level}</span>
+            <Badge tone="gold">{level.tier}</Badge>
+            <span className="num text-xs text-ink-400">{level.xp.toLocaleString()} XP</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]" role="progressbar" aria-label="Progress to the next level" aria-valuemin={0} aria-valuemax={level.levelSpan} aria-valuenow={level.levelXp}>
+            <div className="h-full rounded-full bg-gradient-to-r from-gold-600 to-gold-300" style={{ width: `${(level.levelXp / level.levelSpan) * 100}%` }} />
+          </div>
+          <p className="mt-1.5 text-xs text-ink-400">
+            {(level.nextAt - level.xp).toLocaleString()} XP to level {level.level + 1}. Levels are cosmetic: XP comes from days with play (at most 30 rounds a day count), games tried
+            and achievements.{' '}
+            <Link href="/leaderboard" className="text-gold-400 hover:text-gold-300">
+              Leaderboard →
+            </Link>
+          </p>
+        </div>
+      </section>
 
       <Card className="mt-6">
         <CardHeader

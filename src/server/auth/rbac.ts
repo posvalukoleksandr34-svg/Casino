@@ -43,6 +43,8 @@ export const PERMISSIONS = [
   'system:operate',
   /** Staff security policy (e.g. require MFA for staff). */
   'security:manage',
+  /** Create, edit and end bonus campaigns and promo codes (virtual credits). */
+  'promotions:manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

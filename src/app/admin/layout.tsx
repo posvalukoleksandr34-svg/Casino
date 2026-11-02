@@ -22,6 +22,7 @@ const NAV: { label: string; items: (NavItem & { permission: Permission })[] }[] 
     items: [
       { href: '/admin/users', label: 'Users', icon: 'users', permission: 'users:read' },
       { href: '/admin/ledger', label: 'Virtual ledger', icon: 'ledger', permission: 'ledger:read' },
+      { href: '/admin/promotions', label: 'Promotions', icon: 'ledger', permission: 'admin:access' },
     ],
   },
   {
