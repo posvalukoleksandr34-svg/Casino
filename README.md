@@ -45,6 +45,14 @@ ledger, and every game publishes its rules, payouts and house edge.
   return when rejected, cancelled or failed; deposit bonuses (first/second/third/reload)
   with max-bet and per-game wagering contributions; player deposit limits; three extra
   reconciliation checks — [docs/payments.md](docs/payments.md).
+* **Rewards and tournaments**: weekly VIP cashback, birthday and level-up rewards and
+  tournament prizes, created by the server once per period and credited only when claimed
+  (reconciled); tournaments scored from round records by luck-based metrics, with VIP-only
+  events and anonymous standings unless a player opts in.
+* **Account security**: sign-in with e-mail or username, "remember me" for players,
+  two-factor authentication for every account, device list with remote sign-out, sign-in
+  history, and a shared-address signal that routes possible duplicate accounts' withdrawals
+  to review.
 * **Verification, support, notifications, VIP**: identity documents in private storage
   (content-checked, never public) reviewed by a different compliance officer, risk flags
   that route withdrawals to review; support tickets with attachments and internal notes;

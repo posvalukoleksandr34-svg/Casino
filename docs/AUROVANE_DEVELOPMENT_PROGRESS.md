@@ -295,3 +295,19 @@ page content covered the dialog's buttons. The modal now renders through a porta
 - Cashback and free-spin bonuses, tournaments, a content editor (`content:manage` is
   reserved): not built.
 - Virus scanning of uploads; shared storage for several app instances: not built.
+
+---
+
+# Gap-closing pass — rewards, tournaments, account security, admin operations (2026-11-02)
+
+The same brief was given again. Instead of redoing finished work, this pass closed the gaps
+listed as "not built" above and found in an audit against the brief.
+
+| Batch | Commit | What |
+|---|---|---|
+| G1/G2 | `889417c` | Migration 0015; rewards (cashback, birthday, level-up, tournament prizes) credited once on claim via `REWARD_CREDITED` with a reconciliation check; VIP Elite, points and history; tournaments (luck-based scoring, VIP-only option, finalisation job); announcements; staff notes; IN_PROGRESS tickets; sign-in with username; "remember me"; devices and sign-in history; history filters; shared-address risk flag. |
+| G3 | `d286e27` | Pages: tournaments, rewards, security (password, player two-factor, devices, sign-ins), achievements, account tab bar, profile account summary, VIP additions, announcements; admin dashboard queues and cashier totals, player page (payments, verification, VIP, notes), Tournaments, Content, VIP & rewards. Fixes: header overflow at 1280–1366 px, long names on mobile, an SVG hydration mismatch. |
+| G4 | this pass | E2E: username + remember-me sign-in, devices, password change, notification preferences, account tabs; finance/compliance/support permission boundaries; owner-created tournament joined and scored. Docs. |
+
+Still not built: free-spin bonuses, a full CMS for help and legal pages, live payments and
+automated KYC/AML (by design, see payments.md).

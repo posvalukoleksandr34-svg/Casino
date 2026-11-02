@@ -186,6 +186,25 @@ with the database** — the backup job in this repository covers PostgreSQL only
   priority support. Thresholds and perks are edited in Admin → VIP tiers
   (`promotions:manage`), audited, and must increase from tier to tier.
 
+## Rewards and tournaments
+
+* **Rewards** (`/rewards`): weekly VIP cashback (the tier's percentage of the previous ISO
+  week's net casino loss — stakes minus payouts of settled rounds — from a minimum loss,
+  capped), a birthday reward (once a year), a one-off reward on first reaching each VIP tier,
+  and tournament prizes. The server creates each reward once per player and period
+  (`player_rewards` unique key); the player claims it, which posts `REWARD_CREDITED`
+  (promotions → wallet) once; reconciliation `rewards_match_ledger` checks the pairing.
+  Rewards are wager-free, expire if unclaimed, and are neither created for nor claimable by
+  suspended, self-excluded or cooling-off accounts. Amounts and rules are edited in Admin →
+  VIP & rewards (`promotions:manage`), audited.
+* **Tournaments** (`/tournaments`): a player joins; settled rounds after joining, inside the
+  window, in the listed games and at or above the minimum stake are scored from the round
+  records. The metrics rank luck, not volume (best single-round multiplier, or the sum of
+  the three best), so playing more is not rewarded. VIP-only tournaments are possible. Names
+  appear only for players who opted in to public names. When the window ends a job writes
+  the results once (append-only) and creates prizes as rewards. Cancelled tournaments pay
+  nothing. Created and cancelled in Admin → Tournaments, audited.
+
 ## Roles
 
 | Role | Payments | Verification | Support |
@@ -231,7 +250,8 @@ None of the following exists in this repository. Each item is required, not opti
 
 * Live payment processing of any kind; refunds; chargebacks; crypto.
 * Automated KYC, sanctions/PEP screening, AML monitoring.
-* Cashback and free-spin bonuses; tournaments; a content-management system for banners
-  and pages (site content is in code).
+* Free-spin bonuses (slots have in-game free spins only). A full content-management system:
+  announcements and banners are managed in Admin → Content; help articles and legal pages
+  remain in code and change through a reviewed release.
 * Virus scanning of uploads (content sniffing and PDF active-content checks only).
 * Upload storage for multi-instance deployments (local disk only).

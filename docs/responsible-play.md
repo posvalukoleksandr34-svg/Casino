@@ -65,3 +65,20 @@ break), no deposits, purchases or cash-outs at all.
 * Tested in `tests/integration/launch-hardening.test.ts` and `tests/e2e/registration.spec.ts`
   (banner, refused wager and refused daily chips during a cool-off).
 
+
+## Incentives and player protection (2026-11-02)
+
+The VIP programme, rewards and tournaments were designed not to push players to play more:
+
+- **No incentives during a break.** Rewards are neither created for nor claimable by
+  accounts that are self-excluded, cooling off or suspended; tournaments cannot be joined
+  during a break; daily top-ups were already blocked.
+- **Tournaments rank luck, not volume.** Scores are the best single-round multiplier or the
+  sum of the three best, with a minimum stake; there is no "most wagered" ranking.
+- **Cashback is a percentage of net losses, capped**, paid weekly and claimed by the player;
+  a week finished ahead earns none.
+- **Deposit limits** (24 hours and 30 days) sit with the other limits: lowering applies at
+  once, raising after 24 hours, and the stricter of the player's and the site's limit wins.
+- **Staff cannot loosen a player's limits**; the admin player page shows them read-only.
+- The VIP page and tournament pages link to the limits and say plainly that moving up a tier
+  or a ranking is not a reason to play more.
