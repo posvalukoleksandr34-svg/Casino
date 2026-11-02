@@ -51,7 +51,9 @@ const txLegs = (types: string[]) => `
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'HOUSE_BANKROLL'), 0) AS house,
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'ISSUANCE'), 0) AS issuance,
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'WAGERS_IN_PLAY'), 0) AS escrow,
-         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE')) AS other_system_legs
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'BONUS_LOCKED'), 0) AS locked,
+         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE', 'BONUS_LOCKED')) AS other_system_legs,
+         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE')) AS non_bonus_system_legs
   FROM ledger_transactions t
   LEFT JOIN ledger_entries e ON e.transaction_id = t.id
   LEFT JOIN ledger_accounts a ON a.id = e.account_id
@@ -221,6 +223,37 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
           WHERE t.id IS NULL OR b.id IS NULL OR b.user_id IS DISTINCT FROM t.user_id
              OR l.owner_wallet IS DISTINCT FROM b.amount OR l.promotions IS DISTINCT FROM -b.amount OR l.foreign_legs <> 0
              OR l.other_system_legs <> 0`,
+  },
+  {
+    name: 'bonus_locked_matches_active_claims',
+    description: 'The locked-bonus account equals the total of ACTIVE bonus claims',
+    sql: `SELECT a.balance::text AS locked,
+                 coalesce((SELECT sum(amount) FROM bonus_claims WHERE status = 'ACTIVE'), 0)::text AS active_claims
+          FROM ledger_accounts a WHERE a.code = '${SYSTEM_ACCOUNTS.BONUS_LOCKED.code}'
+            AND a.balance <> coalesce((SELECT sum(amount) FROM bonus_claims WHERE status = 'ACTIVE'), 0)`,
+  },
+  {
+    name: 'bonus_claims_match_ledger',
+    description:
+      "Each bonus claim has one BONUS_CLAIMED transaction for its player (promotions −amount, locked +amount, nothing else); a completed claim met its wagering and has one BONUS_RELEASED (locked −amount, owner's wallet +amount); an expired or forfeited claim has one BONUS_FORFEITED (locked −amount, promotions +amount); an active claim has neither; every such transaction belongs to exactly one claim",
+    sql: `WITH legs AS (${txLegs(['BONUS_CLAIMED', 'BONUS_RELEASED', 'BONUS_FORFEITED'])})
+          SELECT t.id AS transaction_id, t.type::text AS type, c.id AS claim_id, c.status
+          FROM ledger_transactions t
+          LEFT JOIN bonus_claims c ON (t.type = 'BONUS_CLAIMED' AND c.grant_tx_id = t.id) OR (t.type <> 'BONUS_CLAIMED' AND c.close_tx_id = t.id)
+          LEFT JOIN legs l ON l.tx_id = t.id
+          WHERE t.type IN ('BONUS_CLAIMED', 'BONUS_RELEASED', 'BONUS_FORFEITED') AND (
+                c.id IS NULL OR t.user_id IS DISTINCT FROM c.user_id
+             OR (t.type = 'BONUS_CLAIMED' AND (l.promotions <> -c.amount OR l.locked <> c.amount OR l.owner_legs <> 0
+                  OR l.foreign_legs <> 0 OR l.non_bonus_system_legs <> 0))
+             OR (t.type = 'BONUS_RELEASED' AND (c.status <> 'COMPLETED' OR c.wagering_progress < c.wagering_required
+                  OR l.locked <> -c.amount OR l.owner_wallet <> c.amount OR l.promotions <> 0 OR l.foreign_legs <> 0 OR l.non_bonus_system_legs <> 0))
+             OR (t.type = 'BONUS_FORFEITED' AND (c.status NOT IN ('EXPIRED', 'FORFEITED')
+                  OR l.locked <> -c.amount OR l.promotions <> c.amount OR l.owner_legs <> 0 OR l.foreign_legs <> 0 OR l.non_bonus_system_legs <> 0)))
+          UNION ALL
+          SELECT NULL, NULL, c.id, c.status FROM bonus_claims c
+          WHERE NOT EXISTS (SELECT 1 FROM ledger_transactions g WHERE g.id = c.grant_tx_id AND g.type = 'BONUS_CLAIMED')
+             OR (c.close_tx_id IS NOT NULL AND NOT EXISTS (
+                  SELECT 1 FROM ledger_transactions x WHERE x.id = c.close_tx_id AND x.type IN ('BONUS_RELEASED', 'BONUS_FORFEITED')))`,
   },
   {
     name: 'admin_money_movements_audited',

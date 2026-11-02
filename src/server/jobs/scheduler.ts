@@ -15,6 +15,7 @@ import { runReconciliation } from './reconciliation';
 import { cleanupExpired, detectAnomalies } from './anomaly';
 import { syncSports } from '../sports/sync';
 import { ensureCommitments } from '../games/roulette-table';
+import { expireDueBonuses } from '../promotions/campaigns';
 
 interface Job {
   name: string;
@@ -53,6 +54,8 @@ export function startScheduler(): void {
     { name: 'sports-sync', lockId: 7_342_105, intervalMs: 60_000, run: () => syncSports() },
     // Roulette table: commit today's and tomorrow's seeds ahead of time, so every table spin's
     // commitment exists before its betting closes even when nobody has opened the table yet.
+    // Bonuses past their deadline return their locked credits to promotions.
+    { name: 'bonus-expiry', lockId: 7_342_107, intervalMs: 5 * 60_000, run: () => expireDueBonuses() },
     { name: 'roulette-commitments', lockId: 7_342_106, intervalMs: 60 * 60_000, run: () => ensureCommitments(), atStart: true },
   ];
   g.__casinoScheduler = jobs.map((job) => {

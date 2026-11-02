@@ -10,6 +10,8 @@ export const SYSTEM_ACCOUNTS = {
   PROMOTIONS: { code: 'SYSTEM:PROMOTIONS', rank: 4, allowNegative: true },
   ADJUSTMENTS: { code: 'SYSTEM:ADJUSTMENTS', rank: 5, allowNegative: true },
   ISSUANCE: { code: 'SYSTEM:ISSUANCE', rank: 6, allowNegative: true },
+  /** Claimed bonuses not yet released (migration 0012): equals the sum of active claims. */
+  BONUS_LOCKED: { code: 'SYSTEM:BONUS_LOCKED', rank: 7, allowNegative: false },
 } as const satisfies Partial<Record<AccountType, { code: string; rank: number; allowNegative: boolean }>>;
 
 export type SystemAccountType = keyof typeof SYSTEM_ACCOUNTS;
@@ -48,7 +50,7 @@ export async function systemAccountIds(db: Executor): Promise<SystemAccountIds> 
   return ids;
 }
 
-/** Lock-order rank: player wallets (0) before system accounts (1..5). */
+/** Lock-order rank: player wallets (0) before system accounts (1..7). */
 export function accountRank(accountId: number): number {
   return cache?.rankById.get(accountId) ?? 0;
 }

@@ -19,6 +19,7 @@ import { AppError, errors } from '../errors';
 import { requestFingerprint, runIdempotent, type IdempotentResult } from '../idempotency';
 import { lockWalletAccount, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
+import { recordWagering } from '../promotions/campaigns';
 import { recordAdminAction } from '../audit/audit';
 import { assertCanWager } from '../responsible/limits';
 import { assertWagerAcceptable, getGameLimits, getPlatformSettings } from '../risk/risk-service';
@@ -161,6 +162,8 @@ async function postSettlement(
     metadata: { gameId: round.gameId, stake, payout },
   });
   await tx.insert(payouts).values({ roundId: round.id, userId: round.userId, amount: payout, ledgerTransactionId: posted.id });
+  // A settled stake counts towards the player's active bonus (same transaction; wallet already locked).
+  await recordWagering(tx, round.userId, walletAccountId, stake);
   maybeFail('round.afterSettle');
   metrics.inc('casino_rounds_settled_total', { game: round.gameId });
   metrics.inc('casino_stake_minor_total', { game: round.gameId }, stake);

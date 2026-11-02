@@ -10,6 +10,7 @@ import { gameConfigurations, games, ledgerTransactions, platformSettings, riskLi
 import { ensureSystemAccounts } from './ledger/accounts';
 import { postTransaction } from './ledger/ledger';
 import { catalogEntries } from './games/catalog';
+import { ensureDefaultCampaigns } from './promotions/campaigns';
 
 const CHIP = 100;
 
@@ -27,6 +28,7 @@ export const INITIAL_HOUSE_FUNDING = 1_000_000_000 * CHIP;
 export async function bootstrap(): Promise<void> {
   await withTransaction(async (tx: Tx) => {
     const ids = await ensureSystemAccounts(tx);
+    await ensureDefaultCampaigns(tx);
 
     await tx
       .insert(platformSettings)

@@ -35,6 +35,7 @@ export const accountType = pgEnum('account_type', [
   'PROMOTIONS',
   'ADJUSTMENTS',
   'ISSUANCE',
+  'BONUS_LOCKED',
 ]);
 export const ledgerTxType = pgEnum('ledger_tx_type', [
   'BET_PLACED',
@@ -48,6 +49,9 @@ export const ledgerTxType = pgEnum('ledger_tx_type', [
   'SPORTS_VOIDED',
   'SPORTS_CORRECTION',
   'CHIP_GRANT',
+  'BONUS_CLAIMED',
+  'BONUS_RELEASED',
+  'BONUS_FORFEITED',
 ]);
 export const gameStatus = pgEnum('game_status', ['ACTIVE', 'SUSPENDED', 'DISABLED']);
 export const roundStatus = pgEnum('round_status', ['OPEN', 'SETTLED', 'VOIDED']);
@@ -328,6 +332,56 @@ export const bonuses = pgTable('bonuses', {
     .unique()
     .references(() => ledgerTransactions.id),
   createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+/** Promotional campaigns: welcome offers and promo codes (migration 0012). */
+export const bonusCampaigns = pgTable('bonus_campaigns', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  slug: text('slug').notNull().unique(),
+  kind: text('kind').$type<'WELCOME' | 'PROMO_CODE'>().notNull(),
+  code: text('code').unique(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  matchPercent: integer('match_percent').notNull().default(0),
+  fixedAmount: money('fixed_amount').notNull().default(0),
+  maxBonus: money('max_bonus').notNull(),
+  wageringMultiplier: integer('wagering_multiplier').notNull(),
+  expiresAfterDays: integer('expires_after_days').notNull(),
+  eligibleAccountAgeDays: integer('eligible_account_age_days'),
+  startsAt: ts('starts_at').notNull().defaultNow(),
+  endsAt: ts('ends_at'),
+  maxClaims: integer('max_claims'),
+  active: boolean('active').notNull().default(true),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export type BonusClaimStatus = 'ACTIVE' | 'COMPLETED' | 'EXPIRED' | 'FORFEITED';
+
+/** A player's claim of a campaign: locked credits released after wagering (migration 0012). */
+export const bonusClaims = pgTable('bonus_claims', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  campaignId: bigint('campaign_id', { mode: 'number' })
+    .notNull()
+    .references(() => bonusCampaigns.id),
+  amount: money('amount').notNull(),
+  wageringRequired: money('wagering_required').notNull(),
+  wageringProgress: money('wagering_progress').notNull().default(0),
+  status: text('status').$type<BonusClaimStatus>().notNull(),
+  expiresAt: ts('expires_at').notNull(),
+  claimedAt: ts('claimed_at').notNull().defaultNow(),
+  closedAt: ts('closed_at'),
+  grantTxId: bigint('grant_tx_id', { mode: 'number' })
+    .notNull()
+    .unique()
+    .references(() => ledgerTransactions.id),
+  closeTxId: bigint('close_tx_id', { mode: 'number' })
+    .unique()
+    .references(() => ledgerTransactions.id),
 });
 
 export const responsibleLimits = pgTable('responsible_limits', {

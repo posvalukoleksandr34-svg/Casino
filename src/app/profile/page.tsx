@@ -16,37 +16,12 @@ import { listFavorites } from '@/server/games/favorites';
 import { listRounds } from '@/server/games/round-service';
 import { getWalletAccount } from '@/server/ledger/accounts';
 import { userActivity } from '@/server/users/accounts';
+import { ACTIVITY_LABELS } from '@/components/account/labels';
 import { accountDetails } from '@/server/users/onboarding';
 import { playerStats } from '@/server/users/stats';
 
 export const metadata = { title: 'Profile' };
 
-const ACTIVITY_LABELS: Record<string, string> = {
-  'user.registered': 'Account created',
-  'user.profile_updated': 'Profile updated',
-  'auth.login': 'Signed in',
-  'auth.logout': 'Signed out',
-  'auth.login_failed': 'Failed sign-in attempt',
-  'auth.account_locked': 'Account temporarily locked',
-  'auth.password_changed': 'Password changed',
-  'auth.password_reset_requested': 'Password reset requested',
-  'auth.password_reset': 'Password reset',
-  'bonus.daily_claimed': 'Daily chips claimed',
-  'fairness.seed_rotated': 'Provably fair seed rotated',
-  'responsible.limits_updated': 'Play limits updated',
-  'responsible.cool_off': 'Cool-off started',
-  'responsible.self_excluded': 'Self-exclusion started',
-  'user.data_exported': 'Personal data exported',
-  'user.email_verified': 'E-mail address confirmed',
-  'user.onboarding_completed': 'Profile completed',
-  'user.details_updated': 'Personal details updated',
-  'auth.verification_code_sent': 'Verification code sent',
-  'auth.email_verification_failed': 'Incorrect verification code entered',
-  'auth.signup_email_changed': 'Registration e-mail corrected',
-  'auth.email_change_requested': 'E-mail change requested',
-  'auth.email_change_cancelled': 'E-mail change cancelled',
-  'auth.email_changed': 'E-mail address changed',
-};
 
 export default async function ProfilePage() {
   const session = await requireUser('/profile');

@@ -47,6 +47,8 @@ export const RATE_LIMITS = {
   actionUser: { name: 'action:user', limit: 60, windowSeconds: 10, by: 'user' },
   mutateUser: { name: 'mutate:user', limit: 30, windowSeconds: 60, by: 'user' },
   readUser: { name: 'read:user', limit: 300, windowSeconds: 60, by: 'user' },
+  /** Promo code attempts per player: codes cannot be guessed by brute force. */
+  promoCodeUser: { name: 'promo:user', limit: 10, windowSeconds: 600, by: 'user' },
   /** Public automatic-roulette table reads (schedule, spins, history) per client address. */
   tableIp: { name: 'table:ip', limit: 240, windowSeconds: 60, by: 'ip' },
   adminUser: { name: 'admin:user', limit: 600, windowSeconds: 60, by: 'user' },
