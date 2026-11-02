@@ -231,6 +231,7 @@ live feed, admin promotions); `docs/testing.md`; README.
 - **First full e2e run: 50 passed, 1 failed.** The failure was
   `registration.spec` asserting the old transaction label "Bonus" (now "Free credits");
   the product was correct. After the fix, the registration spec passed (5/5).
+- **Full e2e rerun: 51 passed (10.5 min), none failed.**
 
 ## Not built in this pass (recommendations)
 
