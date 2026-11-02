@@ -217,7 +217,7 @@ recorded one only in line endings.
   until the deadline. "Not yet", network and server errors still retry.
 - Verified: typecheck, lint, docs/secrets/workflows checks, audio check, 334 unit,
   298 integration and 24 statistical tests, build and `check:bundle` all passed.
-  The full e2e run was in progress when this was committed.
+  Full Playwright e2e on the same build: 45 passed (9.5 min), none failed.
 
 ## Full verification (after batch 7)
 
