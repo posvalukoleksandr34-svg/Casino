@@ -6,12 +6,12 @@
  * with a reason. Staff can never change an amount, credit a wallet without a
  * provider settlement, or decide their own withdrawal.
  */
-import { and, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { recordAdminAction } from '../audit/audit';
 import type { AdminCtx } from '../admin/admin-service';
 import { getDb, withTransaction } from '../db/client';
-import { cashierSettings, deposits, paymentEvents, paymentMethods, users, withdrawals, type DepositStatus, type WithdrawalStatus } from '../db/schema';
+import { cashierSettings, deposits, paymentEvents, paymentMethods, riskFlags, users, withdrawals, type DepositStatus, type WithdrawalStatus } from '../db/schema';
 import { errors } from '../errors';
 import { notify } from '../notifications/notifications';
 import { getCashierSettings, paymentsMode, platformCurrency } from './config';
@@ -33,7 +33,15 @@ export async function adminWithdrawals(opts: { view?: 'queue' | 'processing' | '
     .orderBy(view === 'all' ? desc(withdrawals.requestedAt) : withdrawals.requestedAt)
     .limit(Math.min(opts.limit ?? 100, 500));
   const settings = await getCashierSettings(getDb());
+  const flagged = rows.length
+    ? await getDb()
+        .select({ userId: riskFlags.userId, n: sql<number>`count(*)::int` })
+        .from(riskFlags)
+        .where(and(inArray(riskFlags.userId, [...new Set(rows.map((r) => r.w.userId))]), isNull(riskFlags.resolvedAt)))
+        .groupBy(riskFlags.userId)
+    : [];
   return rows.map((r) => ({
+    openFlags: flagged.find((f) => f.userId === r.w.userId)?.n ?? 0,
     ...withdrawalView(r.w, r.method),
     userId: r.w.userId,
     username: r.username,

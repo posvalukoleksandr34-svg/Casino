@@ -118,6 +118,9 @@ export const users = pgTable('users', {
   /** Identity verification state (migration 0013). Only a reviewer or provider moves it to VERIFIED. */
   kycStatus: text('kyc_status').$type<KycStatus>().notNull().default('NOT_STARTED'),
   kycUpdatedAt: ts('kyc_updated_at'),
+  /** Lifetime casino wagering counted for VIP tiers (at settlement). */
+  vipWagered: money('vip_wagered').notNull().default(0),
+  vipLevel: integer('vip_level').notNull().default(1),
 });
 
 export type KycStatus = 'NOT_STARTED' | 'PENDING' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED';
@@ -898,4 +901,114 @@ export const notifications = pgTable('notifications', {
   readAt: ts('read_at'),
   emailStatus: text('email_status').$type<'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED'>(),
   createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export type KycDocumentKind = 'ID_FRONT' | 'ID_BACK' | 'PROOF_OF_ADDRESS' | 'SELFIE' | 'OTHER';
+export type UploadContentType = 'image/jpeg' | 'image/png' | 'application/pdf';
+
+export const kycDocuments = pgTable('kyc_documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  kind: text('kind').$type<KycDocumentKind>().notNull(),
+  fileName: text('file_name').notNull(),
+  contentType: text('content_type').$type<UploadContentType>().notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  sha256: text('sha256').notNull(),
+  storageKey: text('storage_key').notNull().unique(),
+  status: text('status').$type<'PENDING' | 'ACCEPTED' | 'REJECTED'>().notNull().default('PENDING'),
+  reviewNote: text('review_note'),
+  reviewedBy: uuid('reviewed_by').references(() => users.id),
+  reviewedAt: ts('reviewed_at'),
+  uploadedAt: ts('uploaded_at').notNull().defaultNow(),
+});
+
+export const kycReviews = pgTable('kyc_reviews', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  decision: text('decision').$type<'SUBMITTED' | 'VERIFIED' | 'REJECTED'>().notNull(),
+  note: text('note'),
+  actorId: uuid('actor_id')
+    .notNull()
+    .references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export type RiskFlagKind = 'DOCUMENT_MISMATCH' | 'MULTIPLE_ACCOUNTS' | 'PAYMENT_CHARGEBACK' | 'BONUS_ABUSE' | 'SOURCE_OF_FUNDS' | 'OTHER';
+
+export const riskFlags = pgTable('risk_flags', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  kind: text('kind').$type<RiskFlagKind>().notNull(),
+  severity: text('severity').$type<'LOW' | 'MEDIUM' | 'HIGH'>().notNull(),
+  note: text('note').notNull(),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  resolvedBy: uuid('resolved_by').references(() => users.id),
+  resolvedAt: ts('resolved_at'),
+  resolution: text('resolution'),
+});
+
+export type TicketCategory = 'ACCOUNT' | 'PAYMENTS' | 'VERIFICATION' | 'BONUSES' | 'GAMES' | 'RESPONSIBLE_PLAY' | 'OTHER';
+export type TicketStatus = 'OPEN' | 'AWAITING_PLAYER' | 'RESOLVED' | 'CLOSED';
+
+export const supportTickets = pgTable('support_tickets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  category: text('category').$type<TicketCategory>().notNull(),
+  subject: text('subject').notNull(),
+  status: text('status').$type<TicketStatus>().notNull().default('OPEN'),
+  priority: text('priority').$type<'NORMAL' | 'HIGH'>().notNull().default('NORMAL'),
+  assignedTo: uuid('assigned_to').references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+  closedAt: ts('closed_at'),
+});
+
+export const supportMessages = pgTable('support_messages', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  ticketId: uuid('ticket_id')
+    .notNull()
+    .references(() => supportTickets.id),
+  authorId: uuid('author_id')
+    .notNull()
+    .references(() => users.id),
+  fromStaff: boolean('from_staff').notNull(),
+  internal: boolean('internal').notNull().default(false),
+  body: text('body').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const supportAttachments = pgTable('support_attachments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ticketId: uuid('ticket_id')
+    .notNull()
+    .references(() => supportTickets.id),
+  messageId: bigint('message_id', { mode: 'number' })
+    .notNull()
+    .references(() => supportMessages.id),
+  fileName: text('file_name').notNull(),
+  contentType: text('content_type').$type<UploadContentType>().notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  sha256: text('sha256').notNull(),
+  storageKey: text('storage_key').notNull().unique(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const vipTiers = pgTable('vip_tiers', {
+  level: integer('level').primaryKey(),
+  name: text('name').notNull(),
+  minWagered: money('min_wagered').notNull(),
+  topUpBonusPct: integer('top_up_bonus_pct').notNull().default(0),
+  prioritySupport: boolean('priority_support').notNull().default(false),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
 });

@@ -53,6 +53,12 @@ const schema = z.object({
   PAYMENTS_SANDBOX_SECRET: z.string().min(32).optional(),
   /** Display currency of the platform (one per deployment; amounts are integer minor units). */
   PLATFORM_CURRENCY: z.enum(['CHIP', 'EUR', 'CHF', 'USD', 'GBP']).default('CHIP'),
+  /**
+   * Directory for private uploads (identity documents, support attachments).
+   * Never inside public/; files are served only through authenticated routes.
+   * Defaults to ./var/uploads; containers mount a volume (docker-compose.yml).
+   */
+  UPLOAD_DIR: z.string().min(1).optional(),
   BACKGROUND_JOBS: boolish.default(true),
   RECONCILE_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
   /**

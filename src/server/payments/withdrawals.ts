@@ -23,6 +23,7 @@ import { AppError, errors } from '../errors';
 import { lockWalletAccount, getWalletAccount, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
 import { notify } from '../notifications/notifications';
+import { openRiskFlagCount } from '../kyc/kyc';
 import { lockedBonus } from '../promotions/campaigns';
 import { feeFor, getCashierSettings, paymentsMode, platformCurrency } from './config';
 import { getProvider } from './providers';
@@ -213,7 +214,8 @@ export async function requestWithdrawal(userId: string, input: { methodId: strin
       ],
       metadata: { withdrawalId: id, method: method.id },
     });
-    const review = opts.settings.reviewThreshold === 0 || input.amount >= opts.settings.reviewThreshold;
+    // An open compliance flag on the account sends every withdrawal to manual review.
+    const review = opts.settings.reviewThreshold === 0 || input.amount >= opts.settings.reviewThreshold || (await openRiskFlagCount(tx, userId)) > 0;
     const [row] = await tx
       .insert(withdrawals)
       .values({

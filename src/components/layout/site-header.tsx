@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { Wordmark } from './logo';
 import { useSession } from './session-provider';
+import { NotificationBell } from '../notifications/notification-bell';
 import { Avatar } from '../account/avatar';
 
 /** `wide`: shown in the header from xl only (narrower screens reach them through the menus). */
@@ -23,13 +24,16 @@ const NAV = [
 const ACCOUNT_LINKS = [
   { href: '/profile', label: 'Profile' },
   { href: '/wallet', label: 'Cashier' },
+  { href: '/notifications', label: 'Notifications' },
+  { href: '/account/verification', label: 'Verification' },
+  { href: '/vip', label: 'VIP' },
   { href: '/promotions', label: 'Bonuses' },
   { href: '/wallet/transactions', label: 'Transactions' },
   { href: '/history', label: 'Game history' },
   { href: '/sports/tickets', label: 'My predictions' },
   { href: '/stats', label: 'Statistics' },
   { href: '/settings', label: 'Settings' },
-  { href: '/leaderboard', label: 'Leaderboard' },
+  { href: '/support', label: 'Support' },
   { href: '/rules', label: 'Rules & odds' },
 ];
 
@@ -131,6 +135,7 @@ export function SiteHeader() {
                 </span>
                 <span className="text-[10px] font-medium tracking-wider text-ink-400">CHIPS</span>
               </Link>
+              <NotificationBell />
               <div className="relative" ref={menuRef}>
                 <button
                   type="button"

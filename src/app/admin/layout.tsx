@@ -27,7 +27,12 @@ const NAV: { label: string; items: (NavItem & { permission: Permission })[] }[] 
   },
   {
     label: 'Finance & compliance',
-    items: [{ href: '/admin/payments', label: 'Payments', icon: 'ledger', permission: 'payments:read' }],
+    items: [
+      { href: '/admin/payments', label: 'Payments', icon: 'ledger', permission: 'payments:read' },
+      { href: '/admin/kyc', label: 'Verification', icon: 'security', permission: 'kyc:review' },
+      { href: '/admin/support', label: 'Support', icon: 'users', permission: 'support:manage' },
+      { href: '/admin/vip', label: 'VIP tiers', icon: 'analytics', permission: 'admin:access' },
+    ],
   },
   {
     label: 'Games',

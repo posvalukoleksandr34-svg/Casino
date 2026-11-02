@@ -9,6 +9,7 @@ import { formatChips } from '@/engine/money';
 import { withTransaction, type Executor, type Tx } from '../db/client';
 import { bonuses, users } from '../db/schema';
 import { errors } from '../errors';
+import { topUpBonusPct } from '../vip/vip';
 import { lockWalletAccount, systemAccountIds } from '../ledger/accounts';
 import { postTransaction } from '../ledger/ledger';
 import { getPlatformSettings } from '../risk/risk-service';
@@ -62,8 +63,12 @@ export async function dailyBonusStatus(tx: Executor, userId: string, now = new D
     : rg.coolOffUntil
       ? 'Daily chips are not offered during a cool-off break.'
       : null;
+  // VIP perk: a larger daily top-up for higher tiers (the threshold balance is unchanged).
+  const vipPct = await topUpBonusPct(tx, userId);
   return {
-    amount: settings.dailyBonus,
+    amount: settings.dailyBonus + Math.floor((settings.dailyBonus * vipPct) / 100),
+    baseAmount: settings.dailyBonus,
+    vipBonusPct: vipPct,
     maxBalance: settings.dailyBonusMaxBalance,
     claimedToday,
     nextAvailableAt: claimedToday ? next.toISOString() : now.toISOString(),

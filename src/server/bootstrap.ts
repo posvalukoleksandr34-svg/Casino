@@ -12,6 +12,7 @@ import { postTransaction } from './ledger/ledger';
 import { catalogEntries } from './games/catalog';
 import { ensureDefaultCampaigns } from './promotions/campaigns';
 import { ensureCashierDefaults } from './payments/config';
+import { ensureVipTiers } from './vip/vip';
 
 const CHIP = 100;
 
@@ -31,6 +32,7 @@ export async function bootstrap(): Promise<void> {
     const ids = await ensureSystemAccounts(tx);
     await ensureDefaultCampaigns(tx);
     await ensureCashierDefaults(tx);
+    await ensureVipTiers(tx);
 
     await tx
       .insert(platformSettings)

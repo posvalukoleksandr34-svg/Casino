@@ -88,3 +88,18 @@ export async function sendNotificationEmails(limit = 50): Promise<number> {
   }
   return sent;
 }
+
+/** E-mail copy on/off per kind (in-app notifications are always kept). */
+export async function notificationPrefs(userId: string): Promise<Record<NotificationKind, { email: boolean }>> {
+  const [u] = await getDb().select({ preferences: users.preferences }).from(users).where(eq(users.id, userId));
+  return Object.fromEntries(NOTIFICATION_KINDS.map((k) => [k, { email: emailWanted(u?.preferences, k) }])) as Record<NotificationKind, { email: boolean }>;
+}
+
+export async function setNotificationPrefs(userId: string, prefs: z.infer<typeof notificationPrefsSchema>) {
+  const db = getDb();
+  const [u] = await db.select({ preferences: users.preferences }).from(users).where(eq(users.id, userId));
+  const current = (u?.preferences ?? {}) as Record<string, unknown>;
+  const merged = { ...current, notifications: { ...((current.notifications ?? {}) as Record<string, unknown>), ...prefs } };
+  await db.update(users).set({ preferences: merged, updatedAt: new Date() }).where(eq(users.id, userId));
+  return notificationPrefs(userId);
+}

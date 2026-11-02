@@ -57,6 +57,10 @@ export const RATE_LIMITS = {
   paymentUser: { name: 'payment:user', limit: 20, windowSeconds: 600, by: 'user' },
   /** Provider webhook deliveries per source address (signature-checked). */
   webhookIp: { name: 'webhook:ip', limit: 600, windowSeconds: 60, by: 'ip' },
+  /** File uploads (identity documents, support attachments) per player. */
+  uploadUser: { name: 'upload:user', limit: 20, windowSeconds: 600, by: 'user' },
+  /** New support tickets and replies per player. */
+  supportUser: { name: 'support:user', limit: 20, windowSeconds: 600, by: 'user' },
   adminUser: { name: 'admin:user', limit: 600, windowSeconds: 60, by: 'user' },
   /** A manual reconciliation run re-reads every ledger table: a handful per staff member per 10 minutes. */
   reconcileRun: { name: 'reconcile:user', limit: 5, windowSeconds: 600, by: 'user' },

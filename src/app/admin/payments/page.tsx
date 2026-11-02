@@ -92,6 +92,11 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
                     <Td className="space-x-1">
                       <Badge tone={w.kyc === 'VERIFIED' ? 'positive' : 'warning'}>KYC {w.kyc.toLowerCase().replace('_', ' ')}</Badge>
                       {w.accountStatus !== 'ACTIVE' && <Badge tone="negative">{w.accountStatus.toLowerCase()}</Badge>}
+                      {w.openFlags > 0 && (
+                        <Link href={`/admin/kyc/${w.userId}`}>
+                          <Badge tone="negative">{w.openFlags} risk flag(s)</Badge>
+                        </Link>
+                      )}
                     </Td>
                     <Td className="text-xs text-ink-300">{w.needsTwoApprovals ? `${w.firstApprovedBy ? 1 : 0} of 2` : '1 needed'}</Td>
                     {canReview && (

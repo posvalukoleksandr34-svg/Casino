@@ -24,3 +24,5 @@ npm-debug.log*
 /deploy/backup/*
 !/deploy/backup/README
 /deploy/acme/
+# Private uploads in local development (identity documents, support attachments)
+/var/
