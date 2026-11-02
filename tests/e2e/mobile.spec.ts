@@ -38,3 +38,18 @@ test('mobile layout: registration, verification and onboarding fit the screen', 
   overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow, '/onboarding').toBeLessThanOrEqual(1);
 });
+
+test('mobile layout: signed-out pages and header fit a narrow phone', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  for (const path of ['/', '/login', '/register', '/forgot-password', '/rules', '/fairness']) {
+    await page.goto(path);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, path).toBeLessThanOrEqual(1);
+  }
+  // The header's sign-in actions stay on one line.
+  await page.goto('/login');
+  const header = page.locator('header');
+  const signIn = header.getByRole('link', { name: 'Sign in', exact: true });
+  const box = await signIn.boundingBox();
+  expect(box && box.height).toBeLessThan(44);
+});

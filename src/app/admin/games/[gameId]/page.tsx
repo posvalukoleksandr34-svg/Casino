@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { GAME_STATUS_LABELS } from '@/components/account/labels';
 import { GameStatusControl, LimitsEditor, RestoreReferenceConfig } from '@/components/admin/game-controls';
 import { PeriodFilter } from '@/components/admin/period-filter';
-import { GameGlyph } from '@/components/games/game-glyph';
+import { GameCover } from '@/components/lobby/game-cover';
 import { summarizeRound } from '@/components/games/summaries';
 import { Badge, StatusBadge } from '@/components/ui/badge';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
@@ -51,7 +51,7 @@ export default async function AdminGamePage({ params, searchParams }: { params: 
         }
         title={
           <span className="flex items-center gap-3">
-            <GameGlyph id={d.game.id} className="size-10" />
+            <GameCover id={d.game.id} className="h-10 w-14 shrink-0 rounded-lg ring-1 ring-white/10" />
             {d.game.name}
           </span>
         }

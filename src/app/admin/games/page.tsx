@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { sql } from 'drizzle-orm';
 import { GAME_STATUS_LABELS } from '@/components/account/labels';
-import { GameGlyph } from '@/components/games/game-glyph';
+import { GameCover } from '@/components/lobby/game-cover';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardBody } from '@/components/ui/card';
 import { Chips, PageHeader } from '@/components/ui/misc';
@@ -55,7 +55,7 @@ export default async function AdminGamesPage() {
                   <Tr key={g.id}>
                     <Td>
                       <Link href={`/admin/games/${g.id}`} className="flex items-center gap-3 font-medium text-ink-100 hover:text-gold-300">
-                        <GameGlyph id={g.id} className="size-7" />
+                        <GameCover id={g.id} className="h-7 w-10 shrink-0 rounded-lg ring-1 ring-white/10" />
                         {g.name}
                       </Link>
                     </Td>

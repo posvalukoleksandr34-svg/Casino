@@ -141,6 +141,23 @@ Observed weaknesses, ranked:
 - Verified: typecheck, lint, build; e2e expansion, accessibility (axe on every game
   page) and mobile specs, 11 passed.
 
+### 8. Admin artwork, sign-in pages and the signed-out header (done)
+
+- **Admin.** The games list and game detail pages show the cover art. The old
+  line-glyph component had no other users and was removed.
+- **Sign-in, registration and recovery pages.**
+  - A soft gold light behind the form, and a glow on the logo.
+  - A row of plain facts under the form: "Virtual chips only", "Nothing to buy",
+    "No cash prizes", "18+".
+- **Signed-out header on phones.** "Sign in" and "Create account" wrapped onto two
+  lines at 390px. They now stay on one line; on phones the button reads "Join".
+- **Test.** A new mobile e2e test checks that the signed-out pages (landing, login,
+  register, password recovery, rules, fairness) do not scroll sideways at 360px,
+  and that the header's sign-in link stays on one line.
+- Verified: typecheck, lint, build; e2e registration, mobile, accessibility,
+  owner-admin, fairness-admin and resilience specs, 22 passed. The updated mobile
+  spec then ran with 4 passed.
+
 ## Full verification (after batch 7)
 
 Run on commit `def3337` against a local PostgreSQL 16:
@@ -156,6 +173,6 @@ Run on commit `def3337` against a local PostgreSQL 16:
 
 ## Next
 
-- Auth and profile polish; admin pages still use line glyphs.
+- Profile page polish.
 - Review `backdrop-blur` cost on low-end mobile.
 - Full verification run (all suites, full e2e), then the final report.

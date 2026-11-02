@@ -164,11 +164,12 @@ export function SiteHeader() {
             </>
           ) : (
             <>
-              <Link href="/login" className="rounded-xl px-3 py-2 text-sm text-ink-200 hover:text-ink-100">
+              <Link href="/login" className="whitespace-nowrap rounded-xl px-2 py-2 text-sm text-ink-200 hover:text-ink-100 sm:px-3">
                 Sign in
               </Link>
-              <Link href="/register" className="rounded-xl border border-gold-300/40 bg-gradient-to-b from-gold-300 via-gold-400 to-gold-600 px-4 py-2 text-sm font-semibold text-ink-950 shadow-[0_1px_0_rgb(255_255_255/0.45)_inset,0_8px_22px_-10px_rgb(199_163_91/0.7)] hover:brightness-110">
-                Create account
+              <Link href="/register" className="whitespace-nowrap rounded-xl border border-gold-300/40 bg-gradient-to-b from-gold-300 via-gold-400 to-gold-600 px-3 py-2 text-sm font-semibold sm:px-4 text-ink-950 shadow-[0_1px_0_rgb(255_255_255/0.45)_inset,0_8px_22px_-10px_rgb(199_163_91/0.7)] hover:brightness-110">
+                <span className="sm:hidden">Join</span>
+                <span className="hidden sm:inline">Create account</span>
               </Link>
             </>
           )}
