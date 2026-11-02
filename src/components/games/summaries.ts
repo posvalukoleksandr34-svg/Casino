@@ -1,10 +1,15 @@
 import { pocketColor } from '@/engine/games/roulette/rules';
+import { isSlotGameId } from '@/engine/games/slots';
 
 /** One-line, neutral description of a round outcome for history lists. */
 export function summarizeRound(gameId: string, state: unknown, status: string): string {
   if (status === 'VOIDED') return 'Voided — stake returned';
   const s = state as Record<string, unknown> | null;
   if (!s) return '';
+  if (isSlotGameId(gameId)) {
+    const free = (s.freeSpins as unknown[] | undefined)?.length ?? 0;
+    return `${(s.totalE2 as number) > 0 ? `Won ${((s.totalE2 as number) / 100).toFixed(2)}×` : 'No win'}${free ? ` · ${free} free spins` : ''}`;
+  }
   switch (gameId) {
     case 'roulette': {
       const n = s.result as number;
@@ -52,13 +57,6 @@ export function summarizeRound(gameId: string, state: unknown, status: string): 
       return s.status === 'busted'
         ? `Wrong guess after ${correct} correct`
         : `Cashed out at ${((s.multiplierE4 as number) / 10_000).toFixed(4)}× after ${correct} correct`;
-    }
-    case 'lantern-hollow':
-    case 'ember-fruits':
-    case 'sands-of-aurum': {
-      const total = ((s.totalE2 as number) / 100).toFixed(2);
-      const free = (s.freeSpins as unknown[] | undefined)?.length ?? 0;
-      return `${(s.totalE2 as number) > 0 ? `Won ${total}×` : 'No win'}${free ? ` · ${free} free spins` : ''}`;
     }
     default:
       return '';

@@ -28,6 +28,8 @@ export const COVER_THEME: Record<string, Theme> = {
   'lantern-hollow': { from: '#3a2a8a', to: '#0d0824', glow: 'rgb(255 190 110 / 0.34)' },
   'ember-fruits': { from: '#9a2a10', to: '#1a0402', glow: 'rgb(255 200 80 / 0.36)' },
   'sands-of-aurum': { from: '#1f5a96', to: '#07142a', glow: 'rgb(242 201 91 / 0.36)' },
+  'coral-deep': { from: '#0f7a8a', to: '#03182a', glow: 'rgb(127 243 224 / 0.34)' },
+  'frost-crown': { from: '#3a78c0', to: '#0a1630', glow: 'rgb(220 245 255 / 0.38)' },
 };
 
 /** A slot cover: a three-symbol reel window with a gold frame. */
@@ -66,6 +68,8 @@ const SCENES: Record<string, ReactNode> = {
   'lantern-hollow': slotScene('lantern-hollow', ['owl', 'lantern', 'moon']),
   'ember-fruits': slotScene('ember-fruits', ['cherry', 'seven', 'star']),
   'sands-of-aurum': slotScene('sands-of-aurum', ['mask', 'sun', 'pyramid']),
+  'coral-deep': slotScene('coral-deep', ['turtle', 'chest', 'pearl']),
+  'frost-crown': slotScene('frost-crown', ['fox', 'crown', 'snowflake']),
   roulette: (
     <g>
       <circle cx="100" cy="66" r="44" fill="#5a2c0c" />

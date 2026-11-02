@@ -5,7 +5,8 @@
  *   npm run sim:risk -- [--days 30] [--paths 500] [--rounds-per-day 10000]
  *                       [--stake-median 10] [--stake-sigma 1.2]           (chips)
  *                       [--mix roulette=0.3,dice=0.25,mines=0.15,crash=0.15,blackjack=0.15]
- *                       (also limbo, keno, plinko, hilo; games not listed get 0)
+ *                       (also limbo, keno, plinko, hilo and the slot ids, e.g.
+ *                       lantern-hollow; games not listed get 0)
  *                       [--seed 1,2,3,4 | --seed <any string>] [--blackjack-hands 200000]
  *                       [--check]
  *

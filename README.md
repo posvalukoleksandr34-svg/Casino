@@ -1,8 +1,8 @@
 # Aurovane
 
 A casino website played with **non-redeemable virtual chips**: European Roulette, Dice,
-Mines, Crash, Blackjack, Limbo, Keno, Plinko, Hi-Lo and three original video slots (Lantern
-Hollow, Ember Fruits, Sands of Aurum), plus a football **prediction
+Mines, Crash, Blackjack, Limbo, Keno, Plinko, Hi-Lo and five original video slots (Lantern
+Hollow, Ember Fruits, Sands of Aurum, Coral Deep, Frost Crown), plus a football **prediction
 simulator** (pre-match 1X2, demo fixtures by default). Outcomes are decided on the server
 from provably fair seeds, every chip movement is recorded in an append-only double-entry
 ledger, and every game publishes its rules, payouts and house edge.

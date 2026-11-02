@@ -11,7 +11,7 @@ test.describe('video slots', () => {
   test('a spin on each machine settles on the server, animates, and updates the balance afterwards', async ({ page }) => {
     test.setTimeout(180_000);
     await registerPlayer(page);
-    for (const id of ['lantern-hollow', 'ember-fruits', 'sands-of-aurum']) {
+    for (const id of ['lantern-hollow', 'ember-fruits', 'sands-of-aurum', 'coral-deep', 'frost-crown']) {
       await page.goto(`/games/${id}`);
       const stage = page.getByTestId('slot-stage');
       await expect(stage).toHaveAttribute('data-phase', 'idle');

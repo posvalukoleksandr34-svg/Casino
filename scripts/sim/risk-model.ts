@@ -10,7 +10,8 @@
  *   * Payout distributions come from the production engine's own payout
  *     functions (exact for roulette, dice, mines with a fixed cash-out step,
  *     crash with an automatic target; empirical basic-strategy histogram for
- *     blackjack, whose n is reported). Payouts are floored to the minor unit
+ *     blackjack, and empirical round histograms for the video slots, whose n is
+ *     reported; a slot's largest payout is the exact engine maximum). Payouts are floored to the minor unit
  *     exactly as in production.
  *
  * What it does not model (stated, not hidden)
@@ -36,8 +37,10 @@ import { plinko, plinkoKey, plinkoSlotProbability, type PlinkoRisk } from '../..
 import { PAYOUT_ODDS, WINNING_POCKETS, type RouletteBetType } from '../../src/engine/games/roulette/rules';
 import type { StepResult } from '../../src/engine/games/types';
 import { SimulationRandom } from '../../src/engine/rng/sim-random';
+import { SLOT_GAME_IDS, SLOT_MODULES, type SlotGameId } from '../../src/engine/games/slots';
+import { analyseMachine, playSlotRound } from '../../src/engine/games/slots/engine';
 
-export const RISK_GAMES = ['roulette', 'dice', 'mines', 'crash', 'blackjack', 'limbo', 'keno', 'plinko', 'hilo'] as const;
+export const RISK_GAMES = ['roulette', 'dice', 'mines', 'crash', 'blackjack', 'limbo', 'keno', 'plinko', 'hilo', ...SLOT_GAME_IDS] as const;
 export type GameId = (typeof RISK_GAMES)[number];
 
 /** One possible result per unit of initial stake: total stake multiple and gross payout multiple (×10⁴). */
@@ -167,8 +170,25 @@ export function blackjackScenario(hands: number, seed: [number, number, number, 
   return { game: 'blackjack', name: 'basic strategy', weight: 1, outcomes, maxPayoutE4: 16 * 10_000, source: `empirical (${hands.toLocaleString('en-US')} hands)` };
 }
 
+/**
+ * Empirical round histogram for a video slot, played by the production engine
+ * (base spin and free spins). The largest payout is the exact maximum from
+ * the engine's analysis, not the largest sampled one.
+ */
+export function slotScenario(id: SlotGameId, rounds: number, seed: [number, number, number, number]): Scenario {
+  const config = SLOT_MODULES[id].defaultConfig;
+  const rng = new SimulationRandom(seed);
+  const counts = new Map<number, number>();
+  for (let n = 0; n < rounds; n += 1) {
+    const e4 = playSlotRound(config, rng).totalE2 * 100;
+    counts.set(e4, (counts.get(e4) ?? 0) + 1);
+  }
+  const outcomes = [...counts.entries()].map(([payoutE4, c]) => ({ p: c / rounds, stakeX: 1, payoutE4 }));
+  return { game: id, name: 'any stake', weight: 1, outcomes, maxPayoutE4: analyseMachine(config).maxTotalE2 * 100, source: `empirical (${rounds.toLocaleString('en-US')} rounds)` };
+}
+
 /** Default bet scenarios per game (weights are shares within the game). */
-export function defaultScenarios(blackjackHands = 200_000, seed: [number, number, number, number] = [1, 2, 3, 4]): Scenario[] {
+export function defaultScenarios(blackjackHands = 200_000, seed: [number, number, number, number] = [1, 2, 3, 4], slotRounds = 100_000): Scenario[] {
   const d = dice.defaultConfig;
   const m = mines.defaultConfig;
   const c = crash.defaultConfig;
@@ -225,6 +245,7 @@ export function defaultScenarios(blackjackHands = 200_000, seed: [number, number
       [2, 0.3],
       [4, 0.3],
     ].map(([k, weight]) => exact('hilo', `likelier side, cash out after ${k}`, weight!, hiloOutcomes(k!))),
+    ...SLOT_GAME_IDS.map((id, i) => slotScenario(id, slotRounds, [(seed[0] + 101 + i) >>> 0, seed[1], seed[2], seed[3]])),
   ];
 }
 

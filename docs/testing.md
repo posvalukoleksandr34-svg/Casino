@@ -29,7 +29,7 @@ what the tests exercise.
   `action-timing` (cash-out ordering rule), `independent-rtp` (engine theory vs published
   rules), `safe-next` (post-login redirect), `limbo`, `keno`, `plinko`, `hilo` (tables,
   exact RTP, strategy bound, hidden card sequence), `slots` (exact slot maths against
-  brute-force enumeration, the three machines, rounds, validation), `catalog` (categories, "new" window,
+  brute-force enumeration, the five machines, rounds, validation), `catalog` (categories, "new" window,
   limits), `sports` (price model and its RTP bound, committed demo results, settlement
   and correction maths, provider payload mapping, rate-limit and error sanitising),
   `owner-admin` (permission matrix, rank rules, e-mail masking, TOTP against the RFC 6238
@@ -50,7 +50,7 @@ what the tests exercise.
   (account-state races, void vs payout, bonus claims, cross-user access),
   `auth-hardening` (route-level rate limits, sessions, reset-link invalidation),
   `new-games` (Limbo, Keno, Plinko, Hi-Lo through the round service and HTTP, incl.
-  verifier replay), `slots` (the three slots through the round service: stops from the seed,
+  verifier replay), `slots` (every slot through the round service: stops from the seed,
   exact payouts, limits, server and public verification), `lobby` (favourites, recently played), `profile-achievements`
   (profile validation and audit, idempotent server-awarded badges, server-side round
   verification), `sports` (placement, idempotency, stale/changed odds, limits, settlement,
@@ -80,7 +80,7 @@ what the tests exercise.
   mailer → verify → onboarding) by `newPlayer`.
 * **Statistical** (`tests/statistical`): `roulette-dice`, `mines`, `crash`, `blackjack`,
   `new-games`, `slots` (uniform stops, RTP, free-spin rate and hit frequency against the exact values).
-* **E2E** (`tests/e2e`): `slots` (a spin on each machine settles with the server's
+* **E2E** (`tests/e2e`): `slots` (a spin on each of the five machines settles with the server's
   balance, turbo, history), `player-journey`, `blackjack`, `security`, `resilience-access`
   (interrupted request recovery, admin API authorisation, honest states),
   `fairness-admin`, `accessibility`, `mobile`, `expansion` (lobby search and favourites,

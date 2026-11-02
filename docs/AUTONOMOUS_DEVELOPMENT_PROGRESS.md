@@ -290,6 +290,36 @@ copied; every symbol is drawn here as inline SVG.
   (`scripts/sim/risk-model.ts`). That model needs full payout distributions; for slots it
   would need sampling. See Next.
 
+### 13. Slots follow-up: risk model, one registry, two more machines (done)
+
+- **Risk simulator.** `npm run sim:risk` now includes every slot. Each slot gets an
+  empirical histogram of 100,000 engine rounds (labelled empirical) with the exact
+  maximum payout.
+  - A unit test checks each histogram's RTP is within 4.5 standard errors of the exact
+    value.
+  - Example run (slots 50% of volume, 50 paths × 5 days): simulated hold 3.11%;
+    simulated mean P&L z = −0.05 against theory.
+- **One registry.** History, round detail, the server-side round check, game names, the
+  game page and the risk model now all read `SLOT_GAME_IDS` / `isSlotGameId` instead of
+  hard-coded ids. A new machine is reel strips plus a module line; the type checker then
+  requires its art colours, stage look and cover.
+- **Two new original machines.**
+
+  | Machine | RTP | Free spins | Awarded | Largest win |
+  |---|---|---|---|---|
+  | Coral Deep (reef, treasure-chest wild, pearl scatter) | 96.155% | 8 / 10 / 12 at ×2 | 1 in 180 | 6,866× |
+  | Frost Crown (winter, ice-crown wild, snowflake scatter) | 96.442% | 5 / 7 / 10 at ×3 | 1 in 159 | 6,149× |
+
+  Twelve new SVG symbols, stage looks and lobby covers. Limits 0.10–100 chips:
+  100 chips × the largest win is still under the per-round cap (a test checks this).
+- **Small fix.** The win message strip is darker, so it stays readable over the light
+  Frost Crown scenery.
+- **Tests.**
+  - Every slot test now covers all five machines: unit (largest win at most 7,000×,
+    registry consistency), statistical, integration and e2e. Lobby count 14.
+  - Results: unit 354, integration 306, statistical 44, all passed. Typecheck, lint,
+    docs, secrets, workflows, audio, build and `check:bundle` passed.
+
 ## Full verification (after batch 7)
 
 Run on commit `def3337` against a local PostgreSQL 16:
@@ -305,9 +335,8 @@ Run on commit `def3337` against a local PostgreSQL 16:
 
 ## Next
 
-- Add the slots to the platform risk simulator (sampled distributions).
-- More slot themes reuse the same engine: a new machine needs reel strips and a
-  paytable tuned with `analyseMachine`, plus symbol art.
+- More slot themes, if wanted: reel strips and a paytable tuned with `analyseMachine`,
+  plus symbol art.
 
 - Profile page polish.
 - Measure real-device rendering performance (not possible in this environment).

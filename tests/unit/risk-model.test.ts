@@ -8,6 +8,8 @@ import { limboWinProbability } from '@/engine/games/limbo';
 import { plinko, plinkoKey, plinkoRtp } from '@/engine/games/plinko';
 import { SimulationRandom } from '@/engine/rng/sim-random';
 import { chiSquareCritical, chiSquareStatistic } from '@/engine/stats';
+import { analyseMachine } from '@/engine/games/slots/engine';
+import { SLOT_GAME_IDS, SLOT_MODULES } from '@/engine/games/slots';
 import { Alias, defaultScenarios, quantile, simulate, type RunConfig } from '../../scripts/sim/risk-model';
 
 const scenarios = defaultScenarios(20_000);
@@ -32,6 +34,19 @@ describe('risk model inputs come from the engine', () => {
     expect(rtp('keno:5 picks')).toBeCloseTo(kenoRowRtp(5, keno.defaultConfig.table['5']!), 12);
     expect(rtp('plinko:16 rows high')).toBeCloseTo(plinkoRtp(16, plinko.defaultConfig.tables[plinkoKey(16, 'high')]!), 12);
     for (const k of [1, 2, 4]) expect(rtp(`hilo:likelier side, cash out after ${k}`)).toBeCloseTo(hiloStrategyRtp(hilo.defaultConfig, k), 12);
+  });
+
+  it('every video slot has an empirical histogram near its exact RTP, with the exact maximum', () => {
+    for (const id of SLOT_GAME_IDS) {
+      const s = scenarios.find((x) => x.game === id)!;
+      const a = analyseMachine(SLOT_MODULES[id].defaultConfig);
+      expect(s.source).toBe('empirical (100,000 rounds)');
+      expect(s.maxPayoutE4).toBe(a.maxTotalE2 * 100);
+      for (const o of s.outcomes) expect(o.payoutE4).toBeLessThanOrEqual(s.maxPayoutE4);
+      // Within 4.5 standard errors of the exact RTP (the exact standard deviation is known).
+      const se = Math.sqrt(a.varE2) / 100 / Math.sqrt(100_000);
+      expect(Math.abs(rtp(`${id}:any stake`) - a.rtp)).toBeLessThan(4.5 * se);
+    }
   });
 
   it('the blackjack histogram is labelled empirical with its sample size', () => {

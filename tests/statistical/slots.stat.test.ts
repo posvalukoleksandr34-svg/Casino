@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyseMachine, playSlotRound } from '@/engine/games/slots/engine';
-import { EMBER_FRUITS, LANTERN_HOLLOW, SANDS_OF_AURUM } from '@/engine/games/slots/machines';
+import { CORAL_DEEP, EMBER_FRUITS, FROST_CROWN, LANTERN_HOLLOW, SANDS_OF_AURUM } from '@/engine/games/slots/machines';
 import { chiSquareCritical, chiSquareStatistic, RunningStats } from '@/engine/stats';
 import { streamFor } from './helpers';
 
@@ -11,6 +11,8 @@ describe.each([
   ['lantern-hollow', LANTERN_HOLLOW],
   ['ember-fruits', EMBER_FRUITS],
   ['sands-of-aurum', SANDS_OF_AURUM],
+  ['coral-deep', CORAL_DEEP],
+  ['frost-crown', FROST_CROWN],
 ] as const)('%s (statistical)', (name, config) => {
   const N = 150_000;
   const a = analyseMachine(config);

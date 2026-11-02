@@ -389,4 +389,14 @@ export const GAME_CONTENT: Record<string, GameContent> = {
     'Desert treasures on 1,024 ways.',
     'Golden masks, scarabs, ankhs and lotus flowers under a desert sun. The sun disc is wild; three or more pyramids award up to 15 free spins, where every win is doubled.',
   ),
+  'coral-deep': slotContent(
+    'coral-deep',
+    'A coral reef on 1,024 ways.',
+    'Turtles, seahorses, pufferfish and shells drift over the reef. The treasure chest is wild; three or more pearls award up to 12 free spins, where every win is doubled.',
+  ),
+  'frost-crown': slotContent(
+    'frost-crown',
+    'A winter kingdom on 1,024 ways.',
+    'Snow foxes, ice crystals, snow globes and hot cocoa in a frozen palace. The ice crown is wild; three or more snowflakes award 5, 7 or 10 free spins, where every win is tripled.',
+  ),
 };

@@ -7,7 +7,7 @@ import { limbo } from './limbo';
 import { mines } from './mines';
 import { plinko } from './plinko';
 import { roulette } from './roulette';
-import { emberFruits, lanternHollow, sandsOfAurum } from './slots';
+import { SLOT_MODULES } from './slots';
 import type { GameId, GameModule } from './types';
 
 /**
@@ -25,9 +25,7 @@ const modules: Partial<Record<GameId, GameModule>> = {
   keno: keno as unknown as GameModule,
   plinko: plinko as unknown as GameModule,
   hilo: hilo as unknown as GameModule,
-  'lantern-hollow': lanternHollow as unknown as GameModule,
-  'ember-fruits': emberFruits as unknown as GameModule,
-  'sands-of-aurum': sandsOfAurum as unknown as GameModule,
+  ...(Object.fromEntries(Object.entries(SLOT_MODULES).map(([id, m]) => [id, m as unknown as GameModule])) as Partial<Record<GameId, GameModule>>),
 };
 
 export function getGameModule(id: GameId): GameModule {

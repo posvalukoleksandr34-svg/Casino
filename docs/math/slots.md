@@ -1,10 +1,12 @@
 # Video slots — mathematical specification
 
-Implementation: `src/engine/games/slots` (`engine.ts` is the game, `machines.ts` the three
+Implementation: `src/engine/games/slots` (`engine.ts` is the game, `machines.ts` the five
 reel sets). Tests: `tests/unit/slots.test.ts`, `tests/integration/slots.test.ts` and
 `tests/statistical/slots.stat.test.ts`.
 
-The three machines are **Lantern Hollow**, **Ember Fruits** and **Sands of Aurum**. Their
+The five machines are **Lantern Hollow**, **Ember Fruits**, **Sands of Aurum**, **Coral Deep**
+and **Frost Crown**. They share one engine; a new machine is reel strips, a paytable and
+symbol art. Their
 themes, symbols, art (inline SVG), sounds and maths are original to Aurovane. No
 third-party game, artwork or name is used.
 
@@ -68,23 +70,25 @@ RTP is not strictly below 100% or whose largest win exceeds the platform's 100,0
 
 ## Figures (default configurations)
 
-| | Lantern Hollow | Ember Fruits | Sands of Aurum |
-|---|---|---|---|
-| Strip lengths | 43, 45, 45, 45, 45 | 45, 47, 47, 47, 47 | 41, 43, 43, 43, 43 |
-| Exact RTP | 96.4492% | 96.1845% | 96.1374% |
-| House edge | 3.5508% | 3.8155% | 3.8626% |
-| Spin pays anything | 41.38% | 35.09% | 39.42% |
-| Free spins (3 / 4 / 5 scatters) | 8 / 10 / 15 at ×2 | 6 / 8 / 10 at ×2 | 10 / 12 / 15 at ×2 |
-| Free spins awarded | 1 in 159.2 | 1 in 180.4 | 1 in 139.6 |
-| Share of RTP from free spins | 9.24% | 6.33% | 12.64% |
-| Largest spin win | 180.22× | 291.66× | 159.64× |
-| Largest round win | 5,533.25× | 5,863.44× | 4,813.52× |
-| Standard deviation per round | 3.238× | 3.438× | 3.230× |
+| | Lantern Hollow | Ember Fruits | Sands of Aurum | Coral Deep | Frost Crown |
+|---|---|---|---|---|---|
+| Strip lengths | 43, 45, 45, 45, 45 | 45, 47, 47, 47, 47 | 41, 43, 43, 43, 43 | 45, 47, 47, 47, 47 | 43, 45, 45, 45, 45 |
+| Exact RTP | 96.4492% | 96.1845% | 96.1374% | 96.1550% | 96.4421% |
+| House edge | 3.5508% | 3.8155% | 3.8626% | 3.8450% | 3.5579% |
+| Spin pays anything | 41.38% | 35.09% | 39.42% | 37.93% | 37.78% |
+| Free spins (3 / 4 / 5 scatters) | 8 / 10 / 15 at ×2 | 6 / 8 / 10 at ×2 | 10 / 12 / 15 at ×2 | 8 / 10 / 12 at ×2 | 5 / 7 / 10 at ×3 |
+| Free spins awarded | 1 in 159.2 | 1 in 180.4 | 1 in 139.6 | 1 in 180.4 | 1 in 159.2 |
+| Share of RTP from free spins | 9.24% | 6.33% | 12.64% | 8.23% | 8.77% |
+| Largest spin win | 180.22× | 291.66× | 159.64× | 285.12× | 204.09× |
+| Largest round win | 5,533.25× | 5,863.44× | 4,813.52× | 6,866.31× | 6,149.25× |
+| Standard deviation per round | 3.238× | 3.438× | 3.230× | 3.554× | 3.408× |
 
 The exact RTP fractions are:
 - Lantern Hollow: 249893211444874496 / 259093057060546875;
 - Ember Fruits: 386484175827638272 / 401815462417216875;
-- Sands of Aurum: 472223833471879776 / 491196616666182025.
+- Sands of Aurum: 472223833471879776 / 491196616666182025;
+- Coral Deep: 77273112076633088 / 80363092483443375;
+- Frost Crown: 9254623018415008 / 9596039150390625.
 
 **Limits.** Every machine has a stake of 0.10–100 chips and a per-round cap of 1,000,000
 chips. 100 chips × the largest round win stays under that cap, so a stake is never
@@ -93,6 +97,14 @@ refused because of its theoretical maximum. A test checks this.
 **Rounding.** Payouts are rounded down to 0.01 chip, which can only lower the realised
 return at small stakes. The figures above are at the multiplier level, as for every
 other game.
+
+## Risk model
+
+`scripts/sim/risk-model.ts` (`npm run sim:risk`) includes every slot. Its payout
+distribution is an **empirical** histogram of 100,000 rounds played by the engine, labelled
+as such. Its largest payout is the **exact** maximum above. A unit test checks that each
+histogram's RTP lies within 4.5 standard errors of the exact value. Example:
+`--mix "roulette=0.3,dice=0.2,lantern-hollow=0.2,ember-fruits=0.15,sands-of-aurum=0.15"`.
 
 ## Statistical checks
 

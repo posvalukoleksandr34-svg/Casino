@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { analyseMachine, awardFor, evaluateGrid, playSlotRound, slotBetSchema, slotConfigSchema, windowAt, SLOT_REELS, type SlotConfig } from '@/engine/games/slots/engine';
-import { EMBER_FRUITS, LANTERN_HOLLOW, SANDS_OF_AURUM } from '@/engine/games/slots/machines';
-import { emberFruits, lanternHollow, sandsOfAurum } from '@/engine/games/slots';
+import { CORAL_DEEP, EMBER_FRUITS, FROST_CROWN, LANTERN_HOLLOW, SANDS_OF_AURUM } from '@/engine/games/slots/machines';
+import { coralDeep, emberFruits, frostCrown, lanternHollow, sandsOfAurum, SLOT_GAME_IDS, SLOT_MODULES } from '@/engine/games/slots';
 import { HmacRandomStream } from '@/engine/rng/provably-fair';
 import { MAX_MULTIPLIER } from '@/engine/money';
 
@@ -140,15 +140,22 @@ describe('the three machines', () => {
     ['Lantern Hollow', LANTERN_HOLLOW, lanternHollow],
     ['Ember Fruits', EMBER_FRUITS, emberFruits],
     ['Sands of Aurum', SANDS_OF_AURUM, sandsOfAurum],
+    ['Coral Deep', CORAL_DEEP, coralDeep],
+    ['Frost Crown', FROST_CROWN, frostCrown],
   ] as const;
 
-  it.each(machines)('%s: valid, RTP between 96% and 97% exactly, bounded maximum, free spins 1 in 120–200', (_name, config, mod) => {
+  it('the registry lists every machine exactly once, by its own id', () => {
+    expect(SLOT_GAME_IDS).toHaveLength(machines.length);
+    for (const id of SLOT_GAME_IDS) expect(SLOT_MODULES[id].id).toBe(id);
+  });
+
+  it.each(machines)('%s: valid, RTP between 96% and 97% exactly, largest win at most 7,000×, free spins 1 in 120–200', (_name, config, mod) => {
     const parsed = slotConfigSchema.parse(config);
     const a = analyseMachine(parsed);
     expect(a.rtpNum < a.rtpDen).toBe(true);
     expect(a.rtpNum * 100n >= a.rtpDen * 96n).toBe(true);
     expect(a.rtpNum * 100n < a.rtpDen * 97n).toBe(true);
-    expect(a.maxTotalE2).toBeLessThanOrEqual(6_000 * 100);
+    expect(a.maxTotalE2).toBeLessThanOrEqual(7_000 * 100);
     expect(a.maxTotalE2).toBeLessThanOrEqual(MAX_MULTIPLIER * 100);
     expect(1 / a.triggerProbability).toBeGreaterThan(120);
     expect(1 / a.triggerProbability).toBeLessThan(200);

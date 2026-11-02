@@ -12,6 +12,7 @@ import { PlinkoGame } from '@/components/games/plinko-game';
 import { GameRules } from '@/components/games/game-rules';
 import { SlotGame } from '@/components/games/slots/slot-game';
 import type { SlotConfig } from '@/engine/games/slots/engine';
+import { isSlotGameId, type SlotGameId } from '@/engine/games/slots';
 import { SoundControls } from '@/components/games/sound-controls';
 import { COVER_THEME } from '@/components/lobby/game-cover';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +43,10 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
 
   const props = { limits: game.limits, status: game.status };
   let screen: React.ReactNode;
-  switch (game.id) {
+  switch (isSlotGameId(game.id) ? 'slot' : game.id) {
+    case 'slot':
+      screen = <SlotGame {...props} gameId={game.id as SlotGameId} config={game.config as SlotConfig} />;
+      break;
     case 'roulette':
       screen = <RouletteGame {...props} config={game.config as RouletteConfig} />;
       break;
@@ -69,11 +73,6 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
       break;
     case 'hilo':
       screen = <HiloGame {...props} config={game.config as HiloConfig} />;
-      break;
-    case 'lantern-hollow':
-    case 'ember-fruits':
-    case 'sands-of-aurum':
-      screen = <SlotGame {...props} gameId={game.id} config={game.config as SlotConfig} />;
       break;
     default:
       notFound();

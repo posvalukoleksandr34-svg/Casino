@@ -7,7 +7,7 @@
 import type { z } from 'zod';
 import type { RandomSource } from '../rng/provably-fair';
 
-export const GAME_IDS = ['roulette', 'dice', 'crash', 'mines', 'blackjack', 'slots', 'limbo', 'keno', 'plinko', 'hilo', 'lantern-hollow', 'ember-fruits', 'sands-of-aurum'] as const;
+export const GAME_IDS = ['roulette', 'dice', 'crash', 'mines', 'blackjack', 'slots', 'limbo', 'keno', 'plinko', 'hilo', 'lantern-hollow', 'ember-fruits', 'sands-of-aurum', 'coral-deep', 'frost-crown'] as const;
 export type GameId = (typeof GAME_IDS)[number];
 
 export function isGameId(value: string): value is GameId {

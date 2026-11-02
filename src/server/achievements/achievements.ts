@@ -9,6 +9,7 @@
 import { and, eq, isNotNull, or, sql } from 'drizzle-orm';
 import { getGameModule } from '@/engine/games/registry';
 import { cardLabel } from '@/engine/games/hilo';
+import { isSlotGameId } from '@/engine/games/slots';
 import { label as blackjackLabel } from '@/engine/games/blackjack/cards';
 import { verifyOutcome } from '@/engine/verify';
 import { getDb, type Executor } from '../db/client';
@@ -127,13 +128,11 @@ function storedOutcome(gameId: string, state: Record<string, unknown>, cards: nu
       return (state.shoe as number[]).slice(0, cards).map(blackjackLabel);
     case 'hilo':
       return (state.sequence as number[]).slice(0, cards).map(cardLabel);
-    case 'lantern-hollow':
-    case 'ember-fruits':
-    case 'sands-of-aurum': {
-      const base = state.base as { stops: number[] };
-      return { base: base.stops, free: (state.freeSpins as { stops: number[] }[]).map((f) => f.stops) };
-    }
     default:
+      if (isSlotGameId(gameId)) {
+        const base = state.base as { stops: number[] };
+        return { base: base.stops, free: (state.freeSpins as { stops: number[] }[]).map((f) => f.stops) };
+      }
       throw errors.validation('This game has no server-side check');
   }
 }
@@ -158,11 +157,8 @@ function recomputedOutcome(gameId: string, outcome: Record<string, unknown>): un
       return outcome.firstCards;
     case 'hilo':
       return outcome.cards;
-    case 'lantern-hollow':
-    case 'ember-fruits':
-    case 'sands-of-aurum':
-      return { base: outcome.stops, free: (outcome.freeSpins as { stops: number[] }[]).map((f) => f.stops) };
     default:
+      if (isSlotGameId(gameId)) return { base: outcome.stops, free: (outcome.freeSpins as { stops: number[] }[]).map((f) => f.stops) };
       return undefined;
   }
 }

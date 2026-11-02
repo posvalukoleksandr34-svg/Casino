@@ -7,13 +7,49 @@ import type { KenoState } from '@/engine/games/keno';
 import type { LimboState } from '@/engine/games/limbo';
 import type { PlinkoState } from '@/engine/games/plinko';
 import type { SlotSpin, SlotState } from '@/engine/games/slots/engine';
-import { SLOT_MODULES, type SlotGameId } from '@/engine/games/slots';
+import { isSlotGameId, SLOT_MODULES } from '@/engine/games/slots';
 import { formatChips } from '@/engine/money';
 import { cn } from '@/lib/cn';
 
 /** Read-only rendering of a finished (or open) round's public state. */
 export function RoundStateView({ gameId, state, status }: { gameId: string; state: unknown; status: string }) {
   if (status === 'VOIDED') return <p className="text-sm text-ink-300">This round was voided and the full stake returned.</p>;
+  if (isSlotGameId(gameId)) {
+      const s = state as SlotState;
+      const names = new Map(SLOT_MODULES[gameId].defaultConfig.symbols.map((x) => [x.id, x.name]));
+      const grid = (spin: SlotSpin, label: string) => (
+        <div>
+          <div className="mb-1 text-xs text-ink-400">
+            {label} · stops {spin.stops.join(', ')} · {spin.winE2 > 0 ? `won ${(spin.winE2 / 100).toFixed(2)}×` : 'no win'}
+          </div>
+          <table className="text-xs">
+            <tbody>
+              {[0, 1, 2, 3].map((row) => (
+                <tr key={row}>
+                  {spin.grid.map((col, reel) => (
+                    <td key={reel} className={cn('border border-ink-800 px-2 py-1 text-center', spin.wins.some((w) => w.cells.some(([r, c]) => r === reel && c === row)) ? 'bg-gold-900/40 text-gold-200' : 'text-ink-300')}>
+                      {names.get(col[row]!) ?? col[row]}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      return (
+        <div className="space-y-4 text-sm">
+          {grid(s.base, 'Base spin')}
+          {s.freeSpins.length > 0 && (
+            <p className="text-ink-300">
+              {s.base.scatters} scatters → {s.freeSpins.length} free spins at ×{s.multiplier}:{' '}
+              <span className="num">{s.freeSpins.map((f) => (f.winE2 / 100).toFixed(2)).join(' · ')}</span>
+            </p>
+          )}
+          <p className="num text-ink-100">Total win {(s.totalE2 / 100).toFixed(2)}× the stake</p>
+        </div>
+      );
+  }
   switch (gameId) {
     case 'roulette': {
       const s = state as RouletteState;
@@ -190,44 +226,6 @@ export function RoundStateView({ gameId, state, status }: { gameId: string; stat
           <p className="text-ink-300">
             {s.factors.length} correct · {s.status === 'busted' ? 'wrong guess' : s.status === 'cashed' ? `cashed out at ${(s.multiplierE4 / 10_000).toFixed(4)}×` : 'in progress'}
           </p>
-        </div>
-      );
-    }
-    case 'lantern-hollow':
-    case 'ember-fruits':
-    case 'sands-of-aurum': {
-      const s = state as SlotState;
-      const names = new Map(SLOT_MODULES[gameId as SlotGameId].defaultConfig.symbols.map((x) => [x.id, x.name]));
-      const grid = (spin: SlotSpin, label: string) => (
-        <div>
-          <div className="mb-1 text-xs text-ink-400">
-            {label} · stops {spin.stops.join(', ')} · {spin.winE2 > 0 ? `won ${(spin.winE2 / 100).toFixed(2)}×` : 'no win'}
-          </div>
-          <table className="text-xs">
-            <tbody>
-              {[0, 1, 2, 3].map((row) => (
-                <tr key={row}>
-                  {spin.grid.map((col, reel) => (
-                    <td key={reel} className={cn('border border-ink-800 px-2 py-1 text-center', spin.wins.some((w) => w.cells.some(([r, c]) => r === reel && c === row)) ? 'bg-gold-900/40 text-gold-200' : 'text-ink-300')}>
-                      {names.get(col[row]!) ?? col[row]}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-      return (
-        <div className="space-y-4 text-sm">
-          {grid(s.base, 'Base spin')}
-          {s.freeSpins.length > 0 && (
-            <p className="text-ink-300">
-              {s.base.scatters} scatters → {s.freeSpins.length} free spins at ×{s.multiplier}:{' '}
-              <span className="num">{s.freeSpins.map((f) => (f.winE2 / 100).toFixed(2)).join(' · ')}</span>
-            </p>
-          )}
-          <p className="num text-ink-100">Total win {(s.totalE2 / 100).toFixed(2)}× the stake</p>
         </div>
       );
     }

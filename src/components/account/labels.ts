@@ -1,3 +1,5 @@
+import { SLOT_MODULES } from '@/engine/games/slots';
+
 export const TX_LABELS: Record<string, string> = {
   BET_PLACED: 'Wager',
   BET_SETTLED: 'Settlement',
@@ -23,9 +25,7 @@ export const GAME_NAMES: Record<string, string> = {
   keno: 'Keno',
   plinko: 'Plinko',
   hilo: 'Hi-Lo',
-  'lantern-hollow': 'Lantern Hollow',
-  'ember-fruits': 'Ember Fruits',
-  'sands-of-aurum': 'Sands of Aurum',
+  ...Object.fromEntries(Object.entries(SLOT_MODULES).map(([id, m]) => [id, m.name])),
 };
 
 /** Game status as shown to staff (SUSPENDED is the "maintenance" state). */

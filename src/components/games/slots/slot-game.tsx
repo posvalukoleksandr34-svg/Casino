@@ -11,6 +11,7 @@ import { StakeInput, stakeProblem } from '../stake-input';
 import { useGameAudio } from '../use-game-audio';
 import { useReducedMotion } from '../use-reduced-motion';
 import { useRound } from '../use-round';
+import { SLOT_MODULES } from '@/engine/games/slots';
 import { SymbolArt, type SlotTheme } from './symbol-art';
 
 interface ThemeLook {
@@ -58,6 +59,40 @@ const LOOKS: Record<SlotTheme, ThemeLook> = {
           <circle key={i} cx={(i * 53) % 400} cy={30 + ((i * 37) % 80)} r={1 + (i % 3)} fill="#ffb347" opacity={0.3 + (i % 4) * 0.15} />
         ))}
         <path d="M0 120 c40 -30 60 -10 90 -26 c30 -16 50 6 80 -10 c30 -16 60 8 90 -6 c30 -14 60 4 80 -12 c20 -16 40 0 60 -6 v60z" fill="#3a0a04" />
+      </svg>
+    ),
+  },
+  'coral-deep': {
+    stage: 'radial-gradient(120% 80% at 50% 0%, #1fb3c2 0%, #0b5a7a 40%, #031a2e 100%)',
+    reels: 'linear-gradient(180deg, #08405a, #052a40 50%, #08405a)',
+    frame: 'linear-gradient(180deg, #ffd0b8, #ff7a5c 40%, #8a2a14)',
+    title: 'linear-gradient(180deg, #ffffff, #b8fff0 45%, #2ad1c0)',
+    titleStroke: '#063a40',
+    accent: '#7ff3e0',
+    scenery: (
+      <svg viewBox="0 0 400 120" preserveAspectRatio="xMidYMax slice" className="absolute inset-x-0 bottom-0 h-28 w-full opacity-70" aria-hidden="true">
+        {Array.from({ length: 16 }, (_, i) => (
+          <circle key={i} cx={(i * 61) % 400} cy={20 + ((i * 29) % 70)} r={1.5 + (i % 3)} fill="none" stroke="#bffcf4" strokeWidth="1" opacity={0.3 + (i % 3) * 0.15} />
+        ))}
+        <path d="M20 120 c4 -30 -8 -40 4 -60 M30 120 c-2 -20 10 -30 2 -50 M360 120 c-4 -26 10 -36 0 -58 M372 120 c2 -18 -8 -30 4 -46" stroke="#ff7a5c" strokeWidth="5" fill="none" strokeLinecap="round" />
+        <path d="M0 120 c60 -16 120 -6 200 -12 c80 -6 140 4 200 -6 v18z" fill="#e8c890" opacity="0.8" />
+      </svg>
+    ),
+  },
+  'frost-crown': {
+    stage: 'radial-gradient(120% 80% at 50% 0%, #9ad4ff 0%, #2a5a9a 40%, #0a1630 100%)',
+    reels: 'linear-gradient(180deg, #1a3a6a, #0e2448 50%, #1a3a6a)',
+    frame: 'linear-gradient(180deg, #ffffff, #a8d8ff 40%, #3a6aa8)',
+    title: 'linear-gradient(180deg, #ffffff, #cfeeff 50%, #6ab0ff)',
+    titleStroke: '#0e2448',
+    accent: '#cfeeff',
+    scenery: (
+      <svg viewBox="0 0 400 120" preserveAspectRatio="xMidYMax slice" className="absolute inset-x-0 bottom-0 h-28 w-full opacity-75" aria-hidden="true">
+        {Array.from({ length: 26 }, (_, i) => (
+          <circle key={i} cx={(i * 47) % 400} cy={10 + ((i * 31) % 90)} r={1 + (i % 2)} fill="#ffffff" opacity={0.5} />
+        ))}
+        <path d="M0 120 v-26 l40 -40 l30 30 l40 -50 l50 60 l40 -30 l40 40 l50 -56 l50 50 l40 -24 l20 20 v26z" fill="#dff2ff" opacity="0.85" />
+        <path d="M110 34 l-10 14 l20 0z M250 38 l-10 14 l20 0z" fill="#ffffff" />
       </svg>
     ),
   },
@@ -267,12 +302,12 @@ export function SlotGame({ gameId, config, limits, status }: { gameId: SlotTheme
               className="text-center font-display text-3xl font-black uppercase tracking-wide sm:text-4xl"
               style={{ backgroundImage: look.title, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextStroke: `1.5px ${look.titleStroke}`, filter: 'drop-shadow(0 4px 6px rgb(0 0 0 / 0.6))' }}
             >
-              {gameId === 'lantern-hollow' ? 'Lantern Hollow' : gameId === 'ember-fruits' ? 'Ember Fruits' : 'Sands of Aurum'}
+              {SLOT_MODULES[gameId].name}
             </h2>
             <div className="mx-auto mt-3 max-w-[600px] rounded-2xl p-[6px] shadow-[0_10px_30px_-10px_rgb(0_0_0/0.8)]" style={{ backgroundImage: look.frame }}>
               <Reels theme={gameId} config={config} shown={shown} previous={previous} highlight={highlight} reduced={reduced} />
             </div>
-            <div className="mx-auto mt-3 flex min-h-11 max-w-[600px] items-center justify-center rounded-xl bg-black/35 px-4 py-2 text-center backdrop-blur-sm" aria-live="polite" data-testid="slot-message">
+            <div className="mx-auto mt-3 flex min-h-11 max-w-[600px] items-center justify-center rounded-xl bg-black/55 px-4 py-2 text-center backdrop-blur-sm" aria-live="polite" data-testid="slot-message">
               <span className={cn('font-display text-lg font-bold uppercase tracking-wider sm:text-xl', winE2 > 0 && (phase === 'wins' || phase === 'done' || phase === 'big-win') ? 'text-white' : 'text-white/90')} style={winE2 > 0 ? { color: look.accent, textShadow: `0 0 18px ${look.accent}` } : undefined}>
                 {message}
               </span>

@@ -4,8 +4,9 @@
  * <SlotDefs />; every symbol is a 100×100 drawing that references them.
  */
 import type { ReactNode } from 'react';
+import type { SlotGameId } from '@/engine/games/slots';
 
-export type SlotTheme = 'lantern-hollow' | 'ember-fruits' | 'sands-of-aurum';
+export type SlotTheme = SlotGameId;
 
 /** Shared gradients (rendered once per page, hidden, by the root layout). */
 export function SlotDefs() {
@@ -55,6 +56,14 @@ export function SlotDefs() {
         {rad('sg-lime', [['0', '#eaffc0'], ['0.6', '#7fd23a'], ['1', '#2f6b0d']])}
         {rad('sg-cherry', [['0', '#ffb3b3'], ['0.55', '#e0202a'], ['1', '#6a0510']])}
         {rad('sg-grape', [['0', '#d9b3ff'], ['0.6', '#7a3fd0'], ['1', '#33105e']])}
+        {lin('sg-ice', [['0', '#ffffff'], ['0.5', '#bfe8ff'], ['1', '#4a8ccf']])}
+        {lin('sg-silver', [['0', '#ffffff'], ['0.5', '#c9d3e0'], ['1', '#6b7a90']])}
+        {lin('sg-coral', [['0', '#ffd0b8'], ['0.5', '#ff7a5c'], ['1', '#a8301a']])}
+        {lin('sg-sea', [['0', '#b8fff0'], ['0.5', '#2ad1c0'], ['1', '#0b5a6a']])}
+        {lin('sg-shell', [['0', '#fff3ea'], ['0.6', '#ffc7a8'], ['1', '#c9785a']])}
+        {rad('sg-pearl', [['0', '#ffffff'], ['0.55', '#f1ecf8'], ['1', '#b9add0']])}
+        {rad('sg-glow-ice', [['0', 'rgb(220 245 255 / 0.85)'], ['1', 'rgb(120 190 255 / 0)']], '50%', '50%')}
+        {rad('sg-glow-sea', [['0', 'rgb(160 255 240 / 0.7)'], ['1', 'rgb(40 180 200 / 0)']], '50%', '50%')}
         {rad('sg-scarab', [['0', '#b8fff2'], ['0.5', '#1fa59a'], ['1', '#0b3d4a']])}
       </defs>
     </svg>
@@ -93,6 +102,8 @@ function WildBanner({ y = 84, fill = 'url(#sg-gold)' }: { y?: number; fill?: str
 const ROYAL_COLOURS: Record<SlotTheme, Record<string, [string, string]>> = {
   'lantern-hollow': { ace: ['url(#sg-purple)', '#2a0b4a'], king: ['url(#sg-green)', '#06331c'], queen: ['url(#sg-red)', '#430709'], jack: ['url(#sg-blue)', '#0a2448'], ten: ['url(#sg-orange)', '#4a1d04'] },
   'ember-fruits': {},
+  'coral-deep': { ace: ['url(#sg-sea)', '#063a40'], king: ['url(#sg-coral)', '#4a1206'], queen: ['url(#sg-purple)', '#2a0b4a'], jack: ['url(#sg-green)', '#06331c'], ten: ['url(#sg-gold)', '#4a2e06'] },
+  'frost-crown': { ace: ['url(#sg-ice)', '#103a66'], king: ['url(#sg-silver)', '#2a3446'], queen: ['url(#sg-purple)', '#2a0b4a'], jack: ['url(#sg-teal)', '#06332f'], ten: ['url(#sg-blue)', '#0a2448'] },
   'sands-of-aurum': { ace: ['url(#sg-turq)', '#082f4d'], king: ['url(#sg-gold)', '#4a2e06'], queen: ['url(#sg-red)', '#430709'], jack: ['url(#sg-teal)', '#06332f'], ten: ['url(#sg-orange)', '#4a1d04'] },
 };
 const ROYAL_TEXT: Record<string, string> = { ace: 'A', king: 'K', queen: 'Q', jack: 'J', ten: '10' };
@@ -366,6 +377,155 @@ const ART: Record<string, ReactNode> = {
       <path d="M50 72 c-6 -22 -18 -36 -32 -40 c-2 18 10 36 32 40z M50 72 c6 -22 18 -36 32 -40 c2 18 -10 36 -32 40z" fill="url(#sg-lotus)" stroke="#9a2a5e" strokeWidth="1.5" />
       <path d="M50 74 c-14 -6 -28 -8 -40 -2 c10 8 26 8 40 2z M50 74 c14 -6 28 -8 40 -2 c-10 8 -26 8 -40 2z" fill="#f7a8cf" stroke="#9a2a5e" strokeWidth="1.2" />
       <circle cx="50" cy="66" r="5" fill="url(#sg-gold)" />
+    </g>
+  ),
+
+  // ── Coral Deep
+  chest: (
+    <g>
+      <circle cx="50" cy="46" r="42" fill="url(#sg-glow-gold)" />
+      <path d="M16 44 c0 -18 14 -26 34 -26 c20 0 34 8 34 26z" fill="url(#sg-wood)" stroke="#2a1606" strokeWidth="2" />
+      <path d="M16 44 h68 v30 h-68z" fill="url(#sg-wood)" stroke="#2a1606" strokeWidth="2" />
+      <path d="M16 44 h68" stroke="url(#sg-gold)" strokeWidth="4" />
+      <path d="M24 22 v52 M76 22 v52" stroke="url(#sg-gold)" strokeWidth="3.5" />
+      <rect x="44" y="40" width="12" height="14" rx="2" fill="url(#sg-gold)" stroke="#6a4510" strokeWidth="1" />
+      <circle cx="34" cy="38" r="4" fill="url(#sg-pearl)" />
+      <circle cx="62" cy="36" r="3.5" fill="url(#sg-pearl)" />
+      <path d="M40 36 l4 -6 l4 6z" fill="#ff5a7a" />
+      <WildBanner />
+    </g>
+  ),
+  pearl: (
+    <g>
+      <circle cx="50" cy="44" r="44" fill="url(#sg-glow-sea)" />
+      <path d="M12 58 c4 -26 22 -38 38 -38 c16 0 34 12 38 38 c-8 6 -24 10 -38 10 c-14 0 -30 -4 -38 -10z" fill="url(#sg-shell)" stroke="#9a4a2e" strokeWidth="1.5" />
+      {[24, 37, 50, 63, 76].map((x) => (
+        <path key={x} d={`M50 24 L${x} 64`} stroke="#c9785a" strokeWidth="1.2" opacity="0.7" />
+      ))}
+      <circle cx="50" cy="56" r="14" fill="url(#sg-pearl)" stroke="#fff" strokeWidth="1" />
+      <circle cx="45" cy="51" r="4" fill="#fff" opacity="0.9" />
+      <text x="50" y="96" textAnchor="middle" fontSize="11" fontWeight="900" letterSpacing="1.5" fill="#e9fffb" stroke="#063a40" strokeWidth="2.5" paintOrder="stroke" fontFamily="Georgia, serif">
+        SCATTER
+      </text>
+    </g>
+  ),
+  turtle: (
+    <g>
+      <path d="M22 40 l-12 -8 l4 14z M78 40 l12 -8 l-4 14z M24 70 l-12 10 l14 -2z M76 70 l12 10 l-14 -2z" fill="url(#sg-green)" stroke="#0b3a20" strokeWidth="1.5" />
+      <ellipse cx="50" cy="55" rx="30" ry="24" fill="url(#sg-green)" stroke="#0b3a20" strokeWidth="2" />
+      <path d="M50 33 l10 10 l-4 14 h-12 l-4 -14z M36 46 l8 -3 l4 14 l-8 8 l-10 -6z M64 46 l-8 -3 l-4 14 l8 8 l10 -6z" fill="#7a5a2a" stroke="#3a2a10" strokeWidth="1.2" opacity="0.85" />
+      <ellipse cx="50" cy="22" rx="10" ry="9" fill="url(#sg-green)" stroke="#0b3a20" strokeWidth="1.5" />
+      <circle cx="46" cy="20" r="2" fill="#0b1a10" />
+      <circle cx="54" cy="20" r="2" fill="#0b1a10" />
+    </g>
+  ),
+  seahorse: (
+    <g>
+      <path d="M56 12 c12 2 16 14 10 22 c-4 6 -12 6 -12 14 c0 8 12 10 12 22 c0 10 -10 18 -20 14 c-6 -2 -6 -10 0 -10 c6 0 8 -6 4 -10 c-8 -8 -18 -14 -14 -30 c2 -10 10 -14 16 -14 l-8 -6z" fill="url(#sg-orange)" stroke="#7a3205" strokeWidth="2" />
+      <path d="M66 22 l14 -2 l-12 6z" fill="url(#sg-orange)" stroke="#7a3205" strokeWidth="1.2" />
+      <circle cx="58" cy="22" r="2.6" fill="#1a0a04" />
+      {[30, 40, 50, 60].map((y) => (
+        <path key={y} d={`M${44 + (y - 30) / 5} ${y} h10`} stroke="#ffd9a8" strokeWidth="1.4" opacity="0.7" />
+      ))}
+      <path d="M40 40 c-8 2 -10 10 -6 14" stroke="#ffb066" strokeWidth="3" fill="none" />
+    </g>
+  ),
+  puffer: (
+    <g>
+      <circle cx="48" cy="52" r="30" fill="url(#sg-lemon)" stroke="#8a7205" strokeWidth="2" />
+      {Array.from({ length: 14 }, (_, i) => {
+        const a = (i * Math.PI * 2) / 14;
+        return <path key={i} d={`M${48 + 30 * Math.cos(a)} ${52 + 30 * Math.sin(a)} l${8 * Math.cos(a)} ${8 * Math.sin(a)}`} stroke="#8a7205" strokeWidth="2.5" strokeLinecap="round" />;
+      })}
+      <path d="M78 52 l14 -10 v20z" fill="url(#sg-orange)" stroke="#7a3205" strokeWidth="1.5" />
+      <circle cx="38" cy="44" r="7" fill="#fff" />
+      <circle cx="37" cy="44" r="3.5" fill="#101418" />
+      <ellipse cx="28" cy="58" rx="4" ry="3" fill="#e05a2a" />
+    </g>
+  ),
+  shell: (
+    <g>
+      <path d="M50 12 c22 0 38 18 38 40 c0 14 -8 26 -14 30 h-48 c-6 -4 -14 -16 -14 -30 c0 -22 16 -40 38 -40z" fill="url(#sg-coral)" stroke="#7a1f0e" strokeWidth="2" />
+      {[-30, -15, 0, 15, 30].map((dx) => (
+        <path key={dx} d={`M50 84 Q${50 + dx * 1.2} 50 ${50 + dx} 14`} stroke="#ffd0b8" strokeWidth="2" fill="none" opacity="0.8" />
+      ))}
+      <path d="M36 82 h28 l-6 8 h-16z" fill="url(#sg-shell)" stroke="#7a1f0e" strokeWidth="1.5" />
+    </g>
+  ),
+
+  // ── Frost Crown
+  crown: (
+    <g>
+      <circle cx="50" cy="44" r="44" fill="url(#sg-glow-ice)" />
+      <path d="M16 66 l-4 -38 l18 16 l20 -26 l20 26 l18 -16 l-4 38z" fill="url(#sg-ice)" stroke="#2a5a8a" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M16 66 h68 v8 h-68z" fill="url(#sg-silver)" stroke="#2a5a8a" strokeWidth="1.5" />
+      {[30, 50, 70].map((x, i) => (
+        <path key={x} d={`M${x} ${i === 1 ? 40 : 48} l5 7 l-5 7 l-5 -7z`} fill={i === 1 ? '#7fd4ff' : '#c8f0ff'} stroke="#2a5a8a" strokeWidth="1" />
+      ))}
+      <circle cx="12" cy="28" r="3" fill="#fff" />
+      <circle cx="50" cy="18" r="3.5" fill="#fff" />
+      <circle cx="88" cy="28" r="3" fill="#fff" />
+      <WildBanner fill="url(#sg-ice)" />
+    </g>
+  ),
+  snowflake: (
+    <g>
+      <circle cx="50" cy="44" r="44" fill="url(#sg-glow-ice)" />
+      {[0, 60, 120].map((a) => (
+        <g key={a} transform={`rotate(${a} 50 44)`}>
+          <path d="M50 10 v68" stroke="url(#sg-ice)" strokeWidth="5" strokeLinecap="round" />
+          <path d="M50 22 l-8 -8 M50 22 l8 -8 M50 66 l-8 8 M50 66 l8 8 M50 32 l-6 -5 M50 32 l6 -5 M50 56 l-6 5 M50 56 l6 5" stroke="#e8f8ff" strokeWidth="3" strokeLinecap="round" />
+        </g>
+      ))}
+      <circle cx="50" cy="44" r="7" fill="#fff" stroke="#7fbfff" strokeWidth="1.5" />
+      <text x="50" y="96" textAnchor="middle" fontSize="11" fontWeight="900" letterSpacing="1.5" fill="#f0fbff" stroke="#103a66" strokeWidth="2.5" paintOrder="stroke" fontFamily="Georgia, serif">
+        SCATTER
+      </text>
+    </g>
+  ),
+  fox: (
+    <g>
+      <path d="M20 14 l14 26 l-10 6z M80 14 l-14 26 l10 6z" fill="url(#sg-silver)" stroke="#5a6a80" strokeWidth="1.5" />
+      <path d="M22 18 l10 20 M78 18 l-10 20" stroke="#ffc7d6" strokeWidth="3" />
+      <path d="M50 88 c-18 -6 -32 -22 -32 -40 c0 -10 6 -14 12 -12 c6 2 12 6 20 6 c8 0 14 -4 20 -6 c6 -2 12 2 12 12 c0 18 -14 34 -32 40z" fill="url(#sg-silver)" stroke="#5a6a80" strokeWidth="2" />
+      <path d="M50 88 c-8 -4 -14 -12 -14 -20 c6 4 10 4 14 4 c4 0 8 0 14 -4 c0 8 -6 16 -14 20z" fill="#ffffff" />
+      <path d="M32 52 q6 -6 12 0 q-6 4 -12 0z M56 52 q6 -6 12 0 q-6 4 -12 0z" fill="#3aa0ff" />
+      <circle cx="38" cy="51" r="1.8" fill="#0b1a2a" />
+      <circle cx="62" cy="51" r="1.8" fill="#0b1a2a" />
+      <path d="M46 70 h8 l-4 5z" fill="#1a2030" />
+    </g>
+  ),
+  'ice-crystal': (
+    <g>
+      <circle cx="50" cy="50" r="40" fill="url(#sg-glow-ice)" />
+      <path d="M50 8 l22 26 l-8 52 h-28 l-8 -52z" fill="url(#sg-ice)" stroke="#2a5a8a" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M50 8 l-8 26 l8 52 l8 -52z" fill="#ffffff" opacity="0.5" />
+      <path d="M28 34 h44 M42 34 l8 52 M58 34 l-8 52" stroke="#2a5a8a" strokeWidth="1" opacity="0.6" />
+      <circle cx="40" cy="24" r="2.5" fill="#fff" />
+    </g>
+  ),
+  'snow-globe': (
+    <g>
+      <circle cx="50" cy="42" r="32" fill="rgb(200 235 255 / 0.25)" stroke="url(#sg-ice)" strokeWidth="3" />
+      <path d="M50 22 l14 22 h-8 l10 14 h-32 l10 -14 h-8z" fill="url(#sg-green)" stroke="#0b3a20" strokeWidth="1.2" />
+      <path d="M22 60 c10 -6 46 -6 56 0 c-6 10 -18 14 -28 14 c-10 0 -22 -4 -28 -14z" fill="#ffffff" />
+      {[[34, 30], [66, 28], [40, 50], [62, 48], [50, 18], [30, 44]].map(([x, y], i) => (
+        <circle key={i} cx={x} cy={y} r="1.6" fill="#fff" />
+      ))}
+      <path d="M24 74 h52 l-6 14 h-40z" fill="url(#sg-wood)" stroke="#2a1606" strokeWidth="1.5" />
+      <path d="M30 80 h40" stroke="url(#sg-gold)" strokeWidth="2" />
+    </g>
+  ),
+  cocoa: (
+    <g>
+      <path d="M38 8 c-6 6 6 10 0 16 M52 6 c-6 6 6 10 0 16 M66 8 c-6 6 6 10 0 16" stroke="#e8f4ff" strokeWidth="2.5" fill="none" opacity="0.8" strokeLinecap="round" />
+      <path d="M20 30 h60 l-6 52 c-1 6 -6 10 -12 10 h-24 c-6 0 -11 -4 -12 -10z" fill="url(#sg-red)" stroke="#5a0a0e" strokeWidth="2" />
+      <path d="M80 42 c14 0 14 26 -4 26" stroke="url(#sg-red)" strokeWidth="6" fill="none" />
+      <ellipse cx="50" cy="32" rx="30" ry="6" fill="#5a2a12" />
+      <circle cx="40" cy="31" r="5" fill="#fff" />
+      <circle cx="52" cy="30" r="5.5" fill="#fff" />
+      <circle cx="62" cy="32" r="4" fill="#ffe0ec" />
+      <path d="M30 56 h40 M32 66 h36" stroke="#ffffff" strokeWidth="3" strokeDasharray="6 5" opacity="0.8" />
     </g>
   ),
 };

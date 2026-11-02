@@ -171,6 +171,26 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
     // Exact largest win 4,813.52×.
     limits: { minStake: 10, maxStake: 100 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
   },
+  'coral-deep': {
+    id: 'coral-deep',
+    categories: ['slots'],
+    addedOn: '2026-11-02',
+    sortOrder: 130,
+    initialStatus: 'ACTIVE',
+    tagline: 'A coral reef on 1,024 ways: treasure-chest wilds and pearls for up to 12 free spins.',
+    // Exact largest win 6,866.31×.
+    limits: { minStake: 10, maxStake: 100 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  'frost-crown': {
+    id: 'frost-crown',
+    categories: ['slots'],
+    addedOn: '2026-11-02',
+    sortOrder: 140,
+    initialStatus: 'ACTIVE',
+    tagline: 'A winter kingdom on 1,024 ways: fewer free spins, but every free-spin win is tripled.',
+    // Exact largest win 6,149.25×.
+    limits: { minStake: 10, maxStake: 100 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
 };
 
 export function catalogEntries(): CatalogEntry[] {
