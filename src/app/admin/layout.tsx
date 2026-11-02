@@ -31,7 +31,9 @@ const NAV: { label: string; items: (NavItem & { permission: Permission })[] }[] 
       { href: '/admin/payments', label: 'Payments', icon: 'ledger', permission: 'payments:read' },
       { href: '/admin/kyc', label: 'Verification', icon: 'security', permission: 'kyc:review' },
       { href: '/admin/support', label: 'Support', icon: 'users', permission: 'support:manage' },
-      { href: '/admin/vip', label: 'VIP tiers', icon: 'analytics', permission: 'admin:access' },
+      { href: '/admin/vip', label: 'VIP & rewards', icon: 'analytics', permission: 'admin:access' },
+      { href: '/admin/tournaments', label: 'Tournaments', icon: 'games', permission: 'admin:access' },
+      { href: '/admin/content', label: 'Content', icon: 'audit', permission: 'admin:access' },
     ],
   },
   {

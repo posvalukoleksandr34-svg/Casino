@@ -6,6 +6,9 @@
 import type { ReactNode } from 'react';
 import type { SlotGameId } from '@/engine/games/slots';
 
+/** Fixed precision: server and browser can differ in the last bits of Math.cos/sin, which breaks hydration. */
+const r2 = (n: number) => n.toFixed(2);
+
 export type SlotTheme = SlotGameId;
 
 /** Shared gradients (rendered once per page, hidden, by the root layout). */
@@ -301,7 +304,7 @@ const ART: Record<string, ReactNode> = {
       <circle cx="50" cy="52" r="24" fill="#e9ffc8" opacity="0.85" />
       {[...Array(8)].map((_, i) => {
         const a = (i * Math.PI) / 4;
-        return <path key={i} d={`M50 52 L${50 + 22 * Math.cos(a)} ${52 + 22 * Math.sin(a)}`} stroke="#7fd23a" strokeWidth="2.5" />;
+        return <path key={i} d={`M50 52 L${r2(50 + 22 * Math.cos(a))} ${r2(52 + 22 * Math.sin(a))}`} stroke="#7fd23a" strokeWidth="2.5" />;
       })}
       <circle cx="50" cy="52" r="3" fill="#7fd23a" />
     </g>
@@ -313,7 +316,7 @@ const ART: Record<string, ReactNode> = {
       <circle cx="50" cy="44" r="44" fill="url(#sg-glow-gold)" />
       {[...Array(12)].map((_, i) => {
         const a = (i * Math.PI) / 6;
-        return <path key={i} d={`M${50 + 24 * Math.cos(a)} ${44 + 24 * Math.sin(a)} L${50 + 38 * Math.cos(a + 0.12)} ${44 + 38 * Math.sin(a + 0.12)} L${50 + 38 * Math.cos(a - 0.12)} ${44 + 38 * Math.sin(a - 0.12)}z`} fill="url(#sg-gold)" />;
+        return <path key={i} d={`M${r2(50 + 24 * Math.cos(a))} ${r2(44 + 24 * Math.sin(a))} L${r2(50 + 38 * Math.cos(a + 0.12))} ${r2(44 + 38 * Math.sin(a + 0.12))} L${r2(50 + 38 * Math.cos(a - 0.12))} ${r2(44 + 38 * Math.sin(a - 0.12))}z`} fill="url(#sg-gold)" />;
       })}
       <circle cx="50" cy="44" r="22" fill="url(#sg-gold)" stroke="#7a4b0e" strokeWidth="2" />
       <circle cx="50" cy="44" r="14" fill="none" stroke="#7a4b0e" strokeWidth="1.5" />
@@ -435,7 +438,7 @@ const ART: Record<string, ReactNode> = {
       <circle cx="48" cy="52" r="30" fill="url(#sg-lemon)" stroke="#8a7205" strokeWidth="2" />
       {Array.from({ length: 14 }, (_, i) => {
         const a = (i * Math.PI * 2) / 14;
-        return <path key={i} d={`M${48 + 30 * Math.cos(a)} ${52 + 30 * Math.sin(a)} l${8 * Math.cos(a)} ${8 * Math.sin(a)}`} stroke="#8a7205" strokeWidth="2.5" strokeLinecap="round" />;
+        return <path key={i} d={`M${r2(48 + 30 * Math.cos(a))} ${r2(52 + 30 * Math.sin(a))} l${r2(8 * Math.cos(a))} ${r2(8 * Math.sin(a))}`} stroke="#8a7205" strokeWidth="2.5" strokeLinecap="round" />;
       })}
       <path d="M78 52 l14 -10 v20z" fill="url(#sg-orange)" stroke="#7a3205" strokeWidth="1.5" />
       <circle cx="38" cy="44" r="7" fill="#fff" />

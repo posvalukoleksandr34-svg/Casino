@@ -138,7 +138,7 @@ export function TicketStaffActions({ id, status, assigned }: { id: string; statu
   );
 }
 
-type Tier = { level: number; name: string; minWagered: number; topUpBonusPct: number; prioritySupport: boolean };
+type Tier = { level: number; name: string; minWagered: number; topUpBonusPct: number; prioritySupport: boolean; cashbackBp: number; levelUpReward: number };
 
 export function VipTierForm({ tier }: { tier: Tier }) {
   const router = useRouter();
@@ -147,6 +147,8 @@ export function VipTierForm({ tier }: { tier: Tier }) {
   const [min, setMin] = useState((tier.minWagered / 100).toFixed(2));
   const [pct, setPct] = useState(String(tier.topUpBonusPct));
   const [priority, setPriority] = useState(tier.prioritySupport);
+  const [cashback, setCashback] = useState((tier.cashbackBp / 100).toFixed(2));
+  const [levelUp, setLevelUp] = useState((tier.levelUpReward / 100).toFixed(2));
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   async function save(e: React.FormEvent) {
@@ -156,6 +158,8 @@ export function VipTierForm({ tier }: { tier: Tier }) {
     if (Math.round(Number(min) * 100) !== tier.minWagered) patch.minWagered = Math.round(Number(min) * 100);
     if (Number(pct) !== tier.topUpBonusPct) patch.topUpBonusPct = Number(pct);
     if (priority !== tier.prioritySupport) patch.prioritySupport = priority;
+    if (Math.round(Number(cashback) * 100) !== tier.cashbackBp) patch.cashbackBp = Math.round(Number(cashback) * 100);
+    if (Math.round(Number(levelUp) * 100) !== tier.levelUpReward) patch.levelUpReward = Math.round(Number(levelUp) * 100);
     if (!Object.keys(patch).length) return toast.push({ tone: 'info', title: 'Nothing changed' });
     setBusy(true);
     try {
@@ -170,10 +174,12 @@ export function VipTierForm({ tier }: { tier: Tier }) {
     }
   }
   return (
-    <form onSubmit={save} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-6">
+    <form onSubmit={save} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <Field label="Name">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
       <Field label="From wagered">{(p) => <Input {...p} inputMode="decimal" value={min} disabled={tier.level === 1} onChange={(e) => setMin(e.target.value)} />}</Field>
       <Field label="Top-up bonus %">{(p) => <Input {...p} inputMode="numeric" value={pct} onChange={(e) => setPct(e.target.value)} />}</Field>
+      <Field label="Weekly cashback %">{(p) => <Input {...p} inputMode="decimal" value={cashback} onChange={(e) => setCashback(e.target.value)} />}</Field>
+      <Field label="Level-up reward">{(p) => <Input {...p} inputMode="decimal" value={levelUp} onChange={(e) => setLevelUp(e.target.value)} />}</Field>
       <label className="flex h-11 items-center gap-2 text-sm text-ink-200">
         <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} className="accent-[var(--color-gold-500)]" />
         Priority support

@@ -1,3 +1,4 @@
+import { AccountTabs } from '@/components/account/account-tabs';
 import { TransactionsTable } from '@/components/account/transactions-table';
 import { Card, CardBody } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
@@ -14,6 +15,7 @@ export default async function TransactionsPage() {
         title="Transaction history"
         subtitle="Every change to your balance is an immutable ledger entry. Wagers are debited when placed; settlements credit any payout. Corrections, if ever needed, appear as separate entries — history is never edited."
       />
+      <AccountTabs />
       <Card>
         <CardBody>
           <TransactionsTable />

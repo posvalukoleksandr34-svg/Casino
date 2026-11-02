@@ -11,13 +11,14 @@ import { useSession } from './session-provider';
 import { NotificationBell } from '../notifications/notification-bell';
 import { Avatar } from '../account/avatar';
 
-/** `wide`: shown in the header from xl only (narrower screens reach them through the menus). */
+/** `wide` / `wider`: shown in the header from xl / 2xl only (narrower screens reach them through the menus). */
 const NAV = [
   { href: '/lobby', label: 'Casino' },
   { href: '/sports', label: 'Sports' },
   { href: '/promotions', label: 'Promotions' },
-  { href: '/leaderboard', label: 'Leaderboard', wide: true },
-  { href: '/fairness', label: 'Fairness', wide: true },
+  { href: '/tournaments', label: 'Tournaments', wide: true },
+  { href: '/leaderboard', label: 'Leaderboard', wider: true },
+  { href: '/fairness', label: 'Fairness', wider: true },
   { href: '/responsible-play', label: 'Responsible play' },
 ];
 
@@ -27,6 +28,7 @@ const ACCOUNT_LINKS = [
   { href: '/notifications', label: 'Notifications' },
   { href: '/account/verification', label: 'Verification' },
   { href: '/vip', label: 'VIP' },
+  { href: '/rewards', label: 'Rewards' },
   { href: '/promotions', label: 'Bonuses' },
   { href: '/wallet/transactions', label: 'Transactions' },
   { href: '/history', label: 'Game history' },
@@ -109,6 +111,7 @@ export function SiteHeader() {
               className={cn(
                 'whitespace-nowrap rounded-xl px-3.5 py-1.5 text-sm transition-[background-color,color,box-shadow] duration-150',
                 'wide' in n && n.wide && 'hidden xl:block',
+                'wider' in n && n.wider && 'hidden 2xl:block',
                 active(n.href) ? 'bg-white/[0.08] text-gold-200 shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_0_0_1px_rgb(199_163_91/0.25)]' : 'text-ink-300 hover:bg-white/[0.05] hover:text-ink-100',
               )}
             >

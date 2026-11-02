@@ -1,3 +1,4 @@
+import { AccountTabs } from '@/components/account/account-tabs';
 import Link from 'next/link';
 import { BonusDashboard } from '@/components/promotions/bonus-dashboard';
 import { PageHeader } from '@/components/ui/misc';
@@ -17,6 +18,7 @@ export default async function PromotionsPage() {
         title="Bonuses & offers"
         subtitle="Bonus credits are virtual, like every credit here: free, never sold, never withdrawable. A bonus is locked until its wagering is met, then it joins your wallet."
       />
+      {session && <AccountTabs />}
       {overview ? (
         <BonusDashboard initial={overview} />
       ) : (

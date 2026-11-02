@@ -15,9 +15,9 @@ export function SiteFooter() {
             <span className="font-semibold text-gold-400">18+</span> Play for entertainment only
           </p>
         </div>
-        <FooterCol title="Play" links={[['/lobby', 'Casino lobby'], ['/sports', 'Sports predictions'], ['/promotions', 'Promotions'], ['/leaderboard', 'Leaderboard'], ['/history', 'Game history'], ['/stats', 'Statistics']]} />
+        <FooterCol title="Play" links={[['/lobby', 'Casino lobby'], ['/sports', 'Sports predictions'], ['/promotions', 'Promotions'], ['/tournaments', 'Tournaments'], ['/vip', 'VIP club'], ['/leaderboard', 'Leaderboard'], ['/history', 'Game history'], ['/stats', 'Statistics']]} />
         <FooterCol title="Transparency" links={[['/rules', 'Rules & odds'], ['/fairness', 'Provably fair'], ['/fairness#verify', 'Verify a round']]} />
-        <FooterCol title="Your account" links={[['/wallet', 'Wallet'], ['/settings', 'Settings & privacy'], ['/responsible-play', 'Responsible play'], ['/help', 'Help & support']]} />
+        <FooterCol title="Your account" links={[['/wallet', 'Wallet'], ['/support', 'Support'], ['/settings', 'Settings & privacy'], ['/responsible-play', 'Responsible play'], ['/help', 'Help & support']]} />
       </div>
       <div className="border-t border-ink-800/70">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-xs text-ink-400 sm:px-6">

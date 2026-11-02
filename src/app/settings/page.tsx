@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { parsePhoneNumberWithError } from 'libphonenumber-js/max';
 import { DetailsForm, EmailSettings } from '@/components/account/account-details';
-import { DataControls, PasswordForm, PreferencesForm } from '@/components/account/settings-forms';
+import { DataControls, PreferencesForm } from '@/components/account/settings-forms';
+import { AccountTabs } from '@/components/account/account-tabs';
+import { Card, CardBody } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
 import { requireUser } from '@/server/auth/current';
 import { phoneRegionOptions, residenceCountries } from '@/server/users/countries';
@@ -29,9 +31,10 @@ export default async function SettingsPage() {
       <PageHeader
         eyebrow="Settings"
         title="Account settings"
-        subtitle="Your e-mail, personal details, security, display preferences and privacy controls."
+        subtitle="Your e-mail, personal details, display preferences and privacy controls."
         actions={<Link href="/responsible-play" className="text-sm text-gold-400 hover:text-gold-300">Play limits →</Link>}
       />
+      <AccountTabs />
       <div className="grid gap-6">
         <EmailSettings email={session.email} verification={details.emailVerificationMethod} initialPending={pending} />
         <DetailsForm
@@ -50,7 +53,14 @@ export default async function SettingsPage() {
           }}
         />
         <PhoneVerify initial={phone} display={details.phoneDisplay} />
-        <PasswordForm />
+        <Card>
+          <CardBody className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm text-ink-300">Password, two-factor authentication, devices and sign-in history are on the Security page.</span>
+            <Link href="/settings/security" className="text-sm font-medium text-gold-400 hover:text-gold-300">
+              Security →
+            </Link>
+          </CardBody>
+        </Card>
         <PreferencesForm />
         <DataControls />
       </div>

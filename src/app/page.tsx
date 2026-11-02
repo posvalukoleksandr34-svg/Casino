@@ -1,3 +1,6 @@
+import { AnnouncementBanner } from '@/components/content/announcement-banner';
+import { activeAnnouncements } from '@/server/content/announcements';
+import { listTournaments } from '@/server/tournaments/tournaments';
 import Link from 'next/link';
 import { GameCover } from '@/components/lobby/game-cover';
 import { GameTile } from '@/components/lobby/game-tile';
@@ -16,7 +19,15 @@ import { getPlatformSettings } from '@/server/risk/risk-service';
 import { rtpText } from '@/lib/format';
 
 export default async function HomePage() {
-  const [session, games, popular, settings] = await Promise.all([pageSession(), listGames(), popularGameIds(7, 8), getPlatformSettings(getDb())]);
+  const [session, games, popular, settings, announcements, tournamentList] = await Promise.all([
+    pageSession(),
+    listGames(),
+    popularGameIds(7, 8),
+    getPlatformSettings(getDb()),
+    activeAnnouncements('HOME'),
+    listTournaments(),
+  ]);
+  const liveTournaments = tournamentList.filter((t) => t.phase === 'RUNNING' || t.phase === 'UPCOMING').slice(0, 3);
   const player = session && !session.onboardingPending ? session : null;
   const [recent, wallet] = player ? await Promise.all([recentlyPlayed(player.userId, 6), getWalletAccount(getDb(), player.userId)]) : [[], undefined];
   const byId = new Map(games.map((g) => [g.id, g]));
@@ -31,6 +42,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-14">
+      <AnnouncementBanner items={announcements} className="-mb-6" />
       {/* Hero */}
       <section className="surface relative overflow-hidden" aria-labelledby="hero-h">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_90%_at_85%_20%,rgb(199_163_91/0.22),transparent_65%),radial-gradient(50%_70%_at_10%_100%,rgb(60_90_200/0.18),transparent_70%)]" aria-hidden="true" />
@@ -154,6 +166,24 @@ export default async function HomePage() {
         <section aria-labelledby="new-h">
           <RowHeader id="new-h" title="New games" href="/lobby?c=new" link="See all new" />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{newIds.slice(0, 10).map(tile)}</div>
+        </section>
+      )}
+
+      {liveTournaments.length > 0 && (
+        <section aria-labelledby="tournaments-h">
+          <RowHeader id="tournaments-h" title="Tournaments" href="/tournaments" link="All tournaments" />
+          <div className="grid gap-3 md:grid-cols-3">
+            {liveTournaments.map((t) => (
+              <Link key={t.id} href={`/tournaments/${t.slug}`} className="surface block p-4 transition-colors hover:border-gold-500/40">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-gold-300">{t.phase === 'RUNNING' ? 'Live now' : 'Upcoming'}</div>
+                <div className="mt-1 font-display text-2xl text-ink-100">{t.name}</div>
+                <p className="mt-1 text-sm text-ink-300">
+                  Prize pool {formatChips(t.prizePool)} · {t.entrants} entrant{t.entrants === 1 ? '' : 's'} · {t.phase === 'RUNNING' ? 'ends' : 'starts'}{' '}
+                  {new Date(t.phase === 'RUNNING' ? t.endsAt : t.startsAt).toLocaleDateString()}
+                </p>
+              </Link>
+            ))}
+          </div>
         </section>
       )}
 

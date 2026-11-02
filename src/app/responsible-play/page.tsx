@@ -1,3 +1,4 @@
+import { AccountTabs } from '@/components/account/account-tabs';
 import Link from 'next/link';
 import { BreakControls, LimitsForm, UsageSummary, type ResponsibleData } from '@/components/account/responsible-forms';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
@@ -31,6 +32,7 @@ export default async function ResponsiblePlayPage() {
         title="Stay in control"
         subtitle="Aurovane uses virtual chips with no monetary value, but gambling-style games can still be habit-forming. These tools are enforced by the server before any wager is accepted."
       />
+      {data && <AccountTabs />}
       <div className="space-y-6">
         {data ? (
           <>

@@ -1,3 +1,15 @@
+import { eq } from 'drizzle-orm';
+import { AddUserNote } from '@/components/admin/user-notes';
+import { listUserNotes } from '@/server/admin/notes';
+import { hasPermission } from '@/server/auth/rbac';
+import { getDb } from '@/server/db/client';
+import { users } from '@/server/db/schema';
+import { openRiskFlagCount } from '@/server/kyc/kyc';
+import { listDeposits } from '@/server/payments/deposits';
+import { listWithdrawals } from '@/server/payments/withdrawals';
+import { bonusOverview } from '@/server/promotions/campaigns';
+import { vipOverview } from '@/server/vip/vip';
+import { walletSummary } from '@/server/wallet/wallet';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
@@ -39,6 +51,18 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
     throw e;
   });
   const self = session.userId === userId;
+  const canKyc = hasPermission(session.role, 'kyc:review');
+  const [notes, wallet, depositRows, withdrawalRows, vip, bonus, flags, [kycRow]] = await Promise.all([
+    listUserNotes(userId),
+    walletSummary(userId),
+    listDeposits(userId, 20),
+    listWithdrawals(userId, 20),
+    vipOverview(userId),
+    bonusOverview(userId),
+    openRiskFlagCount(getDb(), userId),
+    getDb().select({ kyc: users.kycStatus }).from(users).where(eq(users.id, userId)),
+  ]);
+  const kyc = kycRow?.kyc ?? 'NOT_STARTED';
   const t = d.stats.totals;
   return (
     <>
@@ -272,6 +296,84 @@ export default async function AdminUserPage({ params }: { params: Promise<{ user
             ) : (
               <p className="text-ink-400">No limits set.</p>
             )}
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader title="Payments" subtitle="Deposits and withdrawals (sandbox provider)" actions={<Link href="/admin/payments" className="text-xs text-gold-400">Payments →</Link>} />
+          <CardBody className="text-sm">
+            <dl className="grid grid-cols-2 gap-3">
+              <div>
+                <dt className="text-xs text-ink-400">Deposited</dt>
+                <dd>
+                  <Chips amount={wallet.totals.deposited} />
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink-400">Withdrawn (incl. pending)</dt>
+                <dd>
+                  <Chips amount={wallet.totals.withdrawn} />
+                </dd>
+              </div>
+            </dl>
+            <ul className="mt-3 divide-y divide-white/[0.06]">
+              {[...depositRows.slice(0, 5).map((d) => ({ id: d.id, at: d.createdAt, text: `Deposit ${(d.amount / 100).toFixed(2)} · ${d.status.toLowerCase().replace('_', ' ')}` })), ...withdrawalRows.slice(0, 5).map((w) => ({ id: w.id, at: w.requestedAt, text: `Withdrawal ${(w.amount / 100).toFixed(2)} · ${w.status.toLowerCase().replace('_', ' ')}` }))]
+                .sort((a, b) => b.at.localeCompare(a.at))
+                .slice(0, 8)
+                .map((r) => (
+                  <li key={r.id} className="flex justify-between gap-2 py-1.5">
+                    <span className="text-ink-200">{r.text}</span>
+                    <span className="text-xs text-ink-400">{new Date(r.at).toLocaleDateString()}</span>
+                  </li>
+                ))}
+              {depositRows.length + withdrawalRows.length === 0 && <li className="py-1.5 text-ink-400">No payments.</li>}
+            </ul>
+          </CardBody>
+        </Card>
+        <Card>
+          <CardHeader title="Verification, VIP and bonuses" actions={canKyc ? <Link href={`/admin/kyc/${userId}`} className="text-xs text-gold-400">Verification case →</Link> : undefined} />
+          <CardBody className="text-sm">
+            <dl className="grid grid-cols-2 gap-3">
+              <div>
+                <dt className="text-xs text-ink-400">Identity</dt>
+                <dd>
+                  <Badge tone={kyc === 'VERIFIED' ? 'positive' : kyc === 'REJECTED' ? 'negative' : 'neutral'}>{kyc.toLowerCase().replace('_', ' ')}</Badge>
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink-400">Open risk flags</dt>
+                <dd>{flags > 0 ? <Badge tone="negative">{flags}</Badge> : 'none'}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink-400">VIP</dt>
+                <dd>
+                  {vip.current?.name} · {vip.points.toLocaleString()} points
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-ink-400">Active bonus</dt>
+                <dd>{bonus.active ? `${(bonus.active.amount / 100).toFixed(2)} · ${bonus.active.wageringProgress >= bonus.active.wageringRequired ? 'met' : `${((bonus.active.wageringProgress / Math.max(1, bonus.active.wageringRequired)) * 100).toFixed(0)}% wagered`}` : 'none'}</dd>
+              </div>
+            </dl>
+          </CardBody>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader title="Internal notes" subtitle="Staff only, never shown to the player, cannot be edited or deleted." />
+          <CardBody className="space-y-4 text-sm">
+            {notes.length > 0 ? (
+              <ul className="space-y-2" data-testid="user-notes">
+                {notes.map((n) => (
+                  <li key={n.id} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                    <p className="whitespace-pre-wrap text-ink-100">{n.body}</p>
+                    <p className="mt-1 text-xs text-ink-400">
+                      {n.author} · {new Date(n.createdAt).toLocaleString()}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-ink-400">No notes.</p>
+            )}
+            {!self && <AddUserNote userId={userId} />}
           </CardBody>
         </Card>
       </div>

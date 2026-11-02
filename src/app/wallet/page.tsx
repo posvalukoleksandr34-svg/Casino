@@ -1,3 +1,4 @@
+import { AccountTabs } from '@/components/account/account-tabs';
 import Link from 'next/link';
 import { TopUpFlow } from '@/components/account/top-up-flow';
 import { DepositFlow } from '@/components/cashier/deposit-flow';
@@ -54,6 +55,7 @@ export default async function CashierPage() {
             : 'Your one wallet of virtual credits. Credits have no monetary value: they cannot be purchased, withdrawn, transferred or exchanged for anything.'
         }
       />
+      <AccountTabs />
       {mode === 'sandbox' && (
         <Callout tone="info" title="Test mode" className="-mt-2 mb-6" role="status">
           Payments are simulated end to end (checkout, provider confirmation, payout) so the cashier can be tried safely. Nothing is charged to a card or bank account and no card details are ever requested. Live payments stay switched off until an authorised operator has the required licence, provider contract and approvals.

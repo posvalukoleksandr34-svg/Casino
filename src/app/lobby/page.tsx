@@ -1,3 +1,5 @@
+import { AnnouncementBanner } from '@/components/content/announcement-banner';
+import { activeAnnouncements } from '@/server/content/announcements';
 import { LobbyBrowser, type LobbyGame } from '@/components/lobby/lobby-browser';
 import { FeaturedTable } from '@/components/lobby/featured-table';
 import Link from 'next/link';
@@ -11,7 +13,7 @@ import { rtpText } from '@/lib/format';
 export const metadata = { title: 'Game lobby' };
 
 export default async function LobbyPage({ searchParams }: { searchParams: Promise<{ q?: string; c?: string; welcome?: string }> }) {
-  const [all, session, sp] = await Promise.all([listGames(), pageSession(), searchParams]);
+  const [all, session, sp, announcements] = await Promise.all([listGames(), pageSession(), searchParams, activeAnnouncements('LOBBY')]);
   const [favorites, recent] = session ? await Promise.all([listFavorites(session.userId), recentlyPlayed(session.userId)]) : [[], []];
   const games: LobbyGame[] = all.map((g) => ({
     id: g.id,
@@ -36,6 +38,7 @@ export default async function LobbyPage({ searchParams }: { searchParams: Promis
         title="Choose your table"
         subtitle="Every game shows its theoretical return to player (RTP) and table limits. RTP describes the long-run average; individual sessions can differ greatly."
       />
+      <AnnouncementBanner items={announcements} />
       {session && sp.welcome === '1' && (
         <Callout tone="positive" role="status" className="mb-6" title={`Welcome to Aurovane, ${session.displayName ?? session.username}.`}>
           Your profile is complete and your free welcome chips are in your wallet. Chips are virtual and have no monetary value — play for fun, and set limits any time under{' '}

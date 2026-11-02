@@ -7,6 +7,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Callout, Chips, EmptyState, PageHeader, Stat } from '@/components/ui/misc';
 import { Table, Td, Th, Tr } from '@/components/ui/table';
 import { overviewMetrics } from '@/server/admin/overview';
+import { operationsSnapshot } from '@/server/admin/operations';
 import { resolvePeriod } from '@/server/admin/period';
 import { requirePermission } from '@/server/auth/current';
 import { hasPermission } from '@/server/auth/rbac';
@@ -30,7 +31,10 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
     periodError = err instanceof AppError ? err.message : 'Invalid period';
     period = resolvePeriod({ period: '7d' });
   }
-  const m = await overviewMetrics(period);
+  const [m, ops] = await Promise.all([overviewMetrics(period), operationsSnapshot()]);
+  const canPayments = hasPermission(session.role, 'payments:read');
+  const canKyc = hasPermission(session.role, 'kyc:review');
+  const canSupport = hasPermission(session.role, 'support:manage');
   const canUsers = hasPermission(session.role, 'users:read');
   const canRounds = hasPermission(session.role, 'rounds:read');
   const pending = [
@@ -38,6 +42,11 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
     m.system.overdueRounds > 0 && { href: '/admin/rounds?status=OPEN', text: `${m.system.overdueRounds} time-decided round${m.system.overdueRounds === 1 ? '' : 's'} overdue for settlement` },
     m.system.laggingTickets > 0 && { href: '/admin/sports', text: `${m.system.laggingTickets} sports prediction${m.system.laggingTickets === 1 ? '' : 's'} behind their event's result` },
     m.system.lastReconciliation && m.system.lastReconciliation.status !== 'OK' && { href: '/admin/reconciliation', text: `Last reconciliation: ${m.system.lastReconciliation.status.toLowerCase()}` },
+    canPayments && ops.finance.withdrawals.queue > 0 && { href: '/admin/payments', text: `${ops.finance.withdrawals.queue} withdrawal${ops.finance.withdrawals.queue === 1 ? '' : 's'} waiting for review` },
+    canPayments && ops.depositsReview > 0 && { href: '/admin/payments?deposits=UNDER_REVIEW', text: `${ops.depositsReview} deposit${ops.depositsReview === 1 ? '' : 's'} under review` },
+    canKyc && ops.kycQueue > 0 && { href: '/admin/kyc', text: `${ops.kycQueue} identity verification${ops.kycQueue === 1 ? '' : 's'} waiting` },
+    canSupport && ops.openTickets > 0 && { href: '/admin/support', text: `${ops.openTickets} open support ticket${ops.openTickets === 1 ? '' : 's'}${ops.priorityTickets ? ` (${ops.priorityTickets} priority)` : ''}` },
+    canPayments && ops.finance.rejectedWebhooks24h > 0 && { href: '/admin/payments?events=invalid', text: `${ops.finance.rejectedWebhooks24h} rejected payment webhook${ops.finance.rejectedWebhooks24h === 1 ? '' : 's'} in 24 h` },
   ].filter(Boolean) as { href: string; text: string }[];
 
   return (
@@ -48,6 +57,16 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         subtitle="Every figure is computed from recorded accounts, rounds, predictions and ledger entries. Chips are virtual and have no monetary value: “house net” is chip movement, not revenue or profit."
       />
       <PeriodFilter basePath="/admin" params={sp} period={period} />
+      {canPayments && (
+        <section className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-6" aria-label="Cashier and operations" data-testid="ops-summary">
+          <Stat label="Deposits completed" value={<Chips amount={ops.finance.deposits.completed} suffix={false} />} sub={`${ops.depositsByStatus.COMPLETED ?? 0} deposits · all time`} />
+          <Stat label="Deposits failed" value={(ops.depositsByStatus.FAILED ?? 0) + (ops.depositsByStatus.EXPIRED ?? 0)} sub={`${ops.depositsByStatus.PENDING ?? 0} pending · ${ops.depositsReview} under review`} />
+          <Stat label="Withdrawals paid" value={<Chips amount={ops.finance.withdrawals.paid} suffix={false} />} sub={`${ops.withdrawalsByStatus.COMPLETED ?? 0} paid · ${ops.withdrawalsByStatus.REJECTED ?? 0} rejected`} />
+          <Stat label="Withdrawal queue" value={ops.finance.withdrawals.queue} tone={ops.finance.withdrawals.queue ? 'gold' : undefined} sub={`${ops.finance.withdrawals.processing} being paid out`} />
+          <Stat label="Rewards claimed" value={<Chips amount={ops.rewards.claimedTotal} suffix={false} />} sub={`${ops.rewards.claimed} claimed · ${ops.rewards.available} waiting`} />
+          <Stat label="Compliance" value={ops.kycQueue} sub={`verifications waiting · ${ops.openFlags} open risk flag${ops.openFlags === 1 ? '' : 's'}`} />
+        </section>
+      )}
       {periodError && (
         <Callout tone="warning" className="mb-6" title="Showing the last 7 days instead">
           {periodError}

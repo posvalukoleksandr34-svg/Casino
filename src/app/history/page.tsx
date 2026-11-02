@@ -1,3 +1,4 @@
+import { AccountTabs } from '@/components/account/account-tabs';
 import { HistoryTable } from '@/components/account/history-table';
 import { Card, CardBody } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
@@ -11,6 +12,7 @@ export default async function HistoryPage() {
   return (
     <>
       <PageHeader eyebrow="History" title="Game history" subtitle="Every round, its outcome and the provably fair inputs used to produce it. Open a round to verify it." />
+      <AccountTabs />
       <Card>
         <CardBody>
           <HistoryTable games={catalogEntries().map((c) => c.id)} />

@@ -1,3 +1,4 @@
+import { AccountTabs } from '@/components/account/account-tabs';
 import Link from 'next/link';
 import { eq } from 'drizzle-orm';
 import { Avatar } from '@/components/account/avatar';
@@ -20,6 +21,11 @@ import { ACTIVITY_LABELS } from '@/components/account/labels';
 import { accountDetails } from '@/server/users/onboarding';
 import { playerStats } from '@/server/users/stats';
 import { playerLevel } from '@/server/users/levels';
+import { bonusOverview } from '@/server/promotions/campaigns';
+import { listRewards } from '@/server/rewards/rewards';
+import { myTournaments } from '@/server/tournaments/tournaments';
+import { vipOverview } from '@/server/vip/vip';
+import { walletSummary } from '@/server/wallet/wallet';
 
 export const metadata = { title: 'Profile' };
 
@@ -41,6 +47,17 @@ export default async function ProfilePage() {
     accountDetails(session.userId),
     playerLevel(db, session.userId),
   ]);
+  const [summary, vip, bonus, rewardList, joined, [kycRow]] = await Promise.all([
+    walletSummary(session.userId),
+    vipOverview(session.userId),
+    bonusOverview(session.userId),
+    listRewards(session.userId),
+    myTournaments(session.userId),
+    db.select({ kyc: users.kycStatus }).from(users).where(eq(users.id, session.userId)),
+  ]);
+  const kyc = kycRow?.kyc ?? 'NOT_STARTED';
+  const readyRewards = rewardList.rewards.filter((r) => r.status === 'AVAILABLE').length;
+  const tournamentsJoined = joined.length;
   const fullName = [details.firstName, details.lastName].filter(Boolean).join(' ');
   const detailsComplete = Boolean(details.firstName && details.lastName && details.dateOfBirth && details.countryCode && details.phoneE164);
   const t = stats.totals;
@@ -53,7 +70,7 @@ export default async function ProfilePage() {
         title={
           <span className="flex items-center gap-4">
             <Avatar avatar={user?.avatar} name={name} className="size-14 text-lg" />
-            <span data-testid="profile-name">{name}</span>
+            <span className="min-w-0 [overflow-wrap:anywhere]" data-testid="profile-name">{name}</span>
           </span>
         }
         subtitle={`${user?.displayName ? `@${session.username} · ` : ''}${session.email}`}
@@ -69,6 +86,74 @@ export default async function ProfilePage() {
           </>
         }
       />
+      <AccountTabs />
+      <section className="surface mb-6 p-5" aria-label="Account summary" data-testid="account-summary">
+        <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Player ID</dt>
+            <dd className="mt-1 break-all font-mono text-xs text-ink-200">{session.userId}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Account status</dt>
+            <dd className="mt-1">
+              <Badge tone={session.status === 'ACTIVE' ? 'positive' : 'warning'}>{session.status.toLowerCase()}</Badge>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Identity</dt>
+            <dd className="mt-1">
+              <Link href="/account/verification">
+                <Badge tone={kyc === 'VERIFIED' ? 'positive' : kyc === 'REJECTED' ? 'negative' : kyc === 'NOT_STARTED' ? 'neutral' : 'info'}>{kyc.toLowerCase().replace('_', ' ')}</Badge>
+              </Link>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">VIP</dt>
+            <dd className="mt-1 text-ink-100">
+              <Link href="/vip" className="hover:text-gold-200">
+                {vip.current?.name ?? '—'}
+              </Link>{' '}
+              <span className="num text-xs text-ink-400">{vip.points.toLocaleString()} points</span>
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">In play · pending withdrawals</dt>
+            <dd className="num mt-1 text-ink-100">
+              <Chips amount={summary.reserved} suffix={false} /> · <Chips amount={summary.pendingWithdrawals} suffix={false} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Deposited · withdrawn</dt>
+            <dd className="num mt-1 text-ink-100">
+              <Chips amount={summary.totals.deposited} suffix={false} /> · <Chips amount={summary.totals.withdrawn} suffix={false} />
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Active bonus</dt>
+            <dd className="mt-1 text-ink-100">
+              {bonus.active ? (
+                <Link href="/promotions" className="hover:text-gold-200">
+                  <Chips amount={bonus.active.amount} suffix={false} /> · {bonus.active.wageringRequired > 0 ? Math.min(100, Math.floor((bonus.active.wageringProgress / bonus.active.wageringRequired) * 100)) : 100}% wagered
+                </Link>
+              ) : (
+                <span className="text-ink-400">None</span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-[11px] uppercase tracking-[0.12em] text-ink-400">Rewards · tournaments</dt>
+            <dd className="mt-1 text-ink-100">
+              <Link href="/rewards" className="hover:text-gold-200">
+                {readyRewards} ready to claim
+              </Link>{' '}
+              ·{' '}
+              <Link href="/tournaments" className="hover:text-gold-200">
+                {tournamentsJoined} joined
+              </Link>
+            </dd>
+          </div>
+        </dl>
+      </section>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Member since" value={user?.createdAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) ?? '—'} />
         <Stat label="Balance" value={<Chips amount={wallet?.balance ?? 0} />} tone="gold" sub="Virtual chips, no monetary value" />
@@ -83,7 +168,7 @@ export default async function ProfilePage() {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="text-lg font-semibold text-ink-100">Level {level.level}</span>
-            <Badge tone="gold">{level.tier}</Badge>
+            <span className="text-xs text-ink-400">play level (cosmetic; your VIP tier is separate)</span>
             <span className="num text-xs text-ink-400">{level.xp.toLocaleString()} XP</span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/[0.07]" role="progressbar" aria-label="Progress to the next level" aria-valuemin={0} aria-valuemax={level.levelSpan} aria-valuenow={level.levelXp}>
