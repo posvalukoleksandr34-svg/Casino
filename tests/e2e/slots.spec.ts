@@ -38,13 +38,14 @@ test.describe('video slots', () => {
     }
     // The spin appears in history.
     await page.goto('/history');
-    await expect(page.getByText('Sands of Aurum').first()).toBeVisible();
+    await expect(page.getByRole('cell', { name: 'Sands of Aurum' }).first()).toBeVisible();
   });
 
   test('a stake above the table limit cannot be sent', async ({ page }) => {
     await registerPlayer(page);
     await page.goto('/games/lantern-hollow');
-    await page.getByLabel('Stake').fill('500');
+    await page.getByRole('textbox', { name: 'Stake' }).fill('500');
+    await expect(page.getByText('Maximum stake is 100.00')).toBeVisible();
     await expect(page.getByTestId('slot-spin')).toBeDisabled();
   });
 });

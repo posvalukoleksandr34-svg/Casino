@@ -275,6 +275,12 @@ copied; every symbol is drawn here as inline SVG.
     against the exact values;
   - e2e: `slots` (2);
   - the audio-profile test now requires the slot cues; the lobby count is 12.
+- **First full e2e run: 45 passed, 2 failed**, both in the new `slots` spec and both
+  locator mistakes in the test, not product faults:
+  - the history check matched a hidden `<option>`;
+  - `getByLabel('Stake')` matched 4 elements.
+
+  After fixing the locators, the slots spec passed (2/2).
 - **Not in this batch:** the slots are not in the platform risk simulator
   (`scripts/sim/risk-model.ts`). That model needs full payout distributions; for slots it
   would need sampling. See Next.
