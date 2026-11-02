@@ -26,6 +26,7 @@ export const HARD_LIMITS = {
 } as const;
 
 export const GAME_CATEGORIES = {
+  slots: 'Video slots',
   table: 'Table games',
   cards: 'Card games',
   instant: 'Instant results',
@@ -139,6 +140,36 @@ export const CATALOG: Partial<Record<GameId, CatalogEntry>> = {
     tagline: 'Higher or lower? Exact odds on every card, cash out after any correct guess.',
     // Multiplier cap 1,000× cashes out automatically.
     limits: { minStake: 10, maxStake: 1_000 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  'lantern-hollow': {
+    id: 'lantern-hollow',
+    categories: ['slots'],
+    addedOn: '2026-11-02',
+    sortOrder: 100,
+    initialStatus: 'ACTIVE',
+    tagline: 'A moonlit 5×4 slot with 1,024 ways, stacked symbols and free spins at double wins.',
+    // Exact largest win 5,533.25× (docs/math/slots.md): 100 chips × that stays under the per-round cap.
+    limits: { minStake: 10, maxStake: 100 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  'ember-fruits': {
+    id: 'ember-fruits',
+    categories: ['slots'],
+    addedOn: '2026-11-02',
+    sortOrder: 110,
+    initialStatus: 'ACTIVE',
+    tagline: 'Classic fruit symbols on blazing reels: 1,024 ways, wild blazes and free spins.',
+    // Exact largest win 5,863.44×.
+    limits: { minStake: 10, maxStake: 100 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
+  },
+  'sands-of-aurum': {
+    id: 'sands-of-aurum',
+    categories: ['slots'],
+    addedOn: '2026-11-02',
+    sortOrder: 120,
+    initialStatus: 'ACTIVE',
+    tagline: 'Desert treasures on 1,024 ways; pyramids award up to 15 free spins at double wins.',
+    // Exact largest win 4,813.52×.
+    limits: { minStake: 10, maxStake: 100 * CHIP, maxPayoutPerRound: 1_000_000 * CHIP, maxGameExposure: 50_000_000 * CHIP },
   },
 };
 

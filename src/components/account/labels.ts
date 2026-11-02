@@ -23,6 +23,9 @@ export const GAME_NAMES: Record<string, string> = {
   keno: 'Keno',
   plinko: 'Plinko',
   hilo: 'Hi-Lo',
+  'lantern-hollow': 'Lantern Hollow',
+  'ember-fruits': 'Ember Fruits',
+  'sands-of-aurum': 'Sands of Aurum',
 };
 
 /** Game status as shown to staff (SUSPENDED is the "maintenance" state). */

@@ -73,6 +73,7 @@ Every game has its own pitches and textures:
 | Keno | draw, land, hit (rising pitch per hit), miss | Draw start; reveal |
 | Plinko | drop, peg (each row), slot, win | Replay of the server's stored path |
 | Hi-Lo | reveal, correct, incorrect, cash-out | First card; each guess or skip; cash-out |
+| Video slots (shared profile `slots`) | spin (loop), stop, scatter, free-spins, win, big-win | Reels turning; each reel stopping; a reel showing a scatter; the free-spins award; a win; a win of 10× or more |
 
 Cues follow the server's answer or the reveal animation; they never run ahead
 of a result. Restoring an open round after a reload is silent: only changes

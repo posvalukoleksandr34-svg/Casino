@@ -18,7 +18,7 @@ test.describe('lobby, new games, profile and sports', () => {
     await page.getByLabel('Search games').fill('no such game');
     await expect(page.getByText('No games match “no such game”')).toBeVisible();
     await page.getByRole('button', { name: 'Clear search and filters' }).click();
-    await expect(grid.locator('article')).toHaveCount(9);
+    await expect(grid.locator('article')).toHaveCount(12);
 
     await page.getByRole('button', { name: 'Add Plinko to favourites' }).click();
     await expect(page.getByRole('button', { name: 'Remove Plinko from favourites' })).toHaveAttribute('aria-pressed', 'true');

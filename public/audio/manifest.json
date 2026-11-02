@@ -231,6 +231,36 @@
       "bytes": 39734,
       "seconds": 0.9,
       "sha256": "b6f8e842b825f670a0ffd24da24574f8e410191ad0c7872e53c649ba3e3af772"
+    },
+    "slots/spin.wav": {
+      "bytes": 59578,
+      "seconds": 1.35,
+      "sha256": "044f07287003a174bb142f3c66a171c849b97b41bf1702d93ee39f9d2c038fcb"
+    },
+    "slots/stop.wav": {
+      "bytes": 7982,
+      "seconds": 0.18,
+      "sha256": "6010239683b05ae9db177adcb001c0301c4deabbe5cf255d2ce31fde6bcb4496"
+    },
+    "slots/scatter.wav": {
+      "bytes": 30914,
+      "seconds": 0.7,
+      "sha256": "8032e437132f1d24e13e7c25da5954e5c86ccabc8922760ba2902a4b4a8c61dd"
+    },
+    "slots/free-spins.wav": {
+      "bytes": 70604,
+      "seconds": 1.6,
+      "sha256": "1ba4bc8b0c2c65446918d740ab40714a2b5ec17cb1b1009959c1e4261de95975"
+    },
+    "slots/win.wav": {
+      "bytes": 35324,
+      "seconds": 0.8,
+      "sha256": "e0c77f4857f6925ceb76fc4220c18ddcdc90934c80809614b431d75b936b2780"
+    },
+    "slots/big-win.wav": {
+      "bytes": 105884,
+      "seconds": 2.4,
+      "sha256": "d24c37058ae91eb6cf97b2d04029498b29138b3309bc8f9d2eafb392cd1c1964"
     }
   }
 }

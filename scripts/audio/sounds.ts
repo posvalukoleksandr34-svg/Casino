@@ -176,6 +176,29 @@ export const SOUNDS: Record<string, () => Buf> = {
   'hilo/correct.wav': () => arpeggio(0.5, [[74, 0, 0.3], [81, 0.08, 0.35]], (len, f) => bell(len, f, 0.12), 0.6),
   'hilo/incorrect.wav': () => finish(filter(tone(0.45, 196, { f1: 140, wave: 'saw', decay: 0.15 }), 'lowpass', 900), 0.4),
   'hilo/cashout.wav': () => coins(0.9, 93, 74),
+
+  // ── Video slots (shared by the three machines): a mechanical reel whirr, a felt-padded stop,
+  // a sparkle for each scatter, a rising fanfare for free spins, coin showers for wins.
+  'slots/spin.wav': () => {
+    // Reels turning: a band of noise with a fast periodic tick; loops seamlessly.
+    const dur = 1.6;
+    const body = filter(filter(noise(dur, 101), 'bandpass', 1400, { q: 0.9 }), 'lowpass', 3200);
+    const ticks = shape(body, (k) => 0.55 + 0.45 * Math.pow(Math.abs(Math.sin(Math.PI * k * dur * 18)), 6));
+    return seamless(ticks, 0.25, 0.38);
+  },
+  'slots/stop.wav': () => finish(mix(0.18, [[thump(0.16, 102, 140, 900), 0, 1], [envelope(filter(noise(0.04, 103), 'bandpass', 2400, { q: 3 }), 0.0005, 0.01), 0.005, 0.35]]), 0.6),
+  'slots/scatter.wav': () => arpeggio(0.7, [[84, 0, 0.35], [91, 0.05, 0.4], [96, 0.1, 0.5]], (len, f) => bell(len, f, 0.15), 0.5),
+  'slots/free-spins.wav': () =>
+    arpeggio(1.6, [[60, 0, 0.5], [64, 0.12, 0.5], [67, 0.24, 0.5], [72, 0.36, 0.6], [76, 0.48, 0.6], [79, 0.6, 0.9]], (len, f) => tone(len, f, { wave: 'triangle', decay: 0.35, partials: [[2, 0.3], [3, 0.1]] }), 0.7),
+  'slots/win.wav': () => finish(mix(0.8, [[coins(0.8, 104, 79, 6), 0, 1], [bell(0.6, NOTE(84), 0.18), 0, 0.35]]), 0.62),
+  'slots/big-win.wav': () =>
+    finish(
+      mix(2.4, [
+        [coins(2.2, 105, 76, 22), 0, 1],
+        [arpeggio(1.4, [[72, 0, 0.5], [76, 0.1, 0.5], [79, 0.2, 0.5], [84, 0.3, 0.9]], (len, f) => tone(len, f, { wave: 'triangle', decay: 0.4, partials: [[2, 0.25]] }), 0.6), 0, 0.8],
+      ]),
+      0.75,
+    ),
 };
 
 /** Renders every catalogue entry. */

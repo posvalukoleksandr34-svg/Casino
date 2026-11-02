@@ -38,5 +38,5 @@ All files use the same format:
 | Channels | Mono |
 | Sample rate | 22,050 Hz |
 
-The longest file (a seamless ambience loop) is about 6 s; the whole set is about 1.6 MiB. A browser downloads
+The longest file (a seamless ambience loop) is about 6 s; the whole set is about 1.9 MiB. A browser downloads
 only the files of the game being played.

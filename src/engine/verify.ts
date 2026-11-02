@@ -12,6 +12,8 @@ import { drawKeno } from './games/keno';
 import { MINES_TILES } from './games/mines';
 import { dropPath, PLINKO_ROWS } from './games/plinko';
 import { pocketColor } from './games/roulette/rules';
+import { SLOT_GAME_IDS, SLOT_MODULES } from './games/slots';
+import { playSlotRound } from './games/slots/engine';
 import { createRandomStream, hashServerSeed, isValidClientSeed, shuffle, type FairnessInput } from './rng/provably-fair';
 
 export interface VerificationResult {
@@ -97,6 +99,26 @@ const verifiers: Record<string, Verifier> = {
     };
   },
 };
+
+// Video slots: the whole round (base spin, then any free spins) from one stream, on the published reels.
+for (const id of SLOT_GAME_IDS) {
+  verifiers[id] = (input) => {
+    const config = SLOT_MODULES[id].defaultConfig;
+    const names = new Map(config.symbols.map((x) => [x.id, x.name]));
+    const r = playSlotRound(config, createRandomStream(input));
+    const rows = [0, 1, 2, 3].map((row) => r.base.grid.map((col) => names.get(col[row]!) ?? col[row]).join(' | ')).join('\n');
+    return {
+      outcome: {
+        stops: r.base.stops,
+        grid: rows,
+        scatters: r.base.scatters,
+        freeSpins: r.freeSpins.map((f) => ({ stops: f.stops, win: (f.winE2 / 100).toFixed(2) })),
+        totalWin: `${(r.totalE2 / 100).toFixed(2)}× the stake`,
+      },
+      description: `Stops ${r.base.stops.join(', ')}${r.freeSpins.length ? ` + ${r.freeSpins.length} free spins` : ''} → ${(r.totalE2 / 100).toFixed(2)}× the stake`,
+    };
+  };
+}
 
 export function registerVerifier(gameId: string, verifier: Verifier): void {
   verifiers[gameId] = verifier;

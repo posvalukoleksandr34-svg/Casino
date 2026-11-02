@@ -96,6 +96,7 @@ Bet payloads per game are defined by the engine schemas, e.g.
 * limbo `{"amount":1000,"targetE2":250}` (target 2.50×)
 * keno `{"amount":1000,"picks":[3,7,19,22,31]}` (1–10 distinct numbers from 1–40)
 * plinko `{"amount":1000,"rows":16,"risk":"high"}` (rows 8/12/16; risk low/medium/high)
+* lantern-hollow, ember-fruits, sands-of-aurum `{"amount":100}` (one stake; the base spin and any free spins settle in the same round)
 * hilo `{"amount":1000}`; actions `{"type":"guess","direction":"higher"|"lower"}`, `{"type":"skip"}`, `{"type":"cashout"}`
 
 A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settledAt, actionCount, state, fairness: {serverSeedHash, clientSeed, nonce, serverSeed|null}}`.

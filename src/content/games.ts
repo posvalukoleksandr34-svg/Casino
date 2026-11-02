@@ -12,6 +12,8 @@ import { limbo as limboModule, limboWinProbability } from '@/engine/games/limbo'
 import { keno as kenoModule, kenoHitProbability, kenoRowRtp, KENO_MAX_PICKS } from '@/engine/games/keno';
 import { plinko as plinkoModule, plinkoKey, plinkoRtp, PLINKO_RISKS, PLINKO_ROWS } from '@/engine/games/plinko';
 import { hilo as hiloModule, hiloMultiplierE4, sequenceLength, successNumerator } from '@/engine/games/hilo';
+import { analyseMachine, type SlotConfig } from '@/engine/games/slots/engine';
+import { SLOT_MODULES, type SlotGameId } from '@/engine/games/slots';
 
 const minesConfig = minesModule.defaultConfig;
 const bjConfig = blackjackModule.defaultConfig;
@@ -81,6 +83,38 @@ const ROULETTE_LABELS: [RouletteBetType, string, string][] = [
   ['dozen', 'Dozen', '12 numbers'],
   ['column', 'Column', '12 numbers'],
 ];
+
+/** Rules, paytable and exact figures for a video slot (shared by all three machines). */
+export function slotContent(id: SlotGameId, short: string, description: string): GameContent {
+  const config: SlotConfig = SLOT_MODULES[id].defaultConfig;
+  const a = analyseMachine(config);
+  const wild = config.symbols.find((x) => x.kind === 'wild')!;
+  const scatter = config.symbols.find((x) => x.kind === 'scatter')!;
+  const fs = config.freeSpins;
+  const way = (e2: number) => `${(e2 / 100).toFixed(2)}×`;
+  return {
+    id,
+    name: SLOT_MODULES[id].name,
+    short,
+    description,
+    rules: [
+      'Five reels show four symbols each. Every reel stops at a uniformly random position of its strip, drawn from your seed pair and nonce; the animation only shows those stops.',
+      `Wins pay "ways": a symbol wins when it appears on reels 1, 2 and 3 (and optionally 4 and 5) in a row from the left, in any row. The win is the paytable value for the length of the run × the number of ways (the product of how many times it shows on each of those reels). Up to 4 × 4 × 4 × 4 × 4 = 1,024 ways.`,
+      `${wild.name} is wild: it appears on reels 2–5 and stands in for every symbol except ${scatter.name}.`,
+      `${scatter.name} anywhere: 3, 4 or 5 of them award ${fs.awards[0]}, ${fs.awards[1]} or ${fs.awards[2]} free spins, played straight away on the same reels with every win × ${fs.multiplier}. Free spins cannot be retriggered.`,
+      'One stake covers the base spin and any free spins. The payout is stake × the total win, rounded down to 0.01 chip, including your stake. There is no autoplay and no way to buy free spins.',
+    ],
+    payoutTable: {
+      columns: ['Symbol', '3 reels (per way)', '4 reels (per way)', '5 reels (per way)'],
+      rows: config.symbols.filter((x) => x.kind === 'high' || x.kind === 'low').map((x) => [x.name, way(x.pays[0]), way(x.pays[1]), way(x.pays[2])]),
+    },
+    math: [
+      `RTP ${(a.rtp * 100).toFixed(3)}% (house edge ${((1 - a.rtp) * 100).toFixed(3)}%), exact: derived from the reel strips by an exact calculation that is checked in the test suite against counting every reel position on smaller machines.`,
+      `A spin wins something ${(a.hitFrequency * 100).toFixed(1)}% of the time; many of those wins are smaller than the stake. Free spins come about once in ${Math.round(1 / a.triggerProbability)} spins and pay ${(a.freeSpinsShare * 100).toFixed(1)}% of the return.`,
+      `The largest possible win is ${(a.maxTotalE2 / 100).toLocaleString('en-US', { maximumFractionDigits: 2 })}× the stake (exact). The standard deviation of one round is ${(Math.sqrt(a.varE2) / 100).toFixed(2)}× the stake: results swing widely, and over time players are expected to lose ${((1 - a.rtp) * 100).toFixed(2)}% of what they stake.`,
+    ],
+  };
+}
 
 export const GAME_CONTENT: Record<string, GameContent> = {
   roulette: {
@@ -340,4 +374,19 @@ export const GAME_CONTENT: Record<string, GameContent> = {
       'A tie loses: the next card has the same rank with chance 1/13 (4 of 52 cards), whatever you guess. Guessing the likelier side is safer per step, but does not change the 99% expected return.',
     ],
   },
+  'lantern-hollow': slotContent(
+    'lantern-hollow',
+    'A moonlit 5×4 slot with 1,024 ways and free spins.',
+    'Owls, ravens, spellbooks and candles on a misty night. The glowing lantern is wild; three or more full moons light up the free spins, where every win is doubled.',
+  ),
+  'ember-fruits': slotContent(
+    'ember-fruits',
+    'Classic fruit symbols on blazing reels.',
+    'Sevens, bells, melons and grapes over a bed of embers. The blaze is wild; three or more stars start the free spins, where every win is doubled.',
+  ),
+  'sands-of-aurum': slotContent(
+    'sands-of-aurum',
+    'Desert treasures on 1,024 ways.',
+    'Golden masks, scarabs, ankhs and lotus flowers under a desert sun. The sun disc is wild; three or more pyramids award up to 15 free spins, where every win is doubled.',
+  ),
 };

@@ -84,7 +84,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe('sound profiles', () => {
   it('give every game its own profile with the required cues', () => {
-    expect(GAME_SOUND_IDS.sort()).toEqual(['blackjack', 'crash', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette']);
+    expect(GAME_SOUND_IDS.sort()).toEqual(['blackjack', 'crash', 'dice', 'hilo', 'keno', 'limbo', 'mines', 'plinko', 'roulette', 'slots']);
     const required: Record<string, string[]> = {
       roulette: ['chip-place', 'chip-remove', 'wheel-spin', 'ball-roll', 'pocket-tick', 'win', 'lose', 'result', 'countdown', 'no-more-bets', 'wheel-ambience', 'room'],
       dice: ['roll', 'land', 'result'],
@@ -95,6 +95,8 @@ describe('sound profiles', () => {
       keno: ['draw', 'land', 'hit', 'miss'],
       plinko: ['drop', 'peg', 'slot', 'win'],
       hilo: ['reveal', 'correct', 'incorrect', 'cashout'],
+      // Shared by the three video slots.
+      slots: ['spin', 'stop', 'scatter', 'free-spins', 'win', 'big-win'],
     };
     for (const [game, cues] of Object.entries(required)) {
       expect(profileFor(game)).toBe(game);

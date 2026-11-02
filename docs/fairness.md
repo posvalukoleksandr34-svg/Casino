@@ -81,7 +81,8 @@ Tests: `tests/unit/rng.test.ts` (stream equals Node's HMAC, rejection sampling),
 **Per-game inputs.** Limbo uses the Crash mapping; Keno takes the first 10 of a
 Fisher–Yates shuffle of 1–40; Plinko takes one `int(2)` per row; Hi-Lo draws every card as
 `int(52)` in order (the whole sequence is drawn when the round starts and only turned-over
-cards are sent to the browser). The verifier on `/fairness` recomputes all of them.
+cards are sent to the browser). The video slots draw one `int(strip length)` per reel, reels 1
+to 5, for the base spin and then for each free spin in turn (docs/math/slots.md). The verifier on `/fairness` recomputes all of them.
 
 **Server-side check.** `POST /api/fairness/verify-round` (button "Check this round on the
 server" on a round page) recomputes one of the player's own settled rounds with the same

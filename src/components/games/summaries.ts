@@ -53,6 +53,13 @@ export function summarizeRound(gameId: string, state: unknown, status: string): 
         ? `Wrong guess after ${correct} correct`
         : `Cashed out at ${((s.multiplierE4 as number) / 10_000).toFixed(4)}× after ${correct} correct`;
     }
+    case 'lantern-hollow':
+    case 'ember-fruits':
+    case 'sands-of-aurum': {
+      const total = ((s.totalE2 as number) / 100).toFixed(2);
+      const free = (s.freeSpins as unknown[] | undefined)?.length ?? 0;
+      return `${(s.totalE2 as number) > 0 ? `Won ${total}×` : 'No win'}${free ? ` · ${free} free spins` : ''}`;
+    }
     default:
       return '';
   }

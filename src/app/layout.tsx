@@ -7,6 +7,7 @@ import { SessionProvider, type ClientUser } from '@/components/layout/session-pr
 import { SiteFooter } from '@/components/layout/site-footer';
 import { MobileTabBar } from '@/components/layout/mobile-tab-bar';
 import { SiteHeader } from '@/components/layout/site-header';
+import { SlotDefs } from '@/components/games/slots/symbol-art';
 import { ToastProvider } from '@/components/ui/toast';
 import { hasPermission } from '@/server/auth/rbac';
 import { currentSession } from '@/server/auth/current';
@@ -50,6 +51,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   return (
     <html lang="en" className={reduceMotion ? 'reduce-motion' : undefined}>
       <body className="flex min-h-dvh flex-col antialiased">
+        {/* Shared gradients for the slot symbol art (game screens and lobby covers). */}
+        <SlotDefs />
         <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-lg focus:bg-gold-500 focus:px-4 focus:py-2 focus:text-ink-950">
           Skip to content
         </a>

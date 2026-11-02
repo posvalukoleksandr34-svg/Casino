@@ -7,7 +7,7 @@
  * outcome: games call cues after the server has answered.
  */
 
-export type GameSoundId = 'roulette' | 'dice' | 'mines' | 'crash' | 'blackjack' | 'limbo' | 'keno' | 'plinko' | 'hilo';
+export type GameSoundId = 'roulette' | 'dice' | 'mines' | 'crash' | 'blackjack' | 'limbo' | 'keno' | 'plinko' | 'hilo' | 'slots';
 
 export interface CueSpec {
   /** Path under /audio/. */
@@ -94,6 +94,15 @@ export const SOUND_PROFILES = {
     correct: fx('hilo/correct.wav', 0.7, 150, 1),
     incorrect: fx('hilo/incorrect.wav', 0.65, 300, 1),
     cashout: fx('hilo/cashout.wav', 0.75, 600, 1),
+  },
+  // Shared by every video slot.
+  slots: {
+    spin: effectLoop('slots/spin.wav', 0.35),
+    stop: fx('slots/stop.wav', 0.6, 40, 3),
+    scatter: fx('slots/scatter.wav', 0.6, 80, 2),
+    'free-spins': fx('slots/free-spins.wav', 0.75, 1500, 1),
+    win: fx('slots/win.wav', 0.65, 300, 1),
+    'big-win': fx('slots/big-win.wav', 0.8, 2500, 1),
   },
 } as const satisfies Record<GameSoundId, Record<string, CueSpec>>;
 

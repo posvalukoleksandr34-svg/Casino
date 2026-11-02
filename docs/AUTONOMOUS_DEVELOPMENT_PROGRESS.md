@@ -219,6 +219,66 @@ recorded one only in line endings.
   298 integration and 24 statistical tests, build and `check:bundle` all passed.
   Full Playwright e2e on the same build: 45 passed (9.5 min), none failed.
 
+### 12. Three original video slots (done)
+
+Requested by the user, with a screenshot of a third-party slot as a style reference. I
+built **original** slots in that genre. No third-party game, art, symbol set or name is
+copied; every symbol is drawn here as inline SVG.
+
+- **Engine** (`src/engine/games/slots`):
+  - 5 reels × 4 rows, 1,024 ways, left to right;
+  - wilds on reels 2–5;
+  - 3, 4 or 5 scatters award free spins with every win doubled; no retrigger;
+  - the whole round, free spins included, comes from one provably fair stream and
+    settles once.
+- **Exact maths, no simulation.**
+  - Mean and variance factorise over the independent reels.
+  - The scatter coupling uses per-reel polynomials.
+  - The exact RTP is an integer fraction.
+  - The largest win and the hit frequency come from exact pruned searches.
+  - A unit test checks every figure against brute-force enumeration of every stop
+    combination on small machines.
+  - The configuration schema refuses an RTP of 100% or more, or a largest win above the
+    platform cap.
+- **Machines** (exact figures in `docs/math/slots.md`):
+
+  | Machine | RTP | Free spins awarded | Largest win |
+  |---|---|---|---|
+  | Lantern Hollow (moonlit night) | 96.449% | 1 in 159 | 5,533× |
+  | Ember Fruits (classic fruits) | 96.185% | 1 in 180 | 5,863× |
+  | Sands of Aurum (desert treasures) | 96.137% | 1 in 140 | 4,814× |
+
+  Stakes are 0.10–100 chips. 100 chips × the largest win stays under the per-round cap.
+- **Screen:**
+  - themed stage with a title, scenery and a gold reel frame;
+  - reels that scroll through their real strips and stop one after another with a
+    bounce;
+  - winning cells glow and the rest dim, with a list of wins;
+  - a free-spins intro, a counter and a running total;
+  - BIG, MEGA and EPIC win screens (10×, 25× and 50× the stake);
+  - turbo, skip, and reduced-motion support;
+  - six new synthesised sounds.
+- **Not implemented, on purpose.** There is no autoplay and no "buy free spins": both push
+  play volume, against Aurovane's responsible-play stance. This is stated on the screen
+  and in the rules.
+- **Everywhere else:**
+  - lobby "Video slots" category with cover art;
+  - rules and paytables generated from the engine;
+  - history rows and a round detail grid;
+  - public verifier, plus the server-side "check this round" (stops compared);
+  - catalog limits; `db:migrate` (bootstrap) adds the games to existing databases.
+- **Tests:**
+  - unit: `slots` (14), including brute-force equivalence;
+  - integration: `slots` (6) — stops replayed from the seed, exact payouts, ledger
+    reconciliation, limits, server and public verification;
+  - statistical: `slots` (12) — uniform stops, and RTP, free-spin rate and hit frequency
+    against the exact values;
+  - e2e: `slots` (2);
+  - the audio-profile test now requires the slot cues; the lobby count is 12.
+- **Not in this batch:** the slots are not in the platform risk simulator
+  (`scripts/sim/risk-model.ts`). That model needs full payout distributions; for slots it
+  would need sampling. See Next.
+
 ## Full verification (after batch 7)
 
 Run on commit `def3337` against a local PostgreSQL 16:
@@ -233,6 +293,10 @@ Run on commit `def3337` against a local PostgreSQL 16:
 - full Playwright e2e: 44 passed (9.4 min), none failed.
 
 ## Next
+
+- Add the slots to the platform risk simulator (sampled distributions).
+- More slot themes reuse the same engine: a new machine needs reel strips and a
+  paytable tuned with `analyseMachine`, plus symbol art.
 
 - Profile page polish.
 - Measure real-device rendering performance (not possible in this environment).

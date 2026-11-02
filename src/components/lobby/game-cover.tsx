@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { symbolGraphic, type SlotTheme } from '../games/slots/symbol-art';
 
 interface Theme {
   /** Background gradient stops (top-left → bottom-right). */
@@ -24,7 +25,25 @@ export const COVER_THEME: Record<string, Theme> = {
   keno: { from: '#0f2c52', to: '#050d1c', glow: 'rgb(255 205 110 / 0.3)' },
   plinko: { from: '#4a2a0a', to: '#170b02', glow: 'rgb(255 180 80 / 0.32)' },
   hilo: { from: '#4a1015', to: '#160406', glow: 'rgb(255 140 130 / 0.3)' },
+  'lantern-hollow': { from: '#3a2a8a', to: '#0d0824', glow: 'rgb(255 190 110 / 0.34)' },
+  'ember-fruits': { from: '#9a2a10', to: '#1a0402', glow: 'rgb(255 200 80 / 0.36)' },
+  'sands-of-aurum': { from: '#1f5a96', to: '#07142a', glow: 'rgb(242 201 91 / 0.36)' },
 };
+
+/** A slot cover: a three-symbol reel window with a gold frame. */
+function slotScene(theme: SlotTheme, symbols: [string, string, string]) {
+  return (
+    <g>
+      <rect x="34" y="22" width="132" height="62" rx="9" fill="url(#sg-gold-deep)" />
+      <rect x="38" y="26" width="124" height="54" rx="6" fill="#0b0716" opacity="0.85" />
+      {symbols.map((sym, i) => (
+        <g key={sym} transform={`translate(${42 + i * 40} ${29}) scale(0.48)`}>
+          {symbolGraphic(theme, sym)}
+        </g>
+      ))}
+    </g>
+  );
+}
 
 const FALLBACK: Theme = { from: '#24252c', to: '#0b0c10', glow: 'rgb(199 163 91 / 0.3)' };
 
@@ -44,6 +63,9 @@ function Card({ x, y, rot, rank, suit, red }: { x: number; y: number; rot: numbe
 }
 
 const SCENES: Record<string, ReactNode> = {
+  'lantern-hollow': slotScene('lantern-hollow', ['owl', 'lantern', 'moon']),
+  'ember-fruits': slotScene('ember-fruits', ['cherry', 'seven', 'star']),
+  'sands-of-aurum': slotScene('sands-of-aurum', ['mask', 'sun', 'pyramid']),
   roulette: (
     <g>
       <circle cx="100" cy="66" r="44" fill="#5a2c0c" />

@@ -28,7 +28,8 @@ what the tests exercise.
   (published figures derived exactly), `admin-guards`, `contrast`, `risk-model`,
   `action-timing` (cash-out ordering rule), `independent-rtp` (engine theory vs published
   rules), `safe-next` (post-login redirect), `limbo`, `keno`, `plinko`, `hilo` (tables,
-  exact RTP, strategy bound, hidden card sequence), `catalog` (categories, "new" window,
+  exact RTP, strategy bound, hidden card sequence), `slots` (exact slot maths against
+  brute-force enumeration, the three machines, rounds, validation), `catalog` (categories, "new" window,
   limits), `sports` (price model and its RTP bound, committed demo results, settlement
   and correction maths, provider payload mapping, rate-limit and error sanitising),
   `owner-admin` (permission matrix, rank rules, e-mail masking, TOTP against the RFC 6238
@@ -49,7 +50,8 @@ what the tests exercise.
   (account-state races, void vs payout, bonus claims, cross-user access),
   `auth-hardening` (route-level rate limits, sessions, reset-link invalidation),
   `new-games` (Limbo, Keno, Plinko, Hi-Lo through the round service and HTTP, incl.
-  verifier replay), `lobby` (favourites, recently played), `profile-achievements`
+  verifier replay), `slots` (the three slots through the round service: stops from the seed,
+  exact payouts, limits, server and public verification), `lobby` (favourites, recently played), `profile-achievements`
   (profile validation and audit, idempotent server-awarded badges, server-side round
   verification), `sports` (placement, idempotency, stale/changed odds, limits, settlement,
   void refunded once, credit-only corrections, reconciliation and a ledger tamper test),
@@ -77,8 +79,9 @@ what the tests exercise.
   player is created through the real journey (register → code from the in-memory capture
   mailer → verify → onboarding) by `newPlayer`.
 * **Statistical** (`tests/statistical`): `roulette-dice`, `mines`, `crash`, `blackjack`,
-  `new-games`.
-* **E2E** (`tests/e2e`): `player-journey`, `blackjack`, `security`, `resilience-access`
+  `new-games`, `slots` (uniform stops, RTP, free-spin rate and hit frequency against the exact values).
+* **E2E** (`tests/e2e`): `slots` (a spin on each machine settles with the server's
+  balance, turbo, history), `player-journey`, `blackjack`, `security`, `resilience-access`
   (interrupted request recovery, admin API authorisation, honest states),
   `fairness-admin`, `accessibility`, `mobile`, `expansion` (lobby search and favourites,
   one round of each new game, profile save, a demo sports prediction), `owner-admin`
