@@ -233,7 +233,9 @@ export function RouletteGame({ config, limits, status }: { config: RouletteConfi
         dispatch({ type: 'TABLE_RESULT', slot, result: res.spin.result });
       } catch (err) {
         if (cancelled) return;
-        if (tableNow() < deadline) {
+        // 404 (no commitment for this spin) and 400 will not change on retry: stop at once.
+        const final = err instanceof ApiError && (err.status === 404 || err.status === 400);
+        if (!final && tableNow() < deadline) {
           const retryAfter = err instanceof ApiError && typeof err.details?.retryAfterMs === 'number' ? Math.min(2000, Math.max(100, err.details.retryAfterMs as number)) : 700;
           timer = setTimeout(attempt, retryAfter);
         } else dispatch({ type: 'TABLE_FAILED', slot, now: tableNow() });

@@ -210,6 +210,15 @@ recorded one only in line endings.
 - Verified: build, 334 unit tests (including the contrast test), lint; e2e mobile
   and accessibility specs, 8 passed.
 
+### 11. Roulette client: no pointless retries (done)
+
+- When a table spin is refused for good (404: no commitment that predates its close;
+  400: invalid), the roulette page now stops at once instead of retrying every 0.7 s
+  until the deadline. "Not yet", network and server errors still retry.
+- Verified: typecheck, lint, docs/secrets/workflows checks, audio check, 334 unit,
+  298 integration and 24 statistical tests, build and `check:bundle` all passed.
+  The full e2e run was in progress when this was committed.
+
 ## Full verification (after batch 7)
 
 Run on commit `def3337` against a local PostgreSQL 16:
