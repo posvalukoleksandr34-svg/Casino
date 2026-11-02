@@ -196,6 +196,20 @@ recorded one only in line endings.
 - Integration tests: 298 passed. Unit tests: 334 passed.
 - Build; e2e casino-experience and player-journey specs: 11 passed.
 
+### 10. Lighter glass on phones (done)
+
+- Card surfaces (`.surface`) blur their backdrop only on screens 1024px and wider.
+  Cards sit over a smooth, mostly static backdrop, so on phones the blur changed
+  almost nothing visible but cost GPU work on every repaint. The header, the mobile
+  tab bar and menus (`.glass`) keep their blur, because content scrolls beneath them.
+- With `prefers-reduced-transparency: reduce`, cards and menus become solid ink panels
+  without blur.
+- **Honest limit.** I checked the computed styles (no blur at 390px, blur at 1440px)
+  and compared screenshots. I did **not** measure frame rates on real phones: headless
+  Chromium renders in software and would not be representative.
+- Verified: build, 334 unit tests (including the contrast test), lint; e2e mobile
+  and accessibility specs, 8 passed.
+
 ## Full verification (after batch 7)
 
 Run on commit `def3337` against a local PostgreSQL 16:
@@ -212,5 +226,5 @@ Run on commit `def3337` against a local PostgreSQL 16:
 ## Next
 
 - Profile page polish.
-- Review `backdrop-blur` cost on low-end mobile.
+- Measure real-device rendering performance (not possible in this environment).
 - Full verification run (all suites, full e2e), then the final report.
