@@ -26,6 +26,10 @@ const NAV: { label: string; items: (NavItem & { permission: Permission })[] }[] 
     ],
   },
   {
+    label: 'Finance & compliance',
+    items: [{ href: '/admin/payments', label: 'Payments', icon: 'ledger', permission: 'payments:read' }],
+  },
+  {
     label: 'Games',
     items: [
       { href: '/admin/games', label: 'Games', icon: 'games', permission: 'admin:access' },

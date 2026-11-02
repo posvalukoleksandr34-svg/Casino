@@ -126,7 +126,7 @@ export function TopUpFlow({
               </div>
             ))}
           </dl>
-          <p className="text-xs leading-relaxed text-ink-400">Virtual credits have no monetary value: they cannot be bought, sold, withdrawn, transferred or exchanged for anything.</p>
+          <p className="text-xs leading-relaxed text-ink-400">Virtual credits have no monetary value: they cannot be bought with real money, sold, transferred or exchanged for anything.</p>
           {error && (
             <p className="text-sm text-negative" role="alert">
               {error}

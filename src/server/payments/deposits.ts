@@ -62,6 +62,11 @@ async function completedDeposits(db: Executor, userId: string, excludeId?: strin
   return r?.n ?? 0;
 }
 
+/** Deposits requested or received in the last 24 hours and 30 days (what the deposit limits count). */
+export async function depositTotals(db: Executor, userId: string, now = new Date()) {
+  return { deposited24h: await depositedSince(db, userId, new Date(now.getTime() - DAY)), deposited30d: await depositedSince(db, userId, new Date(now.getTime() - 30 * DAY)) };
+}
+
 /** Why a player cannot deposit at all right now (null = allowed). */
 async function depositBlocker(db: Executor, userId: string, now: Date): Promise<string | null> {
   if (paymentsMode() === 'disabled') return 'Payments are not available on this site.';

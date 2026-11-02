@@ -20,7 +20,11 @@ export default function TermsPage() {
         </PolicySection>
         <PolicySection title="2. Virtual chips">
           <ul>
-            <li>Chips are free. They cannot be bought, sold, withdrawn, exchanged for money, goods or services, or transferred between accounts. There are no deposits and no withdrawals.</li>
+            <li>Chips are free. They cannot be bought with real money, sold, exchanged for money, goods or services, or transferred between accounts.</li>
+            <li>
+              Where the cashier offers deposits and withdrawals, they run in a payment sandbox: a simulated provider used for testing. No real money is charged or paid out, no
+              payment details are collected, and the credits involved have no monetary value. Live payment processing is switched off.
+            </li>
             <li>Chips have no monetary value and are not your property; balances may be adjusted to correct errors, and every adjustment is recorded in the ledger.</li>
             <li>No prize, payment or reward of value is ever offered for chips, results or achievements.</li>
           </ul>

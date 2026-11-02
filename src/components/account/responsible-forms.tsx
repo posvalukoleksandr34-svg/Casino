@@ -17,6 +17,8 @@ type Limits = {
   dailyWagerLimit: number | null;
   sessionLimitMinutes: number | null;
   realityCheckMinutes: number | null;
+  dailyDepositLimit: number | null;
+  monthlyDepositLimit: number | null;
 };
 
 export interface ResponsibleData {
@@ -25,13 +27,16 @@ export interface ResponsibleData {
   pendingEffectiveAt: string | null;
   coolOffUntil: string | null;
   selfExcludedUntil: string | null;
-  usage: { wagered24h: number; netLoss24h: number; netLoss7d: number };
+  usage: { wagered24h: number; netLoss24h: number; netLoss7d: number; deposited24h: number; deposited30d: number };
 }
 
-const MONEY_FIELDS: { key: 'dailyLossLimit' | 'weeklyLossLimit' | 'dailyWagerLimit'; label: string; usage: (u: ResponsibleData['usage']) => number }[] = [
+type MoneyKey = 'dailyLossLimit' | 'weeklyLossLimit' | 'dailyWagerLimit' | 'dailyDepositLimit' | 'monthlyDepositLimit';
+const MONEY_FIELDS: { key: MoneyKey; label: string; usage: (u: ResponsibleData['usage']) => number }[] = [
   { key: 'dailyLossLimit', label: '24-hour loss limit', usage: (u) => Math.max(0, u.netLoss24h) },
   { key: 'weeklyLossLimit', label: '7-day loss limit', usage: (u) => Math.max(0, u.netLoss7d) },
   { key: 'dailyWagerLimit', label: '24-hour wagering limit', usage: (u) => u.wagered24h },
+  { key: 'dailyDepositLimit', label: '24-hour deposit limit', usage: (u) => u.deposited24h },
+  { key: 'monthlyDepositLimit', label: '30-day deposit limit', usage: (u) => u.deposited30d },
 ];
 
 export function LimitsForm({ data }: { data: ResponsibleData }) {
@@ -41,6 +46,8 @@ export function LimitsForm({ data }: { data: ResponsibleData }) {
     dailyLossLimit: data.limits.dailyLossLimit ? formatChips(data.limits.dailyLossLimit).replace(/,/g, '') : '',
     weeklyLossLimit: data.limits.weeklyLossLimit ? formatChips(data.limits.weeklyLossLimit).replace(/,/g, '') : '',
     dailyWagerLimit: data.limits.dailyWagerLimit ? formatChips(data.limits.dailyWagerLimit).replace(/,/g, '') : '',
+    dailyDepositLimit: data.limits.dailyDepositLimit ? formatChips(data.limits.dailyDepositLimit).replace(/,/g, '') : '',
+    monthlyDepositLimit: data.limits.monthlyDepositLimit ? formatChips(data.limits.monthlyDepositLimit).replace(/,/g, '') : '',
     sessionLimitMinutes: data.limits.sessionLimitMinutes ? String(data.limits.sessionLimitMinutes) : '',
     realityCheckMinutes: data.limits.realityCheckMinutes ? String(data.limits.realityCheckMinutes) : '',
   }));
@@ -74,11 +81,24 @@ export function LimitsForm({ data }: { data: ResponsibleData }) {
       <CardHeader title="Limits" subtitle="Lower limits apply immediately. Raising or removing a limit takes effect after a 24-hour cooling-off period." />
       <CardBody className="space-y-6">
         <div className="grid gap-5 md:grid-cols-3">
-          {MONEY_FIELDS.map((f) => {
+          {MONEY_FIELDS.slice(0, 3).map((f) => {
             const limit = data.limits[f.key];
             const used = f.usage(data.usage);
             return (
               <Field key={f.key} label={f.label} hint={limit ? `Used ${formatChips(used)} of ${formatChips(limit)}` : 'No limit set'}>
+                {(p) => (
+                  <Input {...p} inputMode="decimal" placeholder="No limit" value={values[f.key]} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
+                )}
+              </Field>
+            );
+          })}
+        </div>
+        <div className="grid gap-5 md:grid-cols-2" data-testid="deposit-limits">
+          {MONEY_FIELDS.slice(3).map((f) => {
+            const limit = data.limits[f.key];
+            const used = f.usage(data.usage);
+            return (
+              <Field key={f.key} label={f.label} hint={limit ? `Deposited ${formatChips(used)} of ${formatChips(limit)}` : 'No personal limit (the site limit still applies)'}>
                 {(p) => (
                   <Input {...p} inputMode="decimal" placeholder="No limit" value={values[f.key]} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} />
                 )}

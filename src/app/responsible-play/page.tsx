@@ -4,6 +4,7 @@ import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/misc';
 import { pageSession } from '@/server/auth/current';
 import { getDb } from '@/server/db/client';
+import { depositTotals } from '@/server/payments/deposits';
 import { getLimits, playTotals } from '@/server/responsible/limits';
 
 export const metadata = { title: 'Responsible play' };
@@ -13,14 +14,14 @@ export default async function ResponsiblePlayPage() {
   let data: ResponsibleData | null = null;
   if (session) {
     const db = getDb();
-    const [limits, usage] = await Promise.all([getLimits(db, session.userId), playTotals(db, session.userId, new Date())]);
+    const [limits, usage, deposited] = await Promise.all([getLimits(db, session.userId), playTotals(db, session.userId, new Date()), depositTotals(db, session.userId)]);
     data = {
       limits: limits.limits,
       pending: limits.pending,
       pendingEffectiveAt: limits.pendingEffectiveAt?.toISOString() ?? null,
       coolOffUntil: limits.coolOffUntil?.toISOString() ?? null,
       selfExcludedUntil: limits.selfExcludedUntil?.toISOString() ?? null,
-      usage,
+      usage: { ...usage, ...deposited },
     };
   }
   return (

@@ -8,8 +8,8 @@ export function SiteFooter() {
         <div>
           <Wordmark />
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-ink-400">
-            A virtual-currency casino built on published rules and verifiable outcomes. Chips have no monetary value and cannot be
-            bought, sold, withdrawn or exchanged.
+            A virtual-currency casino built on published rules and verifiable outcomes. Chips have no monetary value and cannot be bought with
+            real money, sold or exchanged. Deposits and withdrawals in the cashier are sandbox simulations: no real money is charged or paid.
           </p>
           <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-ink-700 px-3 py-1 text-xs text-ink-300">
             <span className="font-semibold text-gold-400">18+</span> Play for entertainment only

@@ -15,6 +15,10 @@ export const TX_LABELS: Record<string, string> = {
   BONUS_CLAIMED: 'Bonus claimed (locked)',
   BONUS_RELEASED: 'Bonus released',
   BONUS_FORFEITED: 'Bonus forfeited',
+  DEPOSIT: 'Deposit',
+  WITHDRAWAL_HOLD: 'Withdrawal requested',
+  WITHDRAWAL_PAID: 'Withdrawal paid',
+  WITHDRAWAL_RELEASED: 'Withdrawal returned',
 };
 
 export const GAME_NAMES: Record<string, string> = {
@@ -64,4 +68,11 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   'auth.email_change_requested': 'E-mail change requested',
   'auth.email_change_cancelled': 'E-mail change cancelled',
   'auth.email_changed': 'E-mail address changed',
+  'payment.deposit_created': 'Deposit started',
+  'payment.deposit_cancelled': 'Deposit cancelled',
+  'payment.withdrawal_requested': 'Withdrawal requested',
+  'payment.withdrawal_cancelled': 'Withdrawal cancelled',
+  'kyc.submitted': 'Identity documents submitted',
+  'support.ticket_created': 'Support ticket opened',
+  'notifications.preferences_updated': 'Notification preferences updated',
 };
