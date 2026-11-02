@@ -168,29 +168,35 @@ function challengeKey(): Buffer {
 }
 
 /** Signed, short-lived proof that the password step succeeded for `userId`. */
-export function issueMfaChallenge(userId: string, now = Date.now()): string {
-  const payload = Buffer.from(JSON.stringify({ u: userId, e: now + CHALLENGE_TTL_MS, n: randomBytes(9).toString('base64url') })).toString('base64url');
+export function issueMfaChallenge(userId: string, now = Date.now(), remember = false): string {
+  const payload = Buffer.from(JSON.stringify({ u: userId, e: now + CHALLENGE_TTL_MS, n: randomBytes(9).toString('base64url'), ...(remember ? { r: 1 } : {}) })).toString('base64url');
   const mac = createHmac('sha256', challengeKey()).update(payload).digest('base64url');
   return `${payload}.${mac}`;
 }
 
 export function readMfaChallenge(token: string, now = Date.now()): string | null {
+  return readMfaChallengeData(token, now)?.userId ?? null;
+}
+
+/** The challenge's user and whether "remember me" was chosen at the password step (signed, so it cannot be added later). */
+export function readMfaChallengeData(token: string, now = Date.now()): { userId: string; remember: boolean } | null {
   const [payload, mac] = token.split('.');
   if (!payload || !mac || token.length > 400) return null;
   const expected = createHmac('sha256', challengeKey()).update(payload).digest();
   const given = Buffer.from(mac, 'base64url');
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
   try {
-    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { u?: unknown; e?: unknown };
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { u?: unknown; e?: unknown; r?: unknown };
     if (typeof data.u !== 'string' || typeof data.e !== 'number' || data.e < now) return null;
-    return data.u;
+    return { userId: data.u, remember: data.r === 1 };
   } catch {
     return null;
   }
 }
 
 export async function completeMfaLogin(challenge: string, code: string, meta: Meta) {
-  const userId = readMfaChallenge(challenge);
+  const data = readMfaChallengeData(challenge);
+  const userId = data?.userId;
   if (!userId) throw new AppError('UNAUTHENTICATED', 'The sign-in step expired. Enter your password again.');
   await consume(RATE_LIMITS.mfaUser, userId);
   const result = await withTransaction(async (tx) => {
@@ -201,7 +207,7 @@ export async function completeMfaLogin(challenge: string, code: string, meta: Me
     const now = new Date();
     await tx.update(users).set({ lastLoginAt: now, updatedAt: now }).where(eq(users.id, userId));
     await audit(tx, { actorId: userId, actorType: 'USER', action: 'auth.login', resourceType: 'user', resourceId: userId, ipHash: meta.ipHash, requestId: meta.requestId ?? null, metadata: { mfa: method } });
-    const session = await createSession(tx, userId, { userAgent: meta.userAgent, ipHash: meta.ipHash, mfaVerifiedAt: now });
+    const session = await createSession(tx, userId, { userAgent: meta.userAgent, ipHash: meta.ipHash, mfaVerifiedAt: now, remember: Boolean(data?.remember) && user.role === 'PLAYER' });
     return { user: { id: user.id, email: user.email, username: user.username, role: user.role }, session };
   });
   if (!result) {

@@ -91,7 +91,7 @@ export async function walletSummary(userId: string): Promise<WalletSummary> {
            coalesce((SELECT sum(amount) FROM withdrawals WHERE user_id = ${userId} AND status IN ('REQUESTED', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'PROCESSING')), 0)::text AS pending_wd,
            coalesce((SELECT -sum(amount) FROM e WHERE type IN ('BET_PLACED', 'SPORTS_STAKE')), 0)::text AS wagered,
            coalesce((SELECT sum(amount) FROM e WHERE type IN ('BET_SETTLED', 'SPORTS_SETTLED', 'SPORTS_CORRECTION')), 0)::text AS won,
-           coalesce((SELECT sum(amount) FROM e WHERE type IN ('BONUS_GRANTED', 'BONUS_RELEASED', 'CHIP_GRANT')), 0)::text AS received,
+           coalesce((SELECT sum(amount) FROM e WHERE type IN ('BONUS_GRANTED', 'BONUS_RELEASED', 'CHIP_GRANT', 'REWARD_CREDITED')), 0)::text AS received,
            coalesce((SELECT sum(amount) FROM e WHERE type IN ('ROUND_VOIDED', 'SPORTS_VOIDED')), 0)::text AS refunded,
            coalesce((SELECT sum(amount) FROM e WHERE type = 'ADJUSTMENT'), 0)::text AS adjusted,
            coalesce((SELECT sum(amount) FROM e WHERE type = 'DEPOSIT'), 0)::text AS deposited,

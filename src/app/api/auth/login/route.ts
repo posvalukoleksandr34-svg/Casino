@@ -4,12 +4,13 @@ import { readJson, route, withFlowCookie, withSessionCookie } from '@/server/htt
 import { RATE_LIMITS } from '@/server/http/rate-limit';
 import { login, VerificationRequiredError } from '@/server/users/accounts';
 
-const schema = z.object({ email: z.string().max(254), password: z.string().min(1).max(200) }).strict();
+// `email` accepts an e-mail address or a username (the field name is kept for compatibility).
+const schema = z.object({ email: z.string().max(254), password: z.string().min(1).max(200), remember: z.boolean().optional() }).strict();
 
 export const POST = route({ name: 'auth.login', auth: 'public', rateLimit: [RATE_LIMITS.loginIp] }, async (ctx) => {
   const body = await readJson(ctx.req, schema);
   try {
-    const res = await login(body.email, body.password, { ipHash: ctx.ipHash, userAgent: ctx.userAgent, requestId: ctx.requestId });
+    const res = await login(body.email, body.password, { ipHash: ctx.ipHash, userAgent: ctx.userAgent, requestId: ctx.requestId }, { remember: body.remember });
     return withSessionCookie(NextResponse.json({ user: res.user, onboardingRequired: res.onboardingPending }), res.session.token, res.session.expiresAt);
   } catch (err) {
     // Correct password, unverified e-mail: no session; continue on the verification page.

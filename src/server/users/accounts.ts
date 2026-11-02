@@ -7,7 +7,7 @@
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { randomToken, sha256Hex } from '../crypto';
-import { getDb, pgConstraint, pgErrorCode, withTransaction } from '../db/client';
+import { getDb, pgConstraint, pgErrorCode, withTransaction, type Tx } from '../db/client';
 import {
   auditLogs,
   bonuses,
@@ -17,6 +17,7 @@ import {
   ledgerAccounts,
   passwordResetTokens,
   responsibleLimits,
+  riskFlags,
   seedPairs,
   sessions,
   sportsTickets,
@@ -146,6 +147,7 @@ export async function register(raw: z.input<typeof registerSchema>, meta: Reques
         requestId: meta.requestId ?? null,
         metadata: { termsVersion: TERMS_VERSION, privacyVersion: PRIVACY_VERSION },
       });
+      await flagSharedAddress(tx, user!.id, meta.ipHash, now);
       const issued = await issueSignupChallenge(tx, user!.id, user!.email, now);
       return { user: user!, issued };
     }, { retries: 0 }));
@@ -200,13 +202,22 @@ export class VerificationRequiredError extends AppError {
   }
 }
 
-export async function login(emailRaw: string, password: string, meta: RequestMeta) {
-  const email = emailSchema.safeParse(emailRaw);
+/**
+ * Signs in with an e-mail address or a username. "Remember me" gives players
+ * a 30-day session; staff sessions always keep the short lifetime.
+ */
+export async function login(identifier: string, password: string, meta: RequestMeta, opts: { remember?: boolean } = {}) {
+  const raw = identifier.trim();
   const db = getDb();
-  const [user] = email.success
-    ? await db.select().from(users).where(eq(users.email, email.data))
-    : [];
-  const genericFailure = () => new AppError('UNAUTHENTICATED', 'Incorrect e-mail or password');
+  let user: typeof users.$inferSelect | undefined;
+  if (raw.includes('@')) {
+    const email = emailSchema.safeParse(raw);
+    if (email.success) [user] = await db.select().from(users).where(eq(users.email, email.data));
+  } else if (/^[A-Za-z0-9_.-]{3,32}$/.test(raw)) {
+    [user] = await db.select().from(users).where(sql`lower(${users.username}) = lower(${raw})`);
+  }
+  const remember = opts.remember === true && user?.role === 'PLAYER';
+  const genericFailure = () => new AppError('UNAUTHENTICATED', 'Incorrect e-mail, username or password');
 
   if (!user || !user.passwordHash || user.status === 'DELETED') {
     await dummyVerify(password);
@@ -267,7 +278,7 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
     // The password was right: clear the failure counter, but issue no session until
     // the second factor is proven (completeMfaLogin exchanges the challenge).
     await db.update(users).set({ failedLoginCount: 0, lockedUntil: null, updatedAt: new Date() }).where(eq(users.id, user.id));
-    throw new AppError('MFA_REQUIRED', 'Enter the code from your authenticator app', { challenge: issueMfaChallenge(user.id) });
+    throw new AppError('MFA_REQUIRED', 'Enter the code from your authenticator app', { challenge: issueMfaChallenge(user.id, Date.now(), remember) });
   }
   return withTransaction(async (tx) => {
     const upgrades = needsRehash(user.passwordHash!) ? { passwordHash: await hashPassword(password) } : {};
@@ -284,7 +295,7 @@ export async function login(emailRaw: string, password: string, meta: RequestMet
       ipHash: meta.ipHash,
       requestId: meta.requestId ?? null,
     });
-    const session = await createSession(tx, user.id, meta);
+    const session = await createSession(tx, user.id, { ...meta, remember });
     return {
       user: { id: user.id, email: user.email, username: user.username, role: user.role },
       session,
@@ -659,4 +670,21 @@ export async function userActivity(userId: string, limit = 50) {
 export async function walletAccountId(userId: string): Promise<number | undefined> {
   const [row] = await getDb().select({ id: ledgerAccounts.id }).from(ledgerAccounts).where(eq(ledgerAccounts.userId, userId));
   return row?.id;
+}
+
+/**
+ * Duplicate-account signal: when two or more other accounts were registered
+ * from the same (hashed) network address in the last 30 days, the new account
+ * gets an open MULTIPLE_ACCOUNTS risk flag raised by the system. A shared
+ * address is not proof (households, offices, mobile carriers): the flag only
+ * sends the account's withdrawals to manual review until compliance resolves it.
+ */
+async function flagSharedAddress(tx: Tx, userId: string, ipHash: string | null, now: Date) {
+  if (!ipHash) return;
+  const [r] = await tx.select({ n: sql<number>`count(DISTINCT ${auditLogs.actorId})::int` }).from(auditLogs).where(
+    and(eq(auditLogs.action, 'user.registered'), eq(auditLogs.ipHash, ipHash), sql`${auditLogs.actorId} <> ${userId}`, gt(auditLogs.createdAt, new Date(now.getTime() - 30 * 86_400_000))),
+  );
+  const others = r?.n ?? 0;
+  if (others < 2) return;
+  await tx.insert(riskFlags).values({ userId, kind: 'MULTIPLE_ACCOUNTS', severity: 'MEDIUM', note: `${others} other accounts were registered from the same network address in the last 30 days.`, createdBy: null });
 }

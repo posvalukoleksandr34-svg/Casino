@@ -19,6 +19,7 @@ export const TX_LABELS: Record<string, string> = {
   WITHDRAWAL_HOLD: 'Withdrawal requested',
   WITHDRAWAL_PAID: 'Withdrawal paid',
   WITHDRAWAL_RELEASED: 'Withdrawal returned',
+  REWARD_CREDITED: 'Reward',
 };
 
 export const GAME_NAMES: Record<string, string> = {
@@ -73,6 +74,9 @@ export const ACTIVITY_LABELS: Record<string, string> = {
   'payment.withdrawal_requested': 'Withdrawal requested',
   'payment.withdrawal_cancelled': 'Withdrawal cancelled',
   'kyc.submitted': 'Identity documents submitted',
+  'kyc.document_uploaded': 'Identity document uploaded',
+  'reward.claimed': 'Reward claimed',
+  'tournament.joined': 'Joined a tournament',
   'support.ticket_created': 'Support ticket opened',
   'notifications.preferences_updated': 'Notification preferences updated',
 };

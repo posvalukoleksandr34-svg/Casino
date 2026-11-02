@@ -44,9 +44,14 @@ export interface SessionUser {
   onboardingPending: boolean;
 }
 
-export async function createSession(db: Executor, userId: string, meta: { userAgent?: string | null; ipHash?: string | null; mfaVerifiedAt?: Date | null }) {
+/** "Remember me" (players only): the session lasts 30 days and survives 7 days without activity. */
+export const REMEMBER_DAYS = 30;
+export const REMEMBER_IDLE_DAYS = 7;
+
+export async function createSession(db: Executor, userId: string, meta: { userAgent?: string | null; ipHash?: string | null; mfaVerifiedAt?: Date | null; remember?: boolean }) {
   const token = randomToken(32);
-  const expiresAt = new Date(Date.now() + env().SESSION_ABSOLUTE_HOURS * 3600_000);
+  const remember = meta.remember === true;
+  const expiresAt = new Date(Date.now() + (remember ? REMEMBER_DAYS * 86_400_000 : env().SESSION_ABSOLUTE_HOURS * 3600_000));
   const [row] = await db
     .insert(sessions)
     .values({
@@ -56,6 +61,7 @@ export async function createSession(db: Executor, userId: string, meta: { userAg
       userAgent: meta.userAgent?.slice(0, 300) ?? null,
       ipHash: meta.ipHash ?? null,
       mfaVerifiedAt: meta.mfaVerifiedAt ?? null,
+      remember,
     })
     .returning({ id: sessions.id });
   return { token, sessionId: row!.id, expiresAt };
@@ -71,6 +77,7 @@ export async function resolveSession(token: string | undefined | null): Promise<
       sessionId: sessions.id,
       createdAt: sessions.createdAt,
       lastSeenAt: sessions.lastSeenAt,
+      remember: sessions.remember,
       userId: users.id,
       email: users.email,
       username: users.username,
@@ -90,7 +97,7 @@ export async function resolveSession(token: string | undefined | null): Promise<
   if (!row) return null;
   // Sessions are only issued after verification; refuse any other defensively.
   if (row.status !== 'ACTIVE' || !row.emailVerifiedAt) return null;
-  const idleMs = env().SESSION_IDLE_MINUTES * 60_000;
+  const idleMs = row.remember ? REMEMBER_IDLE_DAYS * 86_400_000 : env().SESSION_IDLE_MINUTES * 60_000;
   if (now.getTime() - row.lastSeenAt.getTime() > idleMs) {
     await db.update(sessions).set({ revokedAt: now }).where(eq(sessions.id, row.sessionId));
     return null;

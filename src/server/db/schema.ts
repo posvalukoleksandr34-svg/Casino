@@ -59,6 +59,7 @@ export const ledgerTxType = pgEnum('ledger_tx_type', [
   'WITHDRAWAL_HOLD',
   'WITHDRAWAL_PAID',
   'WITHDRAWAL_RELEASED',
+  'REWARD_CREDITED',
 ]);
 export const gameStatus = pgEnum('game_status', ['ACTIVE', 'SUSPENDED', 'DISABLED']);
 export const roundStatus = pgEnum('round_status', ['OPEN', 'SETTLED', 'VOIDED']);
@@ -158,6 +159,8 @@ export const sessions = pgTable('sessions', {
   ipHash: text('ip_hash'),
   /** When this session passed the second factor (migration 0008). */
   mfaVerifiedAt: ts('mfa_verified_at'),
+  /** "Remember me": longer absolute and idle lifetime, persistent cookie (migration 0015). */
+  remember: boolean('remember').notNull().default(false),
 });
 
 /** Staff TOTP enrolment (migration 0008). The secret is encrypted with the seed key ring. */
@@ -948,7 +951,6 @@ export const riskFlags = pgTable('risk_flags', {
   severity: text('severity').$type<'LOW' | 'MEDIUM' | 'HIGH'>().notNull(),
   note: text('note').notNull(),
   createdBy: uuid('created_by')
-    .notNull()
     .references(() => users.id),
   createdAt: ts('created_at').notNull().defaultNow(),
   resolvedBy: uuid('resolved_by').references(() => users.id),
@@ -957,7 +959,7 @@ export const riskFlags = pgTable('risk_flags', {
 });
 
 export type TicketCategory = 'ACCOUNT' | 'PAYMENTS' | 'VERIFICATION' | 'BONUSES' | 'GAMES' | 'RESPONSIBLE_PLAY' | 'OTHER';
-export type TicketStatus = 'OPEN' | 'AWAITING_PLAYER' | 'RESOLVED' | 'CLOSED';
+export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'AWAITING_PLAYER' | 'RESOLVED' | 'CLOSED';
 
 export const supportTickets = pgTable('support_tickets', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -1010,5 +1012,130 @@ export const vipTiers = pgTable('vip_tiers', {
   minWagered: money('min_wagered').notNull(),
   topUpBonusPct: integer('top_up_bonus_pct').notNull().default(0),
   prioritySupport: boolean('priority_support').notNull().default(false),
+  /** Weekly cashback, basis points of the previous week's net casino losses (migration 0015). */
+  cashbackBp: integer('cashback_bp').notNull().default(0),
+  /** One-off reward when a player first reaches this tier. */
+  levelUpReward: money('level_up_reward').notNull().default(0),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const vipLevelHistory = pgTable('vip_level_history', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  fromLevel: integer('from_level').notNull(),
+  toLevel: integer('to_level').notNull(),
+  wagered: money('wagered').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const rewardSettings = pgTable('reward_settings', {
+  id: integer('id').primaryKey(),
+  birthdayAmount: money('birthday_amount').notNull(),
+  cashbackMinLoss: money('cashback_min_loss').notNull(),
+  cashbackMax: money('cashback_max').notNull(),
+  rewardExpiryDays: integer('reward_expiry_days').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+});
+
+export type RewardKind = 'CASHBACK' | 'BIRTHDAY' | 'LEVEL_UP' | 'TOURNAMENT';
+
+export const playerRewards = pgTable('player_rewards', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  kind: text('kind').$type<RewardKind>().notNull(),
+  periodKey: text('period_key').notNull(),
+  amount: money('amount').notNull(),
+  description: text('description').notNull(),
+  status: text('status').$type<'AVAILABLE' | 'CLAIMED' | 'EXPIRED'>().notNull().default('AVAILABLE'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  expiresAt: ts('expires_at').notNull(),
+  claimedAt: ts('claimed_at'),
+  ledgerTxId: bigint('ledger_tx_id', { mode: 'number' })
+    .unique()
+    .references(() => ledgerTransactions.id),
+});
+
+export type TournamentMetric = 'BEST_MULTIPLIER' | 'TOP3_MULTIPLIERS';
+
+export const tournaments = pgTable('tournaments', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  slug: text('slug').notNull().unique(),
+  name: text('name').notNull(),
+  description: text('description').notNull(),
+  gameIds: text('game_ids').array().notNull().default([]),
+  metric: text('metric').$type<TournamentMetric>().notNull(),
+  minStake: money('min_stake').notNull(),
+  minVipLevel: integer('min_vip_level').notNull().default(1),
+  startsAt: ts('starts_at').notNull(),
+  endsAt: ts('ends_at').notNull(),
+  prizes: bigint('prizes', { mode: 'number' }).array().notNull(),
+  status: text('status').$type<'SCHEDULED' | 'FINISHED' | 'CANCELLED'>().notNull().default('SCHEDULED'),
+  finalizedAt: ts('finalized_at'),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+});
+
+export const tournamentEntries = pgTable(
+  'tournament_entries',
+  {
+    tournamentId: bigint('tournament_id', { mode: 'number' })
+      .notNull()
+      .references(() => tournaments.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    joinedAt: ts('joined_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.tournamentId, t.userId] })],
+);
+
+export const tournamentResults = pgTable(
+  'tournament_results',
+  {
+    tournamentId: bigint('tournament_id', { mode: 'number' })
+      .notNull()
+      .references(() => tournaments.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    rank: integer('rank').notNull(),
+    score: bigint('score', { mode: 'number' }).notNull(),
+    prize: money('prize').notNull(),
+    rewardId: bigint('reward_id', { mode: 'number' })
+      .unique()
+      .references(() => playerRewards.id),
+  },
+  (t) => [primaryKey({ columns: [t.tournamentId, t.userId] })],
+);
+
+export const siteAnnouncements = pgTable('site_announcements', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  link: text('link'),
+  tone: text('tone').$type<'info' | 'promo' | 'warning'>().notNull(),
+  placement: text('placement').$type<'HOME' | 'LOBBY' | 'ALL'>().notNull(),
+  startsAt: ts('starts_at').notNull().defaultNow(),
+  endsAt: ts('ends_at'),
+  active: boolean('active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdBy: uuid('created_by').references(() => users.id),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const userNotes = pgTable('user_notes', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  authorId: uuid('author_id')
+    .notNull()
+    .references(() => users.id),
+  body: text('body').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
 });

@@ -19,6 +19,7 @@ export function LoginForm() {
   const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(false);
   const [challenge, setChallenge] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +36,7 @@ export function LoginForm() {
     setError(null);
     try {
       if (challenge) await api('/api/auth/login/mfa', { method: 'POST', body: { challenge, code } });
-      else await api('/api/auth/login', { method: 'POST', body: { email, password } });
+      else await api('/api/auth/login', { method: 'POST', body: { email, password, remember } });
       done();
     } catch (err) {
       if (err instanceof ApiError && err.code === 'EMAIL_NOT_VERIFIED') {
@@ -101,12 +102,19 @@ export function LoginForm() {
         </>
       ) : (
         <>
-          <Field label="E-mail">
-            {(p) => <Input {...p} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />}
+          <Field label="E-mail or username">
+            {(p) => <Input {...p} type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} required value={email} onChange={(e) => setEmail(e.target.value)} />}
           </Field>
           <Field label="Password">
             {(p) => <PasswordInput {...p} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />}
           </Field>
+          <label className="flex items-start gap-2 text-sm text-ink-300">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="mt-0.5 accent-[var(--color-gold-500)]" data-testid="remember-me" />
+            <span>
+              Remember me on this device for 30 days
+              <span className="block text-xs text-ink-400">Only on a device you do not share. Staff accounts are never remembered.</span>
+            </span>
+          </label>
           <Button type="submit" variant="primary" size="lg" block loading={busy}>
             Sign in
           </Button>

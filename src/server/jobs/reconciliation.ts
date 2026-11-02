@@ -311,6 +311,22 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
                     AND x.type = CASE WHEN w.status = 'COMPLETED' THEN 'WITHDRAWAL_PAID'::ledger_tx_type ELSE 'WITHDRAWAL_RELEASED'::ledger_tx_type END))`,
   },
   {
+    name: 'rewards_match_ledger',
+    description:
+      "REWARD_CREDITED transactions and claimed rewards correspond one-to-one: same player, promotions −amount, owner's wallet +amount, nothing else",
+    sql: `WITH legs AS (${txLegs(['REWARD_CREDITED'])})
+          SELECT t.id AS transaction_id, p.id AS reward_id, p.status, p.amount::text, l.owner_wallet::text, l.promotions::text
+          FROM (SELECT * FROM ledger_transactions WHERE type = 'REWARD_CREDITED') t
+          LEFT JOIN player_rewards p ON p.ledger_tx_id = t.id
+          LEFT JOIN legs l ON l.tx_id = t.id
+          WHERE p.id IS NULL OR p.status <> 'CLAIMED' OR p.user_id IS DISTINCT FROM t.user_id
+             OR l.owner_wallet <> p.amount OR l.promotions <> -p.amount OR l.owner_legs <> 1 OR l.foreign_legs <> 0 OR l.other_system_legs <> 0
+          UNION ALL
+          SELECT NULL, p.id, p.status, p.amount::text, NULL, NULL FROM player_rewards p
+          WHERE (p.status = 'CLAIMED') <> (p.ledger_tx_id IS NOT NULL)
+             OR (p.ledger_tx_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ledger_transactions x WHERE x.id = p.ledger_tx_id AND x.type = 'REWARD_CREDITED'))`,
+  },
+  {
     name: 'admin_money_movements_audited',
     description:
       "Every balance adjustment (owner's wallet ±x against the adjustments account), every chip grant (owner's wallet +x against promotions) and every house funding after bootstrap was made by an identified staff member and has the matching audited admin action",

@@ -430,6 +430,9 @@ describe('server-side gates while onboarding is pending', () => {
     'live',
     // Payment provider webhooks: server-to-server, authenticated by the provider's signature, not a session.
     'payments/webhooks/[provider]',
+    // Public tournament lobby and standings (read-only; names only for opted-in players).
+    'tournaments',
+    'tournaments/[slug]',
   ]);
 
   it('every other API route answers 403 ONBOARDING_REQUIRED', async () => {

@@ -6,7 +6,7 @@ import { readJson, route } from '@/server/http/handler';
 import { RATE_LIMITS } from '@/server/http/rate-limit';
 import { setTicketStatus } from '@/server/support/tickets';
 
-const schema = z.object({ status: z.enum(['OPEN', 'AWAITING_PLAYER', 'RESOLVED', 'CLOSED']), reason: reasonSchema }).strict();
+const schema = z.object({ status: z.enum(['OPEN', 'IN_PROGRESS', 'AWAITING_PLAYER', 'RESOLVED', 'CLOSED']), reason: reasonSchema }).strict();
 
 export const POST = route<'support:manage', { ticketId: string }>({ name: 'admin.support.status', auth: 'support:manage', rateLimit: [RATE_LIMITS.adminUser] }, async (ctx) => {
   if (!z.uuid().safeParse(ctx.params.ticketId).success) throw errors.notFound('Ticket');

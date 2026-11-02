@@ -19,6 +19,8 @@ import { expireDueBonuses } from '../promotions/campaigns';
 import { expireDeposits } from '../payments/deposits';
 import { settleSandboxPayouts } from '../payments/sandbox-actions';
 import { sendNotificationEmails } from '../notifications/notifications';
+import { runRewardJobs } from '../rewards/rewards';
+import { finalizeTournaments } from '../tournaments/tournaments';
 
 interface Job {
   name: string;
@@ -64,6 +66,9 @@ export function startScheduler(): void {
     { name: 'deposit-expiry', lockId: 7_342_108, intervalMs: 60_000, run: () => expireDeposits() },
     { name: 'sandbox-payouts', lockId: 7_342_109, intervalMs: 30_000, run: () => settleSandboxPayouts() },
     { name: 'notification-mail', lockId: 7_342_110, intervalMs: 30_000, run: () => sendNotificationEmails() },
+    // Rewards: expiry, weekly VIP cashback, birthdays (idempotent per player and period); tournament results.
+    { name: 'rewards', lockId: 7_342_111, intervalMs: 60 * 60_000, run: () => runRewardJobs(), atStart: true },
+    { name: 'tournament-finalize', lockId: 7_342_112, intervalMs: 60_000, run: () => finalizeTournaments() },
     { name: 'roulette-commitments', lockId: 7_342_106, intervalMs: 60 * 60_000, run: () => ensureCommitments(), atStart: true },
   ];
   g.__casinoScheduler = jobs.map((job) => {

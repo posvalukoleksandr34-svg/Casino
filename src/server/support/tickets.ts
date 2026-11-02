@@ -72,7 +72,7 @@ export async function createTicket(userId: string, input: { category: TicketCate
   if (subject.length < 3 || subject.length > 120) throw errors.validation('The subject must be 3–120 characters.');
   const body = cleanBody(input.body);
   const db = getDb();
-  const [open] = await db.select({ n: sql<number>`count(*)::int` }).from(supportTickets).where(and(eq(supportTickets.userId, userId), inArray(supportTickets.status, ['OPEN', 'AWAITING_PLAYER'])));
+  const [open] = await db.select({ n: sql<number>`count(*)::int` }).from(supportTickets).where(and(eq(supportTickets.userId, userId), inArray(supportTickets.status, ['OPEN', 'IN_PROGRESS', 'AWAITING_PLAYER'])));
   if ((open?.n ?? 0) >= MAX_OPEN_TICKETS) throw errors.conflict(`You have ${MAX_OPEN_TICKETS} open tickets. Please continue in one of them.`);
   const [u] = await db.select({ vipLevel: users.vipLevel }).from(users).where(eq(users.id, userId));
   const priority = (await tierFor(db, u?.vipLevel ?? 1))?.prioritySupport ? 'HIGH' : 'NORMAL';
@@ -163,7 +163,7 @@ export async function supportQueue(view: 'open' | 'all' = 'open') {
     .select({ t: supportTickets, username: users.username })
     .from(supportTickets)
     .innerJoin(users, eq(users.id, supportTickets.userId))
-    .where(view === 'open' ? inArray(supportTickets.status, ['OPEN', 'AWAITING_PLAYER']) : undefined)
+    .where(view === 'open' ? inArray(supportTickets.status, ['OPEN', 'IN_PROGRESS', 'AWAITING_PLAYER']) : undefined)
     .orderBy(desc(sql`${supportTickets.priority} = 'HIGH'`), view === 'open' ? asc(supportTickets.updatedAt) : desc(supportTickets.updatedAt))
     .limit(200);
   return rows.map((r) => ({ ...ticketView(r.t), userId: r.t.userId, username: r.username, assignedTo: r.t.assignedTo }));
@@ -193,7 +193,7 @@ export async function staffReply(ctx: AdminCtx, ticketId: string, input: { body:
   });
 }
 
-export async function setTicketStatus(ctx: AdminCtx, ticketId: string, status: Exclude<TicketStatus, 'OPEN'> | 'OPEN', reason: string, now = new Date()) {
+export async function setTicketStatus(ctx: AdminCtx, ticketId: string, status: TicketStatus, reason: string, now = new Date()) {
   return withTransaction(async (tx) => {
     const [t] = await tx.select().from(supportTickets).where(eq(supportTickets.id, ticketId)).for('update');
     if (!t) throw errors.notFound('Ticket');
@@ -207,9 +207,16 @@ export async function setTicketStatus(ctx: AdminCtx, ticketId: string, status: E
 
 export async function assignTicket(ctx: AdminCtx, ticketId: string) {
   return withTransaction(async (tx) => {
-    const [t] = await tx.update(supportTickets).set({ assignedTo: ctx.adminId }).where(eq(supportTickets.id, ticketId)).returning();
-    if (!t) throw errors.notFound('Ticket');
-    await recordAdminAction(tx, { ...ctx, action: 'support.assigned', targetType: 'support_ticket', targetId: t.id, reason: 'Assigned to self' });
+    const [cur] = await tx.select().from(supportTickets).where(eq(supportTickets.id, ticketId)).for('update');
+    if (!cur) throw errors.notFound('Ticket');
+    if (cur.status === 'CLOSED') throw errors.conflict('A closed ticket cannot be assigned.');
+    if (cur.userId === ctx.adminId) throw errors.forbidden('You cannot take your own ticket.');
+    const [t] = await tx
+      .update(supportTickets)
+      .set({ assignedTo: ctx.adminId, status: cur.status === 'OPEN' ? 'IN_PROGRESS' : cur.status, updatedAt: new Date() })
+      .where(eq(supportTickets.id, ticketId))
+      .returning();
+    await recordAdminAction(tx, { ...ctx, action: 'support.assigned', targetType: 'support_ticket', targetId: t!.id, reason: 'Assigned to self', before: { status: cur.status }, after: { status: t!.status } });
     return { ok: true };
   });
 }

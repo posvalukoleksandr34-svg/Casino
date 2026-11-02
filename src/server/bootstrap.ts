@@ -13,6 +13,7 @@ import { catalogEntries } from './games/catalog';
 import { ensureDefaultCampaigns } from './promotions/campaigns';
 import { ensureCashierDefaults } from './payments/config';
 import { ensureVipTiers } from './vip/vip';
+import { ensureRewardSettings } from './rewards/rewards';
 
 const CHIP = 100;
 
@@ -33,6 +34,7 @@ export async function bootstrap(): Promise<void> {
     await ensureDefaultCampaigns(tx);
     await ensureCashierDefaults(tx);
     await ensureVipTiers(tx);
+    await ensureRewardSettings(tx);
 
     await tx
       .insert(platformSettings)

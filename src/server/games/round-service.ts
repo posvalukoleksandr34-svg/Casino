@@ -8,7 +8,7 @@
  * Lock order (deadlock-free): player wallet → round row → seed pair →
  * house bankroll → wagers-in-play → other system accounts.
  */
-import { and, asc, desc, eq, lt, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, lt, lte, sql } from 'drizzle-orm';
 import { GameRuleError, type GameModule, type RiskProfile, type StepResult } from '@/engine/games/types';
 import { getGameModule } from '@/engine/games/registry';
 import { createRandomStream } from '@/engine/rng/provably-fair';
@@ -632,6 +632,17 @@ export async function listRounds(opts: {
   status?: 'OPEN' | 'SETTLED' | 'VOIDED';
   before?: Date;
   limit?: number;
+  /** Rounds started on or after / before these instants. */
+  from?: Date;
+  to?: Date;
+  /** Stake at least / at most (minor units). */
+  minStake?: number;
+  maxStake?: number;
+  /** Payout at least (minor units). */
+  minPayout?: number;
+  /** Settled rounds that paid more than the stake, less than the stake, or exactly the stake. */
+  result?: 'win' | 'loss' | 'push';
+  roundId?: string;
 }): Promise<RoundListItem[]> {
   const db = getDb();
   const conds = [
@@ -639,6 +650,15 @@ export async function listRounds(opts: {
     opts.gameId ? eq(gameRounds.gameId, opts.gameId) : undefined,
     opts.status ? eq(gameRounds.status, opts.status) : undefined,
     opts.before ? lt(gameRounds.startedAt, opts.before) : undefined,
+    opts.from ? gte(gameRounds.startedAt, opts.from) : undefined,
+    opts.to ? lt(gameRounds.startedAt, opts.to) : undefined,
+    opts.minStake !== undefined ? gte(gameRounds.stakeTotal, opts.minStake) : undefined,
+    opts.maxStake !== undefined ? lte(gameRounds.stakeTotal, opts.maxStake) : undefined,
+    opts.minPayout !== undefined ? gte(gameRounds.payoutTotal, opts.minPayout) : undefined,
+    opts.result === 'win' ? and(eq(gameRounds.status, 'SETTLED'), gt(gameRounds.payoutTotal, gameRounds.stakeTotal)) : undefined,
+    opts.result === 'loss' ? and(eq(gameRounds.status, 'SETTLED'), lt(gameRounds.payoutTotal, gameRounds.stakeTotal)) : undefined,
+    opts.result === 'push' ? and(eq(gameRounds.status, 'SETTLED'), eq(gameRounds.payoutTotal, gameRounds.stakeTotal)) : undefined,
+    opts.roundId ? eq(gameRounds.id, opts.roundId) : undefined,
   ].filter((c): c is NonNullable<typeof c> => Boolean(c));
   const rows = await db
     .select()
