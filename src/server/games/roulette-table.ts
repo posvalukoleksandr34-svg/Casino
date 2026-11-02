@@ -45,10 +45,10 @@ async function daySeed(day: string): Promise<{ seed: string; hash: string }> {
   return { seed: decryptSecret(row.serverSeedEnc), hash: row.serverSeedHash };
 }
 
-/** An existing day seed, or null: a spin is only ever revealed from a seed committed beforehand. */
-async function committedSeed(day: string): Promise<{ seed: string; hash: string } | null> {
+/** An existing day seed (with when it was committed), or null. */
+async function committedSeed(day: string): Promise<{ seed: string; hash: string; committedAt: number } | null> {
   const [row] = await getDb().select().from(rouletteTableDays).where(eq(rouletteTableDays.day, day));
-  return row ? { seed: decryptSecret(row.serverSeedEnc), hash: row.serverSeedHash } : null;
+  return row ? { seed: decryptSecret(row.serverSeedEnc), hash: row.serverSeedHash, committedAt: row.createdAt.getTime() } : null;
 }
 
 /** Commits today's and tomorrow's seeds (so every spin's commitment is public before it closes). */
@@ -88,7 +88,10 @@ export async function revealTableSpin(slot: number, now = Date.now()): Promise<T
   }
   if (now - t.closesAt > REVEAL_WINDOW_MS) throw errors.notFound('Table spin');
   const committed = await committedSeed(day);
-  if (!committed) throw errors.notFound('Table spin commitment');
+  // Only from a seed whose commitment existed before betting closed: a seed first
+  // committed after the close (e.g. the first request of the day came late) could
+  // have been chosen knowing the outcome, so those spins are never revealed.
+  if (!committed || committed.committedAt > t.closesAt) throw errors.notFound('Table spin commitment');
   const { seed, hash } = committed;
   const result = tableSpinResult(seed, slot);
   await db.insert(rouletteTableSpins).values({ slot, day, result, closedAt: new Date(t.closesAt) }).onConflictDoNothing();

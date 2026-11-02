@@ -158,6 +158,44 @@ Observed weaknesses, ranked:
   owner-admin, fairness-admin and resilience specs, 22 passed. The updated mobile
   spec then ran with 4 passed.
 
+### 9. Security review: table-spin commitments (done)
+
+I reviewed the server-side changes since `76ccaf0`:
+- the three public roulette table routes (rate limits, input validation);
+- the table service;
+- the migrator checksum change;
+- the start-up checks;
+- `dailyResults` (parameterised SQL, session user only).
+
+**One real defect, now fixed.**
+- **The problem.** A day's seed was created lazily, on the first table request of that
+  day. A spin that closed *before* that moment could still be revealed (within the
+  10-minute window) from a seed committed after its outcome window. That broke the
+  documented promise that every spin's commitment exists before betting closes.
+- **The fix.**
+  - `revealTableSpin` now refuses (404) a spin whose day seed was committed
+    (`created_at`) after the spin closed.
+  - A new `roulette-commitments` background job commits today's and tomorrow's seeds
+    at start-up and every hour, so the commitment is normally in place a day ahead.
+- **Test.** A new integration test covers both an early and a late commitment, and
+  checks that a refused spin records nothing. I confirmed it **fails** on the old code
+  and passes with the fix. The table tests now set up today's commitment as a running
+  server would (before the day began), instead of relying on the late commitment.
+- **Docs.** `docs/fairness.md` and `docs/operations.md` are updated.
+
+**Reviewed, no change needed.**
+- The CHECK constraint already stops spins from being recorded before they close.
+- Day seeds are revealed only after the day has ended.
+- Spectator spins never touch rounds, ledger entries or balances.
+
+**Accepted trade-off.** The migrator accepts a migration that differs from the
+recorded one only in line endings.
+
+**Verified.**
+- Typecheck, lint and docs check.
+- Integration tests: 298 passed. Unit tests: 334 passed.
+- Build; e2e casino-experience and player-journey specs: 11 passed.
+
 ## Full verification (after batch 7)
 
 Run on commit `def3337` against a local PostgreSQL 16:

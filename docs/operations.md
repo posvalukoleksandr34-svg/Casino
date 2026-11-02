@@ -194,7 +194,7 @@ docker compose restart app            # safe: sessions, rounds and jobs live in 
   failures and deadlocks (40001, 40P01) are retried up to 3 times with jittered backoff.
   The whole transaction is re-run, so a retry cannot apply half an effect.
 * Background jobs (expiry every 5 s, reconciliation, anomaly detection, cleanup, sports
-  sync every minute) run in the app process under PostgreSQL advisory locks, so several app
+  sync every minute, roulette table seed commitments at start-up and hourly) run in the app process under PostgreSQL advisory locks, so several app
   instances never run the same job concurrently. Set `BACKGROUND_JOBS=false` to run them
   elsewhere (`npm run job:expire-rounds`, `npm run job:reconcile`, `npm run job:sports-sync`
   from cron).

@@ -103,17 +103,19 @@ not a wager. It moves no chips and creates no round or ledger entry.
   and betting closes 15 s later (`src/engine/games/roulette/table.ts`).
 - **One seed per day.** Each UTC day has a 32-byte server seed (from the
   CSPRNG, encrypted at rest). Its SHA-256 commitment is published by
-  `GET /api/roulette/table` before the day's spins close: today's and
-  tomorrow's are always committed. A slot belongs to the day its betting
-  closes in.
+  `GET /api/roulette/table`. The server commits today's and tomorrow's seeds
+  at start-up and every hour (the `roulette-commitments` job), and on every
+  table request. A slot belongs to the day its betting closes in.
 - **The result.** Slot k's pocket is the first draw of the standard stream
   with `serverSeed = day seed`, `clientSeed = "aurovane-table"` and
   `nonce = k`: `HmacRandomStream(…).nextInt(37)`. This is the same mapping
   a player round uses for its pocket.
 - **When it is revealed.** `GET /api/roulette/table/spins/:slot` answers only
-  after betting for that slot has closed, and only from a seed that was
-  committed beforehand. The spin is then recorded, append-only, in
-  `roulette_table_spins`.
+  after betting for that slot has closed, and only from a seed whose
+  commitment was recorded (`roulette_table_days.created_at`) before that
+  slot's betting closed. A spin that closed before its day's seed was
+  committed (for example, while the server was down) is never revealed. The
+  spin is then recorded, append-only, in `roulette_table_spins`.
 - **Checking it.** After the day ends, `GET /api/roulette/table/days/:day`
   reveals the seed. Check that `SHA-256(seed)` equals the commitment, then
   recompute any slot's result.
