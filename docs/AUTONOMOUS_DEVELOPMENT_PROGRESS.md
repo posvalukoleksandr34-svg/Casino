@@ -281,6 +281,11 @@ copied; every symbol is drawn here as inline SVG.
   - `getByLabel('Stake')` matched 4 elements.
 
   After fixing the locators, the slots spec passed (2/2).
+- **Final verification.**
+  - Typecheck, lint, docs, secrets and workflow checks; audio check (52 files); build;
+    `check:bundle`.
+  - Unit tests: 348 passed. Integration tests: 304 passed. Statistical tests: 36 passed.
+  - Full Playwright e2e rerun: **47 passed (10.0 min), none failed**.
 - **Not in this batch:** the slots are not in the platform risk simulator
   (`scripts/sim/risk-model.ts`). That model needs full payout distributions; for slots it
   would need sampling. See Next.
