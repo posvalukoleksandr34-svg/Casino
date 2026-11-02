@@ -52,8 +52,15 @@ const txLegs = (types: string[]) => `
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'ISSUANCE'), 0) AS issuance,
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'WAGERS_IN_PLAY'), 0) AS escrow,
          coalesce(sum(e.amount) FILTER (WHERE a.type = 'BONUS_LOCKED'), 0) AS locked,
-         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE', 'BONUS_LOCKED')) AS other_system_legs,
-         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE')) AS non_bonus_system_legs
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'PENDING_WITHDRAWALS'), 0) AS pending_wd,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'PAYMENT_CLEARING'), 0) AS clearing,
+         coalesce(sum(e.amount) FILTER (WHERE a.type = 'PAYMENT_FEES'), 0) AS payment_fees,
+         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE', 'BONUS_LOCKED',
+                                             'PENDING_WITHDRAWALS', 'PAYMENT_CLEARING', 'PAYMENT_FEES')) AS other_system_legs,
+         count(e.id) FILTER (WHERE a.type IN ('WAGERS_IN_PLAY', 'SPORTS_IN_PLAY', 'HOUSE_BANKROLL', 'ADJUSTMENTS', 'ISSUANCE',
+                                             'PENDING_WITHDRAWALS', 'PAYMENT_CLEARING', 'PAYMENT_FEES')) AS non_bonus_system_legs,
+         count(e.id) FILTER (WHERE NOT ((a.type = 'PLAYER_WALLET' AND a.user_id = t.user_id)
+                                        OR a.type IN ('PENDING_WITHDRAWALS', 'PAYMENT_CLEARING', 'PAYMENT_FEES'))) AS non_payment_legs
   FROM ledger_transactions t
   LEFT JOIN ledger_entries e ON e.transaction_id = t.id
   LEFT JOIN ledger_accounts a ON a.id = e.account_id
@@ -254,6 +261,54 @@ const CHECKS: { name: string; description: string; sql: string }[] = [
           WHERE NOT EXISTS (SELECT 1 FROM ledger_transactions g WHERE g.id = c.grant_tx_id AND g.type = 'BONUS_CLAIMED')
              OR (c.close_tx_id IS NOT NULL AND NOT EXISTS (
                   SELECT 1 FROM ledger_transactions x WHERE x.id = c.close_tx_id AND x.type IN ('BONUS_RELEASED', 'BONUS_FORFEITED')))`,
+  },
+  {
+    name: 'pending_withdrawals_match_open',
+    description: 'The pending-withdrawals account equals the total of withdrawals still holding money (requested, under review, approved, processing)',
+    sql: `SELECT a.balance::text AS pending,
+                 coalesce((SELECT sum(amount) FROM withdrawals WHERE status IN ('REQUESTED', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'PROCESSING')), 0)::text AS open_withdrawals
+          FROM ledger_accounts a WHERE a.code = '${SYSTEM_ACCOUNTS.PENDING_WITHDRAWALS.code}'
+            AND a.balance <> coalesce((SELECT sum(amount) FROM withdrawals WHERE status IN ('REQUESTED', 'PENDING', 'UNDER_REVIEW', 'APPROVED', 'PROCESSING')), 0)`,
+  },
+  {
+    name: 'deposits_match_ledger',
+    description:
+      "DEPOSIT transactions and completed deposits correspond one-to-one: same player, clearing −amount, owner's wallet +credited, fees +fee, nothing else",
+    sql: `WITH legs AS (${txLegs(['DEPOSIT'])})
+          SELECT t.id AS transaction_id, d.id AS deposit_id, d.status, d.amount::text, l.owner_wallet::text, l.clearing::text, l.payment_fees::text
+          FROM (SELECT * FROM ledger_transactions WHERE type = 'DEPOSIT') t
+          LEFT JOIN deposits d ON d.ledger_tx_id = t.id
+          LEFT JOIN legs l ON l.tx_id = t.id
+          WHERE d.id IS NULL OR d.status <> 'COMPLETED' OR d.user_id IS DISTINCT FROM t.user_id
+             OR l.clearing <> -d.amount OR l.owner_wallet <> d.credited OR l.payment_fees <> d.fee
+             OR l.pending_wd <> 0 OR l.foreign_legs <> 0 OR l.non_payment_legs <> 0
+          UNION ALL
+          SELECT NULL, d.id, d.status, d.amount::text, NULL, NULL, NULL FROM deposits d
+          WHERE (d.status = 'COMPLETED') <> (d.ledger_tx_id IS NOT NULL)
+             OR (d.ledger_tx_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ledger_transactions x WHERE x.id = d.ledger_tx_id AND x.type = 'DEPOSIT'))`,
+  },
+  {
+    name: 'withdrawals_match_ledger',
+    description:
+      "Each withdrawal has one WITHDRAWAL_HOLD (owner's wallet −amount, pending +amount); a paid one has one WITHDRAWAL_PAID (pending −amount, clearing +payout, fees +fee, no wallet leg); a rejected, cancelled or failed one has one WITHDRAWAL_RELEASED (pending −amount, owner's wallet +amount); an open one has neither; every such transaction belongs to exactly one withdrawal",
+    sql: `WITH legs AS (${txLegs(['WITHDRAWAL_HOLD', 'WITHDRAWAL_PAID', 'WITHDRAWAL_RELEASED'])})
+          SELECT t.id AS transaction_id, t.type::text AS type, w.id AS withdrawal_id, w.status
+          FROM ledger_transactions t
+          LEFT JOIN withdrawals w ON (t.type = 'WITHDRAWAL_HOLD' AND w.hold_tx_id = t.id) OR (t.type <> 'WITHDRAWAL_HOLD' AND w.close_tx_id = t.id)
+          LEFT JOIN legs l ON l.tx_id = t.id
+          WHERE t.type IN ('WITHDRAWAL_HOLD', 'WITHDRAWAL_PAID', 'WITHDRAWAL_RELEASED') AND (
+                w.id IS NULL OR t.user_id IS DISTINCT FROM w.user_id OR l.foreign_legs <> 0 OR l.non_payment_legs <> 0
+             OR (t.type = 'WITHDRAWAL_HOLD' AND (l.owner_wallet <> -w.amount OR l.pending_wd <> w.amount OR l.clearing <> 0 OR l.payment_fees <> 0))
+             OR (t.type = 'WITHDRAWAL_PAID' AND (w.status <> 'COMPLETED' OR l.pending_wd <> -w.amount OR l.clearing <> w.payout
+                  OR l.payment_fees <> w.fee OR l.owner_legs <> 0))
+             OR (t.type = 'WITHDRAWAL_RELEASED' AND (w.status NOT IN ('REJECTED', 'CANCELLED', 'FAILED') OR l.pending_wd <> -w.amount
+                  OR l.owner_wallet <> w.amount OR l.clearing <> 0 OR l.payment_fees <> 0)))
+          UNION ALL
+          SELECT NULL, NULL, w.id, w.status FROM withdrawals w
+          WHERE NOT EXISTS (SELECT 1 FROM ledger_transactions h WHERE h.id = w.hold_tx_id AND h.type = 'WITHDRAWAL_HOLD')
+             OR (w.close_tx_id IS NOT NULL AND NOT EXISTS (
+                  SELECT 1 FROM ledger_transactions x WHERE x.id = w.close_tx_id
+                    AND x.type = CASE WHEN w.status = 'COMPLETED' THEN 'WITHDRAWAL_PAID'::ledger_tx_type ELSE 'WITHDRAWAL_RELEASED'::ledger_tx_type END))`,
   },
   {
     name: 'admin_money_movements_audited',

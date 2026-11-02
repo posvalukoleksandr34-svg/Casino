@@ -44,7 +44,7 @@ export interface UserContext<P> extends BaseContext<P> {
 type Ctx<A extends AuthMode, P> = A extends 'public' | 'optional' ? PublicContext<P> : UserContext<P>;
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-const MAX_BODY_BYTES = 64 * 1024;
+export const MAX_BODY_BYTES = 64 * 1024;
 
 /**
  * Client IP for rate limiting and audit hashing.
@@ -154,7 +154,18 @@ function errorResponse(err: unknown, requestId: string, route: string): NextResp
 export type OnboardingAccess = 'allow';
 
 export function route<A extends AuthMode, P = Record<string, string>>(
-  opts: { name: string; auth: A; rateLimit?: RateLimitRule[]; onboarding?: OnboardingAccess },
+  opts: {
+    name: string;
+    auth: A;
+    rateLimit?: RateLimitRule[];
+    onboarding?: OnboardingAccess;
+    /**
+     * 'signed': a public, server-to-server endpoint authenticated by a provider
+     * signature over the raw body (payment webhooks), not by a session cookie,
+     * so the browser same-origin check does not apply. Only with auth 'public'.
+     */
+    origin?: 'signed';
+  },
   fn: (ctx: Ctx<A, P>) => Promise<unknown>,
 ) {
   return async (req: NextRequest, segment: { params: Promise<P> }): Promise<Response> => {
@@ -166,7 +177,7 @@ export function route<A extends AuthMode, P = Record<string, string>>(
     let response: Response;
     let userId: string | undefined;
     try {
-      if (!SAFE_METHODS.has(req.method)) assertSameOrigin(req);
+      if (!SAFE_METHODS.has(req.method) && !(opts.origin === 'signed' && opts.auth === 'public')) assertSameOrigin(req);
       const params = (await segment?.params) ?? ({} as P);
       let session: SessionUser | null = null;
       if (opts.auth !== 'public') {

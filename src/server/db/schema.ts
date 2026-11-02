@@ -25,7 +25,7 @@ import {
 const money = (name: string) => bigint(name, { mode: 'number' });
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 
-export const userRole = pgEnum('user_role', ['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'AUDITOR', 'ADMIN', 'OWNER']);
+export const userRole = pgEnum('user_role', ['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'AUDITOR', 'ADMIN', 'OWNER', 'FINANCE_MANAGER', 'COMPLIANCE_MANAGER']);
 export const userStatus = pgEnum('user_status', ['ACTIVE', 'SUSPENDED', 'DELETED']);
 export const accountType = pgEnum('account_type', [
   'PLAYER_WALLET',
@@ -36,6 +36,9 @@ export const accountType = pgEnum('account_type', [
   'ADJUSTMENTS',
   'ISSUANCE',
   'BONUS_LOCKED',
+  'PENDING_WITHDRAWALS',
+  'PAYMENT_CLEARING',
+  'PAYMENT_FEES',
 ]);
 export const ledgerTxType = pgEnum('ledger_tx_type', [
   'BET_PLACED',
@@ -52,6 +55,10 @@ export const ledgerTxType = pgEnum('ledger_tx_type', [
   'BONUS_CLAIMED',
   'BONUS_RELEASED',
   'BONUS_FORFEITED',
+  'DEPOSIT',
+  'WITHDRAWAL_HOLD',
+  'WITHDRAWAL_PAID',
+  'WITHDRAWAL_RELEASED',
 ]);
 export const gameStatus = pgEnum('game_status', ['ACTIVE', 'SUSPENDED', 'DISABLED']);
 export const roundStatus = pgEnum('round_status', ['OPEN', 'SETTLED', 'VOIDED']);
@@ -108,7 +115,12 @@ export const users = pgTable('users', {
   ageVerifiedAt: ts('age_verified_at'),
   ageVerificationProvider: text('age_verification_provider'),
   ageVerificationRef: text('age_verification_ref'),
+  /** Identity verification state (migration 0013). Only a reviewer or provider moves it to VERIFIED. */
+  kycStatus: text('kyc_status').$type<KycStatus>().notNull().default('NOT_STARTED'),
+  kycUpdatedAt: ts('kyc_updated_at'),
 });
+
+export type KycStatus = 'NOT_STARTED' | 'PENDING' | 'UNDER_REVIEW' | 'VERIFIED' | 'REJECTED';
 
 export type EmailVerificationMethod = 'CODE' | 'OPERATOR' | 'LEGACY_MIGRATION';
 /** FAILED = temporary delivery failure; REJECTED = permanently refused by the receiving side (migration 0010). */
@@ -338,7 +350,7 @@ export const bonuses = pgTable('bonuses', {
 export const bonusCampaigns = pgTable('bonus_campaigns', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   slug: text('slug').notNull().unique(),
-  kind: text('kind').$type<'WELCOME' | 'PROMO_CODE'>().notNull(),
+  kind: text('kind').$type<'WELCOME' | 'PROMO_CODE' | 'DEPOSIT'>().notNull(),
   code: text('code').unique(),
   name: text('name').notNull(),
   description: text('description').notNull(),
@@ -355,6 +367,14 @@ export const bonusCampaigns = pgTable('bonus_campaigns', {
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: ts('created_at').notNull().defaultNow(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
+  /** DEPOSIT campaigns: qualifying deposit number (NULL = any deposit). Migration 0013. */
+  depositNumber: integer('deposit_number'),
+  minDeposit: money('min_deposit').notNull().default(0),
+  /** Stakes above this do not count towards wagering. */
+  maxBet: money('max_bet'),
+  /** Percent of each stake that counts, by game id. */
+  gameContributions: jsonb('game_contributions').$type<Record<string, number>>().notNull().default({}),
+  defaultContribution: integer('default_contribution').notNull().default(100),
 });
 
 export type BonusClaimStatus = 'ACTIVE' | 'COMPLETED' | 'EXPIRED' | 'FORFEITED';
@@ -382,6 +402,8 @@ export const bonusClaims = pgTable('bonus_claims', {
   closeTxId: bigint('close_tx_id', { mode: 'number' })
     .unique()
     .references(() => ledgerTransactions.id),
+  /** The deposit a deposit bonus was granted for (migration 0013). */
+  depositId: uuid('deposit_id').unique(),
 });
 
 export const responsibleLimits = pgTable('responsible_limits', {
@@ -395,6 +417,9 @@ export const responsibleLimits = pgTable('responsible_limits', {
   pendingEffectiveAt: ts('pending_effective_at'),
   coolOffUntil: ts('cool_off_until'),
   selfExcludedUntil: ts('self_excluded_until'),
+  /** Player-set deposit limits (migration 0013). */
+  dailyDepositLimit: money('daily_deposit_limit'),
+  monthlyDepositLimit: money('monthly_deposit_limit'),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
@@ -737,4 +762,140 @@ export const rouletteTableSpins = pgTable('roulette_table_spins', {
   result: smallint('result').notNull(),
   closedAt: ts('closed_at').notNull(),
   recordedAt: ts('recorded_at').notNull().defaultNow(),
+});
+
+// ---------------------------------------------------------------------------
+// Cashier (migration 0013). Only the sandbox provider exists in this code base.
+// ---------------------------------------------------------------------------
+export const paymentMethods = pgTable('payment_methods', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  kind: text('kind').$type<'CARD' | 'BANK_TRANSFER' | 'E_WALLET'>().notNull(),
+  provider: text('provider').notNull(),
+  sandbox: boolean('sandbox').notNull(),
+  depositEnabled: boolean('deposit_enabled').notNull().default(true),
+  withdrawalEnabled: boolean('withdrawal_enabled').notNull().default(true),
+  minDeposit: money('min_deposit').notNull(),
+  maxDeposit: money('max_deposit').notNull(),
+  minWithdrawal: money('min_withdrawal').notNull(),
+  maxWithdrawal: money('max_withdrawal').notNull(),
+  depositFeeFixed: money('deposit_fee_fixed').notNull().default(0),
+  depositFeeBp: integer('deposit_fee_bp').notNull().default(0),
+  withdrawalFeeFixed: money('withdrawal_fee_fixed').notNull().default(0),
+  withdrawalFeeBp: integer('withdrawal_fee_bp').notNull().default(0),
+  processingTime: text('processing_time').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  active: boolean('active').notNull().default(true),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
+export const cashierSettings = pgTable('cashier_settings', {
+  id: integer('id').primaryKey(),
+  dailyDepositLimit: money('daily_deposit_limit').notNull(),
+  monthlyDepositLimit: money('monthly_deposit_limit').notNull(),
+  depositExpiryMinutes: integer('deposit_expiry_minutes').notNull(),
+  dailyWithdrawalLimit: money('daily_withdrawal_limit').notNull(),
+  monthlyWithdrawalLimit: money('monthly_withdrawal_limit').notNull(),
+  withdrawalCooldownMinutes: integer('withdrawal_cooldown_minutes').notNull(),
+  reviewThreshold: money('review_threshold').notNull(),
+  dualApprovalThreshold: money('dual_approval_threshold').notNull(),
+  kycRequiredForWithdrawal: boolean('kyc_required_for_withdrawal').notNull(),
+  closedLoop: boolean('closed_loop').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+  updatedBy: uuid('updated_by').references(() => users.id),
+});
+
+export type DepositStatus = 'CREATED' | 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'EXPIRED' | 'UNDER_REVIEW';
+export type WithdrawalStatus = 'REQUESTED' | 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'REJECTED' | 'CANCELLED' | 'FAILED';
+
+export const deposits = pgTable('deposits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  methodId: text('method_id')
+    .notNull()
+    .references(() => paymentMethods.id),
+  provider: text('provider').notNull(),
+  sandbox: boolean('sandbox').notNull(),
+  amount: money('amount').notNull(),
+  fee: money('fee').notNull(),
+  credited: money('credited').notNull(),
+  currency: text('currency').notNull(),
+  status: text('status').$type<DepositStatus>().notNull(),
+  providerReference: text('provider_reference').unique(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  bonusCampaignId: bigint('bonus_campaign_id', { mode: 'number' }).references(() => bonusCampaigns.id),
+  failureReason: text('failure_reason'),
+  ledgerTxId: bigint('ledger_tx_id', { mode: 'number' })
+    .unique()
+    .references(() => ledgerTransactions.id),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+  completedAt: ts('completed_at'),
+  expiresAt: ts('expires_at').notNull(),
+});
+
+export const withdrawals = pgTable('withdrawals', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  methodId: text('method_id')
+    .notNull()
+    .references(() => paymentMethods.id),
+  provider: text('provider').notNull(),
+  sandbox: boolean('sandbox').notNull(),
+  amount: money('amount').notNull(),
+  fee: money('fee').notNull(),
+  payout: money('payout').notNull(),
+  currency: text('currency').notNull(),
+  status: text('status').$type<WithdrawalStatus>().notNull(),
+  providerReference: text('provider_reference').unique(),
+  idempotencyKey: text('idempotency_key').notNull(),
+  holdTxId: bigint('hold_tx_id', { mode: 'number' })
+    .notNull()
+    .unique()
+    .references(() => ledgerTransactions.id),
+  closeTxId: bigint('close_tx_id', { mode: 'number' })
+    .unique()
+    .references(() => ledgerTransactions.id),
+  firstApprovedBy: uuid('first_approved_by').references(() => users.id),
+  firstApprovedAt: ts('first_approved_at'),
+  reviewedBy: uuid('reviewed_by').references(() => users.id),
+  reviewedAt: ts('reviewed_at'),
+  reviewNote: text('review_note'),
+  failureReason: text('failure_reason'),
+  requestedAt: ts('requested_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+  completedAt: ts('completed_at'),
+});
+
+export const paymentEvents = pgTable('payment_events', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  provider: text('provider').notNull(),
+  eventId: text('event_id'),
+  eventType: text('event_type'),
+  signatureValid: boolean('signature_valid').notNull(),
+  payload: jsonb('payload').$type<Record<string, unknown>>().notNull(),
+  result: text('result').notNull(),
+  depositId: uuid('deposit_id').references(() => deposits.id),
+  withdrawalId: uuid('withdrawal_id').references(() => withdrawals.id),
+  receivedAt: ts('received_at').notNull().defaultNow(),
+});
+
+export type NotificationKind = 'deposit' | 'withdrawal' | 'bonus' | 'vip' | 'security' | 'verification' | 'support' | 'system';
+
+export const notifications = pgTable('notifications', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  kind: text('kind').$type<NotificationKind>().notNull(),
+  title: text('title').notNull(),
+  body: text('body').notNull(),
+  link: text('link'),
+  readAt: ts('read_at'),
+  emailStatus: text('email_status').$type<'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED'>(),
+  createdAt: ts('created_at').notNull().defaultNow(),
 });

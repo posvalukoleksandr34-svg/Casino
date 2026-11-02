@@ -16,6 +16,9 @@ import { cleanupExpired, detectAnomalies } from './anomaly';
 import { syncSports } from '../sports/sync';
 import { ensureCommitments } from '../games/roulette-table';
 import { expireDueBonuses } from '../promotions/campaigns';
+import { expireDeposits } from '../payments/deposits';
+import { settleSandboxPayouts } from '../payments/sandbox-actions';
+import { sendNotificationEmails } from '../notifications/notifications';
 
 interface Job {
   name: string;
@@ -56,6 +59,11 @@ export function startScheduler(): void {
     // commitment exists before its betting closes even when nobody has opened the table yet.
     // Bonuses past their deadline return their locked credits to promotions.
     { name: 'bonus-expiry', lockId: 7_342_107, intervalMs: 5 * 60_000, run: () => expireDueBonuses() },
+    // Cashier: unpaid deposits expire; sandbox payouts settle after a minute (sandbox mode only);
+    // notification e-mails are sent after the transaction that created them has committed.
+    { name: 'deposit-expiry', lockId: 7_342_108, intervalMs: 60_000, run: () => expireDeposits() },
+    { name: 'sandbox-payouts', lockId: 7_342_109, intervalMs: 30_000, run: () => settleSandboxPayouts() },
+    { name: 'notification-mail', lockId: 7_342_110, intervalMs: 30_000, run: () => sendNotificationEmails() },
     { name: 'roulette-commitments', lockId: 7_342_106, intervalMs: 60 * 60_000, run: () => ensureCommitments(), atStart: true },
   ];
   g.__casinoScheduler = jobs.map((job) => {

@@ -12,6 +12,12 @@ export const SYSTEM_ACCOUNTS = {
   ISSUANCE: { code: 'SYSTEM:ISSUANCE', rank: 6, allowNegative: true },
   /** Claimed bonuses not yet released (migration 0012): equals the sum of active claims. */
   BONUS_LOCKED: { code: 'SYSTEM:BONUS_LOCKED', rank: 7, allowNegative: false },
+  /** Withdrawals requested and not yet paid out or released (migration 0013). */
+  PENDING_WITHDRAWALS: { code: 'SYSTEM:PENDING_WITHDRAWALS', rank: 8, allowNegative: false },
+  /** Money at the payment provider: deposits come from it, payouts go to it (may go negative). */
+  PAYMENT_CLEARING: { code: 'SYSTEM:PAYMENT_CLEARING', rank: 9, allowNegative: true },
+  /** Deposit and withdrawal fees collected. */
+  PAYMENT_FEES: { code: 'SYSTEM:PAYMENT_FEES', rank: 10, allowNegative: false },
 } as const satisfies Partial<Record<AccountType, { code: string; rank: number; allowNegative: boolean }>>;
 
 export type SystemAccountType = keyof typeof SYSTEM_ACCOUNTS;
@@ -50,7 +56,7 @@ export async function systemAccountIds(db: Executor): Promise<SystemAccountIds> 
   return ids;
 }
 
-/** Lock-order rank: player wallets (0) before system accounts (1..7). */
+/** Lock-order rank: player wallets (0) before system accounts (1..10). */
 export function accountRank(accountId: number): number {
   return cache?.rankById.get(accountId) ?? 0;
 }

@@ -14,7 +14,7 @@ import type { Executor, Tx } from '../db/client';
 import { responsibleLimits } from '../db/schema';
 import { errors } from '../errors';
 
-export const LIMIT_KEYS = ['dailyLossLimit', 'weeklyLossLimit', 'dailyWagerLimit', 'sessionLimitMinutes', 'realityCheckMinutes'] as const;
+export const LIMIT_KEYS = ['dailyLossLimit', 'weeklyLossLimit', 'dailyWagerLimit', 'sessionLimitMinutes', 'realityCheckMinutes', 'dailyDepositLimit', 'monthlyDepositLimit'] as const;
 export type LimitKey = (typeof LIMIT_KEYS)[number];
 export type LimitValues = Record<LimitKey, number | null>;
 
@@ -33,6 +33,8 @@ function currentValues(row: LimitsRow): LimitValues {
     dailyWagerLimit: row.dailyWagerLimit,
     sessionLimitMinutes: row.sessionLimitMinutes,
     realityCheckMinutes: row.realityCheckMinutes,
+    dailyDepositLimit: row.dailyDepositLimit,
+    monthlyDepositLimit: row.monthlyDepositLimit,
   };
 }
 

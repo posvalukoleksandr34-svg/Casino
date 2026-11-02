@@ -163,7 +163,7 @@ async function postSettlement(
   });
   await tx.insert(payouts).values({ roundId: round.id, userId: round.userId, amount: payout, ledgerTransactionId: posted.id });
   // A settled stake counts towards the player's active bonus (same transaction; wallet already locked).
-  await recordWagering(tx, round.userId, walletAccountId, stake);
+  await recordWagering(tx, round.userId, walletAccountId, stake, round.gameId);
   maybeFail('round.afterSettle');
   metrics.inc('casino_rounds_settled_total', { game: round.gameId });
   metrics.inc('casino_stake_minor_total', { game: round.gameId }, stake);

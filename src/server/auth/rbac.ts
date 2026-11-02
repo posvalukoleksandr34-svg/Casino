@@ -43,8 +43,20 @@ export const PERMISSIONS = [
   'system:operate',
   /** Staff security policy (e.g. require MFA for staff). */
   'security:manage',
-  /** Create, edit and end bonus campaigns and promo codes (virtual credits). */
+  /** Create, edit and end bonus campaigns and promo codes. */
   'promotions:manage',
+  /** See deposits, withdrawals and payment events. */
+  'payments:read',
+  /** Approve or reject withdrawals; resolve deposits under review. */
+  'payments:review',
+  /** Edit payment methods and cashier rules. */
+  'payments:configure',
+  /** Review identity verification and risk flags. */
+  'kyc:review',
+  /** Answer and manage support tickets. */
+  'support:manage',
+  /** Edit site content: banners, announcements, help articles. */
+  'content:manage',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -54,26 +66,30 @@ const STAFF_READ: Permission[] = ['admin:access', 'users:read', 'rounds:read', '
 
 export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<Permission>> = {
   PLAYER: new Set(),
-  SUPPORT: new Set([...STAFF_READ, 'users:pii', 'users:suspend']),
+  SUPPORT: new Set([...STAFF_READ, 'users:pii', 'users:suspend', 'support:manage']),
   RISK_MANAGER: new Set([...STAFF_READ, 'rounds:void', 'games:manage', 'sports:manage', 'risk:manage', 'system:operate']),
-  AUDITOR: new Set([...STAFF_READ, 'audit:read']),
+  AUDITOR: new Set([...STAFF_READ, 'audit:read', 'payments:read']),
+  FINANCE_MANAGER: new Set([...STAFF_READ, 'payments:read', 'payments:review']),
+  COMPLIANCE_MANAGER: new Set([...STAFF_READ, 'users:pii', 'users:suspend', 'kyc:review', 'payments:read', 'audit:read']),
   ADMIN: new Set(PERMISSIONS.filter((p) => !OWNER_ONLY.includes(p))),
   OWNER: new Set(PERMISSIONS),
 };
 
-export const ROLES: readonly UserRole[] = ['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'AUDITOR', 'ADMIN', 'OWNER'];
+export const ROLES: readonly UserRole[] = ['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'FINANCE_MANAGER', 'COMPLIANCE_MANAGER', 'AUDITOR', 'ADMIN', 'OWNER'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   OWNER: 'Owner',
   ADMIN: 'Admin',
-  SUPPORT: 'Moderator',
-  RISK_MANAGER: 'Risk manager',
+  SUPPORT: 'Support agent',
+  FINANCE_MANAGER: 'Finance manager',
+  COMPLIANCE_MANAGER: 'Compliance manager',
+  RISK_MANAGER: 'Game & risk manager',
   AUDITOR: 'Auditor',
   PLAYER: 'Player',
 };
 
 /** 0 = player, 1 = specialist staff, 2 = admin, 3 = owner. */
-export const ROLE_RANK: Record<UserRole, number> = { PLAYER: 0, SUPPORT: 1, RISK_MANAGER: 1, AUDITOR: 1, ADMIN: 2, OWNER: 3 };
+export const ROLE_RANK: Record<UserRole, number> = { PLAYER: 0, SUPPORT: 1, RISK_MANAGER: 1, FINANCE_MANAGER: 1, COMPLIANCE_MANAGER: 1, AUDITOR: 1, ADMIN: 2, OWNER: 3 };
 
 export function hasPermission(role: UserRole, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role]?.has(permission) ?? false;

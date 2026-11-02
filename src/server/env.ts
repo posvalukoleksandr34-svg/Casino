@@ -42,6 +42,17 @@ const schema = z.object({
    * self-declared date of birth, checked 18+ on the server (src/server/verification/age.ts).
    */
   AGE_VERIFICATION_PROVIDER: z.enum(['none']).default('none'),
+  /**
+   * Cashier mode. 'sandbox' runs deposits and withdrawals against the built-in
+   * simulator (no money moves); 'disabled' hides the cashier's payment flows.
+   * There is no 'live' mode: no authorised payment provider is implemented in
+   * this code base (docs/payments.md lists what an operator must supply).
+   */
+  PAYMENTS_MODE: z.enum(['sandbox', 'disabled']).optional(),
+  /** HMAC secret for the sandbox provider's signed webhooks (at least 32 characters). */
+  PAYMENTS_SANDBOX_SECRET: z.string().min(32).optional(),
+  /** Display currency of the platform (one per deployment; amounts are integer minor units). */
+  PLATFORM_CURRENCY: z.enum(['CHIP', 'EUR', 'CHF', 'USD', 'GBP']).default('CHIP'),
   BACKGROUND_JOBS: boolish.default(true),
   RECONCILE_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(24 * 60).default(15),
   /**
@@ -140,6 +151,8 @@ export function productionProblems(e: Env, raw: Record<string, string | undefine
   if (e.METRICS_TOKEN && !/^[A-Za-z0-9._~+/=-]{24,}$/.test(e.METRICS_TOKEN)) {
     problems.push('METRICS_TOKEN, when set, must be at least 24 characters of [A-Za-z0-9._~+/=-] (leave it empty to disable /api/metrics)');
   }
+  // In production the sandbox simulator needs its own secret (never a derived development default).
+  if (e.PAYMENTS_MODE === 'sandbox' && !e.PAYMENTS_SANDBOX_SECRET) problems.push('PAYMENTS_MODE=sandbox needs PAYMENTS_SANDBOX_SECRET (at least 32 characters)');
   if (e.MAIL_TRANSPORT === 'console') problems.push('MAIL_TRANSPORT=console prints reset links and is development-only; use smtp or disabled');
   if (e.MAIL_TRANSPORT === 'smtp') {
     if (!e.SMTP_URL || !/^smtps?:\/\//.test(e.SMTP_URL)) problems.push('MAIL_TRANSPORT=smtp requires SMTP_URL (smtp:// or smtps://)');

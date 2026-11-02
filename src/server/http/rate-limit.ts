@@ -53,6 +53,10 @@ export const RATE_LIMITS = {
   tableIp: { name: 'table:ip', limit: 240, windowSeconds: 60, by: 'ip' },
   /** Live feed connections (and one-off snapshots) per client address. */
   liveIp: { name: 'live:ip', limit: 60, windowSeconds: 60, by: 'ip' },
+  /** Deposits and withdrawals started per player (each one is a payment request). */
+  paymentUser: { name: 'payment:user', limit: 20, windowSeconds: 600, by: 'user' },
+  /** Provider webhook deliveries per source address (signature-checked). */
+  webhookIp: { name: 'webhook:ip', limit: 600, windowSeconds: 60, by: 'ip' },
   adminUser: { name: 'admin:user', limit: 600, windowSeconds: 60, by: 'user' },
   /** A manual reconciliation run re-reads every ledger table: a handful per staff member per 10 minutes. */
   reconcileRun: { name: 'reconcile:user', limit: 5, windowSeconds: 600, by: 'user' },

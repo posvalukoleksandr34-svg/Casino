@@ -151,45 +151,54 @@ export async function claimBonus(userId: string, by: { campaignId: number } | { 
     if (why) throw errors.conflict(why);
     if (await lockActiveClaim(tx, userId)) throw errors.conflict('Finish or forfeit your current bonus before claiming another.');
 
-    const amount = bonusAmount(campaign, await startingCredits(tx, userId));
-    const ids = await systemAccountIds(tx);
-    const posted = await postTransaction(tx, {
-      type: 'BONUS_CLAIMED',
-      idempotencyKey: `bonus-campaign:${campaign.id}:user:${userId}`,
-      userId,
-      description: `${campaign.name} (bonus credits, locked until wagered)`,
-      postings: [
-        { accountId: ids.PROMOTIONS, amount: -amount },
-        { accountId: ids.BONUS_LOCKED, amount },
-      ],
-      metadata: { campaignId: campaign.id },
-    });
-    const required = amount * campaign.wageringMultiplier;
-    const [claim] = await tx
-      .insert(bonusClaims)
-      .values({
-        userId,
-        campaignId: campaign.id,
-        amount,
-        wageringRequired: required,
-        status: 'ACTIVE',
-        expiresAt: new Date(now.getTime() + campaign.expiresAfterDays * DAY),
-        claimedAt: now,
-        grantTxId: posted.id,
-      })
-      .returning();
-    await audit(tx, {
-      actorId: userId,
-      actorType: 'USER',
-      action: 'bonus.claimed',
-      resourceType: 'bonus_claim',
-      resourceId: String(claim!.id),
-      after: { campaign: campaign.slug, amount, required },
-    });
-    // No wagering requirement: the credits are released at once.
-    if (required === 0) await close(tx, claim!, 'COMPLETED', wallet.id, now);
-    return { claimId: claim!.id, amount, wageringRequired: required, released: required === 0 };
+    return grantClaim(tx, userId, campaign, bonusAmount(campaign, await startingCredits(tx, userId)), wallet.id, now, null);
   });
+}
+
+/**
+ * Posts a claim (promotions → locked) and its row; releases at once when no
+ * wagering is required. The caller holds the player's wallet lock and has
+ * checked eligibility. Shared by welcome offers, promo codes and deposit bonuses.
+ */
+export async function grantClaim(tx: Tx, userId: string, campaign: Campaign, amount: number, walletAccountId: number, now: Date, depositId: string | null) {
+  const ids = await systemAccountIds(tx);
+  const posted = await postTransaction(tx, {
+    type: 'BONUS_CLAIMED',
+    idempotencyKey: `bonus-campaign:${campaign.id}:user:${userId}`,
+    userId,
+    description: `${campaign.name} (bonus credits, locked until wagered)`,
+    postings: [
+      { accountId: ids.PROMOTIONS, amount: -amount },
+      { accountId: ids.BONUS_LOCKED, amount },
+    ],
+    metadata: { campaignId: campaign.id, ...(depositId ? { depositId } : {}) },
+  });
+  const required = amount * campaign.wageringMultiplier;
+  const [claim] = await tx
+    .insert(bonusClaims)
+    .values({
+      userId,
+      campaignId: campaign.id,
+      amount,
+      wageringRequired: required,
+      status: 'ACTIVE',
+      expiresAt: new Date(now.getTime() + campaign.expiresAfterDays * DAY),
+      claimedAt: now,
+      grantTxId: posted.id,
+      depositId,
+    })
+    .returning();
+  await audit(tx, {
+    actorId: userId,
+    actorType: 'USER',
+    action: 'bonus.claimed',
+    resourceType: 'bonus_claim',
+    resourceId: String(claim!.id),
+    after: { campaign: campaign.slug, amount, required, ...(depositId ? { depositId } : {}) },
+  });
+  // No wagering requirement: the credits are released at once.
+  if (required === 0) await close(tx, claim!, 'COMPLETED', walletAccountId, now);
+  return { claimId: claim!.id, amount, wageringRequired: required, released: required === 0 };
 }
 
 /**
@@ -198,15 +207,29 @@ export async function claimBonus(userId: string, by: { campaignId: number } | { 
  * the bonus when the requirement is met. Expired claims are left to the
  * expiry job and never progress.
  */
-export async function recordWagering(tx: Tx, userId: string, walletAccountId: number, stake: number, now = new Date()): Promise<void> {
+export async function recordWagering(tx: Tx, userId: string, walletAccountId: number, stake: number, gameId: string, now = new Date()): Promise<void> {
   if (stake <= 0) return;
   const claim = await lockActiveClaim(tx, userId);
   if (!claim || claim.expiresAt <= now) return;
-  const progress = Math.min(claim.wageringRequired, claim.wageringProgress + stake);
+  const [campaign] = await tx.select().from(bonusCampaigns).where(eq(bonusCampaigns.id, claim.campaignId));
+  const counted = countedStake(campaign!, gameId, stake);
+  if (counted <= 0) return;
+  const progress = Math.min(claim.wageringRequired, claim.wageringProgress + counted);
   if (progress !== claim.wageringProgress) {
     await tx.update(bonusClaims).set({ wageringProgress: progress }).where(eq(bonusClaims.id, claim.id));
   }
   if (progress >= claim.wageringRequired) await close(tx, { ...claim, wageringProgress: progress }, 'COMPLETED', walletAccountId, now);
+}
+
+/**
+ * The part of a settled stake that counts towards a bonus: nothing above the
+ * campaign's maximum bet; otherwise the game's contribution percent (rounded
+ * down; games not listed count the campaign's default percent).
+ */
+export function countedStake(c: Pick<Campaign, 'maxBet' | 'gameContributions' | 'defaultContribution'>, gameId: string, stake: number): number {
+  if (c.maxBet !== null && stake > c.maxBet) return 0;
+  const pct = c.gameContributions[gameId] ?? c.defaultContribution;
+  return Math.floor((stake * Math.max(0, Math.min(100, pct))) / 100);
 }
 
 /** The player gives up their active bonus: the locked credits return to promotions. */

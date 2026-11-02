@@ -14,6 +14,8 @@ const schema = z
     dailyWagerLimit: amount.optional(),
     sessionLimitMinutes: z.int().min(5).max(1440).nullable().optional(),
     realityCheckMinutes: z.int().min(5).max(240).nullable().optional(),
+    dailyDepositLimit: amount.optional(),
+    monthlyDepositLimit: amount.optional(),
   })
   .strict();
 

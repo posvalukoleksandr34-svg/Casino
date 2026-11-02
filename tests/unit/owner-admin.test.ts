@@ -35,11 +35,29 @@ describe('role model', () => {
 
   it('only owners can grant or remove admin and owner roles; nobody without roles:manage can assign anything', () => {
     expect(assignableRoles('OWNER', 'PLAYER')).toEqual([...ROLES]);
-    expect(assignableRoles('ADMIN', 'PLAYER')).toEqual(['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'AUDITOR']);
+    expect(assignableRoles('ADMIN', 'PLAYER')).toEqual(['PLAYER', 'SUPPORT', 'RISK_MANAGER', 'FINANCE_MANAGER', 'COMPLIANCE_MANAGER', 'AUDITOR']);
     expect(assignableRoles('ADMIN', 'ADMIN')).toEqual([]);
     expect(assignableRoles('ADMIN', 'OWNER')).toEqual([]);
     expect(assignableRoles('SUPPORT', 'PLAYER')).toEqual([]);
     expect(assignableRoles('AUDITOR', 'PLAYER')).toEqual([]);
+  });
+
+  it('finance and compliance roles hold only their own duties', () => {
+    // Finance decides withdrawals but cannot change cashier rules, grant chips or review identity.
+    expect(hasPermission('FINANCE_MANAGER', 'payments:review')).toBe(true);
+    expect(hasPermission('FINANCE_MANAGER', 'payments:configure')).toBe(false);
+    expect(hasPermission('FINANCE_MANAGER', 'ledger:adjust')).toBe(false);
+    expect(hasPermission('FINANCE_MANAGER', 'kyc:review')).toBe(false);
+    // Compliance reviews identity and reads payments, but cannot decide withdrawals.
+    expect(hasPermission('COMPLIANCE_MANAGER', 'kyc:review')).toBe(true);
+    expect(hasPermission('COMPLIANCE_MANAGER', 'payments:read')).toBe(true);
+    expect(hasPermission('COMPLIANCE_MANAGER', 'payments:review')).toBe(false);
+    // Auditors read payments; support agents do not see them at all.
+    expect(hasPermission('AUDITOR', 'payments:read')).toBe(true);
+    expect(hasPermission('AUDITOR', 'payments:review')).toBe(false);
+    expect(hasPermission('SUPPORT', 'payments:read')).toBe(false);
+    // Only admins and owners configure the cashier.
+    expect(ROLES.filter((r) => hasPermission(r, 'payments:configure'))).toEqual(['ADMIN', 'OWNER']);
   });
 
   it('masks e-mail addresses for roles without users:pii', () => {
