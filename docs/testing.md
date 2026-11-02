@@ -49,7 +49,10 @@ what the tests exercise.
   cash-out/settlement scenarios incl. both lock orders), `financial-integrity`
   (account-state races, void vs payout, bonus claims, cross-user access),
   `auth-hardening` (route-level rate limits, sessions, reset-link invalidation),
-  `new-games` (Limbo, Keno, Plinko, Hi-Lo through the round service and HTTP, incl.
+  `promotions` (claims, wagering, release, forfeit, expiry, concurrency, injected ledger
+  faults), `community-admin-promotions` (XP cap, leaderboard and live-feed privacy, admin
+  campaigns), `platform-security` (auth, CSRF, roles, ownership, client amounts, code
+  guessing limits), `new-games` (Limbo, Keno, Plinko, Hi-Lo through the round service and HTTP, incl.
   verifier replay), `slots` (every slot through the round service: stops from the seed,
   exact payouts, limits, server and public verification), `lobby` (favourites, recently played), `profile-achievements`
   (profile validation and audit, idempotent server-awarded badges, server-side round
@@ -80,7 +83,8 @@ what the tests exercise.
   mailer → verify → onboarding) by `newPlayer`.
 * **Statistical** (`tests/statistical`): `roulette-dice`, `mines`, `crash`, `blackjack`,
   `new-games`, `slots` (uniform stops, RTP, free-spin rate and hit frequency against the exact values).
-* **E2E** (`tests/e2e`): `slots` (a spin on each of the five machines settles with the server's
+* **E2E** (`tests/e2e`): `platform` (welcome bonus → play → progress → cashier; free
+  top-up flow; live stream; owner creates a promo code that a player redeems), `slots` (a spin on each of the five machines settles with the server's
   balance, turbo, history), `player-journey`, `blackjack`, `security`, `resilience-access`
   (interrupted request recovery, admin API authorisation, honest states),
   `fairness-admin`, `accessibility`, `mobile`, `expansion` (lobby search and favourites,

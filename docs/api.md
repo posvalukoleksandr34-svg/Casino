@@ -79,7 +79,22 @@ treat such a session as signed out).
 |---|---|---|
 | GET | `/api/wallet` | balance, daily-bonus status |
 | GET | `/api/wallet/transactions?before&limit&type` | ledger statement (keyset pagination by entry id) |
-| POST | `/api/wallet/daily-bonus` | once per UTC day while balance below threshold |
+| POST | `/api/wallet/daily-bonus` | free daily top-up: once per UTC day while balance below threshold |
+| GET | `/api/wallet/summary` | cashier overview: available, reserved in play, locked bonus, lifetime totals (from the ledger) |
+
+## Promotions (virtual bonus credits; see docs/promotions.md)
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| GET | `/api/promotions` | — | welcome offers with eligibility, the active bonus with wagering progress, history |
+| POST | `/api/promotions/claim` | `{campaignId}` or `{code}` | once per campaign per player; one active bonus at a time; codes rate-limited 10 / 10 min |
+| POST | `/api/promotions/forfeit` | `{claimId}` | own active bonus only; locked credits return to promotions |
+
+## Live feed (public)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/live` | server-sent events (`event: snapshot` every 5 s; streams end after 5 min and reconnect); `?once=1` returns one JSON snapshot. Players online, notable wins (≥ 5×, last 24 h; names only of opted-in players), latest table spin. 60 connections/min per address; at most 500 streams per process |
 
 ## Games and rounds
 | Method | Path | Body | Notes |
@@ -132,6 +147,12 @@ A round view: `{id, gameId, status, stake, payout, maxPayout, startedAt, settled
 | PUT / DELETE | `/api/sports/favorites/:kind/:refId` | `kind` = `team` or `competition` |
 
 ## Admin (permission in brackets; all writes require `reason` and are audited)
+
+Promotions: `GET /api/admin/promotions` [admin:access] lists campaigns with claim stats;
+`POST /api/admin/promotions` [promotions:manage] `{campaign, reason}` creates one;
+`GET /api/admin/promotions/:id` [admin:access] lists its claims;
+`PATCH /api/admin/promotions/:id` [promotions:manage] `{patch, reason}` edits, pauses or ends
+it (money terms are fixed once claimed).
 | Method | Path | |
 |---|---|---|
 | GET | `/api/admin/overview` | [admin:access] KPIs, reserves, exposure, errors, alerts (the `/admin` page uses the period dashboard in `src/server/admin/overview.ts`) |

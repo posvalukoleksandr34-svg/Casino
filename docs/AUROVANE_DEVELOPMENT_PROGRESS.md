@@ -185,6 +185,57 @@ Missing, and addressed in this pass:
   - Results: unit 357 passed; integration 321 passed; e2e accessibility, mobile,
     platform, owner-admin and expansion 19 passed.
 
-## Next
+### P4. Security review, documentation, full verification
 
-- P4: security review of the new endpoints, end-to-end journeys, full verification.
+**Security review of everything added in this pass.**
+
+- **Authentication.** Every player endpoint needs a session (401) and a completed
+  profile.
+- **CSRF.** The existing same-origin rules apply to every new write:
+  - a foreign `Origin` → 403;
+  - `Sec-Fetch-Site: cross-site` → 403;
+  - JSON body only (a form cannot send it) → 400;
+  - SameSite session cookie.
+
+  Requests with no `Origin` (non-browser clients) are allowed by design, as before.
+- **Authorisation.** Campaign management needs `promotions:manage` (admin and owner);
+  other staff can view.
+- **Ownership.** Forfeit acts only on the caller's own active claim; another player's
+  claim id gives 409 and changes nothing.
+- **Trust.** Bodies are strict schemas: an `amount` sent by the client is rejected (400),
+  and every bonus amount, progress figure and balance is computed on the server.
+- **Abuse.**
+  - Promo-code attempts: 10 per 10 minutes per player (then 429).
+  - Live feed: 60 connections per minute per address and at most 500 streams per
+    process; one cached snapshot is shared.
+- **Concurrency.** Claims serialise on the player's wallet lock and the campaign row: a
+  triple concurrent claim gives exactly one. The partial unique index enforces one active
+  bonus per player.
+- **Privacy.** The leaderboard and live feed show names only for opted-in players, with
+  no ids or balances; the home page shows only aggregate counts.
+- **Injection and XSS.** All SQL is parameterised; campaign text is rendered as React
+  text.
+
+New test file `tests/integration/platform-security.test.ts` (7 tests) covers the above.
+Already covered by earlier tests, re-run here: insufficient balance, duplicate bets and
+settlements, refresh and disconnect recovery, failed rounds, simultaneous actions, admin
+adjustments and unauthorised API calls.
+
+**Documentation.** New `docs/promotions.md`; `docs/api.md` (promotions, wallet summary,
+live feed, admin promotions); `docs/testing.md`; README.
+
+**Verification on this commit.**
+- Typecheck, lint, docs/secrets/workflows checks, audio check (52 files), build and
+  `check:bundle` (176 files) passed.
+- Unit tests: 357 passed. Integration tests: 328 passed. Statistical tests: 44 passed.
+- Full e2e: recorded below.
+
+## Not built in this pass (recommendations)
+
+- **Private multiplayer rooms with invitations.** The shared automatic roulette table,
+  the live feed and online counts are the real-time multiplayer surface for now.
+  Invite-only rooms need their own design: room ownership, signed invite tokens, presence
+  and moderation.
+- **Session history list.** Sessions are listed under Settings, and sign-ins appear in
+  account activity. No separate page was added.
+- **Phone testing.** Rendering performance on real phones has not been measured.

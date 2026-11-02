@@ -30,6 +30,11 @@ ledger, and every game publishes its rules, payouts and house edge.
   [docs/onboarding.md](docs/onboarding.md).
 * **Lobby**: search, categories, favourites, recently played, "new" badges and a details
   view for each game; every card opens a playable game.
+* **Casino home, cashier and promotions**: a casino-style home page, a cashier (available,
+  in play, locked bonus, lifetime totals, a free top-up flow with no payment fields),
+  welcome offers and promo codes with wagering progress on the same ledger, an admin
+  campaign manager, cosmetic levels, an opt-in leaderboard and a live feed —
+  [docs/promotions.md](docs/promotions.md).
 * **Table feel**: an original sound profile for every game (no autoplay; mute, master,
   effects and ambience levels saved per browser); an **automatic roulette table** on a shared
   server schedule (a 15-second betting countdown; the wheel spins after every window: to the
