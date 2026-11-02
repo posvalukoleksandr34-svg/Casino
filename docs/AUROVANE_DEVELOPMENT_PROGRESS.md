@@ -267,7 +267,7 @@ with four-eyes approvals) and 14 games, unchanged.
 | S1 | `e9226f2` | Migration 0013, payments core: sandbox provider, signed webhooks (HMAC, 5-minute window, event-id de-duplication under an advisory lock), deposits credited only by verified settlement, withdrawals held at once with review and two-approver thresholds, deposit bonuses with max bet and game contributions, Finance and Compliance roles, three reconciliation checks, cashier jobs. |
 | S2 | `b3ffa4e` | Cashier UI (deposit and withdrawal flows, simulated checkout with no payment fields, status, histories), player deposit limits, Admin → Payments (queue, payouts, deposits, provider event log, rules, methods), honest copy in terms and footer. |
 | S3 | `dc2e8b5` | Migration 0014: identity verification with private uploads (content-checked, never public) and a separate reviewer, risk flags that route withdrawals to review, support tickets with attachments and internal notes, notification centre and e-mail preferences, VIP tiers with perks enforced in code. |
-| S4 | this commit | Deployment (uploads volume, payment env), e2e cashier journeys, a modal bug fix found by them, docs. |
+| S4 | `a5682ea` | Deployment (uploads volume, payment env), e2e cashier journeys, a modal bug fix found by them, docs. |
 
 ## Bug found by the journeys
 
@@ -281,11 +281,11 @@ page content covered the dialog's buttons. The modal now renders through a porta
 | Suite | Result |
 |---|---|
 | Typecheck, lint | clean |
-| Unit | 360 / 360 |
+| Unit | 360 / 360 (2 new payment-configuration tests, 1 new role test) |
 | Integration | 356 / 356 (28 new: 19 payments, 9 verification/support/notifications/VIP) |
 | Statistical | 44 / 44 |
 | Build | passes |
-| End-to-end | see the final report (3 new cashier journeys) |
+| End-to-end (production build, desktop + mobile) | 54 / 54 (3 new cashier journeys) |
 
 ## Not built (honest status)
 
