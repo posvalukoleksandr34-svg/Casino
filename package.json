@@ -55,13 +55,13 @@
     "zod": "4.6.7"
   },
   "overrides": {
-    "postcss": "8.5.29",
+    "postcss": "8.5.32",
     "minimatch": "11.0.3"
   },
   "devDependencies": {
     "@next/eslint-plugin-next": "15.5.28",
-    "@playwright/test": "1.63.0",
-    "@tailwindcss/postcss": "4.3.3",
+    "@playwright/test": "1.65.0",
+    "@tailwindcss/postcss": "4.3.5",
     "@types/node": "22.19.1",
     "@types/nodemailer": "8.0.2",
     "@types/pg": "8.23.1",
@@ -69,11 +69,11 @@
     "@types/react-dom": "19.2.7",
     "eslint": "9.39.5",
     "eslint-plugin-react-hooks": "7.1.1",
-    "postcss": "8.5.29",
-    "tailwindcss": "4.3.3",
-    "tsx": "4.23.14",
+    "postcss": "8.5.32",
+    "tailwindcss": "4.3.5",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.71.1",
-    "vitest": "5.0.5"
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.1.0"
   }
 }
